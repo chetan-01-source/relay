@@ -4,7 +4,14 @@
 > Every command here is the one this repo actually uses. If a command in this doc fails on a clean checkout, that's a bug in the doc — fix it.
 
 **Audience:** anyone making a code change to `relay`.
-**Golden rule:** `main` is protected. You never push to `main` directly. Every change lands through a Pull Request that is green in CI, then squash-merged.
+**Golden rule:** `dev` is the default/integration branch; `main` is the protected release branch. You never push to `dev` or `main` directly. Feature work lands via PR into **`dev`** (green CI required); `dev` is promoted to `main` via a separate PR (green CI required). Both merges are squash-merges. `dev` is long-lived and is **never deleted**.
+
+**Branch model:**
+
+```
+feature/* ──PR──▶ dev ──PR──▶ main
+              (CI + security)   (CI + security)
+```
 
 ---
 
@@ -99,11 +106,13 @@ docker compose ps             # postgres, valkey, logto, minio → healthy
 
 ## 2. The daily loop
 
-### 2.1 Always start from an up-to-date `main`
+### 2.1 Always start from an up-to-date `dev`
+
+`dev` is the default branch — feature branches start from it and PR back into it.
 
 ```bash
-git checkout main
-git pull origin main
+git checkout dev
+git pull origin dev
 ```
 
 ### 2.2 Create a short-lived branch
@@ -260,20 +269,22 @@ Save as `~/.gitmessage` and run `git config commit.template ~/.gitmessage`:
 git push -u origin feat/routing-failover
 ```
 
-`-u` sets upstream so later pushes are just `git push`. You **cannot** push to `main` — it's protected.
+`-u` sets upstream so later pushes are just `git push`. You **cannot** push to `dev` or `main` — both are protected.
 
-### 5.2 Open a Pull Request
+### 5.2 Open a Pull Request (base = `dev`)
+
+Feature PRs target **`dev`**, not `main`.
 
 **Via GitHub CLI:**
 ```bash
-gh pr create --base main --head feat/routing-failover \
+gh pr create --base dev --head feat/routing-failover \
   --title "feat(routing): add weighted target selection with failover" \
   --body "..."      # the PR template auto-fills; complete the DoD checklist
 ```
 
-**Via GitHub web UI:** GitHub shows a "Compare & pull request" banner after you push. Click it → base = `main`, compare = your branch → fill the template → **Create pull request**.
+**Via GitHub web UI:** GitHub shows a "Compare & pull request" banner after you push. Click it → base = `dev`, compare = your branch → fill the template → **Create pull request**.
 
-> The **PR title** should itself be a valid Conventional Commit — because on squash-merge it becomes the commit subject on `main`.
+> The **PR title** should itself be a valid Conventional Commit — because on squash-merge it becomes the commit subject on `dev` (and later on `main`).
 
 ### 5.3 Wait for CI to go green
 
@@ -293,38 +304,55 @@ This repo allows **only squash merges**. Merge commits and rebase-merges are dis
 gh pr merge <number> --squash --delete-branch
 ```
 
-**What squash does:** every commit on your branch (including "wip", "fix typo", "address review") is collapsed into **one** commit on `main`. `main` stays linear and each commit maps to one PR. This is why messy in-progress commits on your branch are fine — only the final squashed message matters.
+**What squash does:** every commit on your branch (including "wip", "fix typo", "address review") is collapsed into **one** commit on `dev`. `dev` stays linear and each commit maps to one PR. This is why messy in-progress commits on your branch are fine — only the final squashed message matters.
 
-### 5.5 Delete the branch
+### 5.5 Delete the **feature** branch (only feature branches)
 
-- **Web UI:** after merge, click **Delete branch**. (This repo also auto-deletes merged branches.)
-- **CLI:** `--delete-branch` (above) removes the remote branch.
+- **Web UI:** after merge, click **Delete branch**. (The repo auto-deletes merged **feature** branches; `dev` and `main` are protected and are **never** auto-deleted.)
+- **CLI:** `--delete-branch` (above) removes the remote feature branch.
 
 Then clean up locally:
 
 ```bash
-git checkout main
-git pull origin main
-git branch -d feat/routing-failover        # delete local branch
+git checkout dev
+git pull origin dev
+git branch -d feat/routing-failover        # delete local feature branch
 git remote prune origin                    # drop stale remote-tracking refs
 ```
 
-> **Why prune?** When the remote branch is deleted at merge, your local `origin/<branch>` reference lingers until pruned. Pruning keeps `git branch -a` honest and stops old commits hanging around.
+> **Never delete `dev` or `main`.** They are long-lived. Protection keeps them from being auto-deleted even when a `dev`→`main` PR merges.
 
-### 5.6 The full lifecycle at a glance
+### 5.6 Promoting `dev` → `main` (release)
+
+When `dev` is stable and you want to cut a release to `main`:
+
+```bash
+gh pr create --base main --head dev \
+  --title "chore(release): promote dev to main" --body "..."
+```
+
+- Base = `main`, compare = `dev`. CI + security re-run against the merge.
+- **Squash and merge** (or a merge commit if you prefer to preserve dev history — repo is squash-only by default).
+- **Do NOT delete `dev`** afterward. It stays and keeps receiving the next features. (Protection prevents accidental auto-deletion.)
+- After promotion, keep `dev` in sync if `main` got hotfixes: `git checkout dev && git merge origin/main` (rare).
+
+### 5.7 The full lifecycle at a glance
 
 ```
-main (protected)
-  │  git checkout -b feat/x
-  ▼
-feat/x ──edit──▶ verify (§3) ──▶ commit (§4) ──▶ push ──▶ open PR
-                                                            │
-                                                   CI runs (§6)
-                                                            │ green
-                                                            ▼
-                                                   Squash & merge  ──▶ 1 commit on main
-                                                            │
-                                                   branch deleted (remote + local + prune)
+dev (default, protected) ──────────────────┐
+  │  git checkout -b feat/x                 │
+  ▼                                         │
+feat/x ─edit→ verify(§3) → commit(§4) → push → PR (base=dev)
+                                              │
+                                     CI + security (§6) green
+                                              ▼
+                                     Squash & merge → 1 commit on dev
+                                              │
+                                     feature branch deleted (prune)
+                                              │
+        ── when releasing ──▶ PR dev→main → CI+security green → squash-merge
+                                              │
+                                     main updated · dev KEPT (never deleted)
 ```
 
 ---
@@ -335,8 +363,8 @@ Every PR triggers these GitHub Actions workflows. Required checks must be green 
 
 | Workflow | Trigger | Jobs | Maps to local command |
 |---|---|---|---|
-| `ci.yml` | PR + push to `main` | lint + typecheck + dependency-cruiser + commitlint; build; test (with testcontainers); RLS gate | `pnpm turbo lint typecheck build test` + `pnpm run dep-check` |
-| `security.yml` | PR + push + weekly cron | CodeQL, osv-scanner, gitleaks, Trivy (filesystem) | (scanners — nothing to run locally, but keep deps clean & no secrets) |
+| `ci.yml` | PR into `dev`/`main` + push to `dev`/`main` | lint + typecheck + dependency-cruiser + commitlint; build; test (with testcontainers); RLS gate | `pnpm turbo lint typecheck build test` + `pnpm run dep-check` |
+| `security.yml` | PR into `dev`/`main` + push + weekly cron | CodeQL, osv-scanner, gitleaks, Trivy (filesystem) | (scanners — nothing to run locally, but keep deps clean & no secrets) |
 
 **Why a PR goes red — and the fix:**
 
@@ -355,14 +383,14 @@ Every PR triggers these GitHub Actions workflows. Required checks must be green 
 
 ## 7. Keeping your branch fresh
 
-Branch protection requires your branch to be up to date with `main` before merge (strict mode). If `main` moved while your PR was open:
+Branch protection requires your branch to be up to date with `dev` before merge (strict mode). If `dev` moved while your PR was open:
 
 ```bash
-git checkout main && git pull origin main
+git checkout dev && git pull origin dev
 git checkout feat/routing-failover
-git merge main            # or: git rebase main  (rebase keeps history linear)
+git merge dev            # or: git rebase dev  (rebase keeps history linear)
 # resolve conflicts if any, then:
-pnpm install              # in case the lockfile changed on main
+pnpm install              # in case the lockfile changed on dev
 pnpm turbo lint typecheck build test
 git push
 ```
@@ -380,7 +408,7 @@ The GitHub UI also offers an **"Update branch"** button that does the merge for 
 | Integration test: "Could not find a valid Docker environment" | Docker not running / `DOCKER_HOST` unset (colima/OrbStack) | Start Docker; for colima `export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` |
 | `vitest` fails "No test files found" | Package has no tests yet | Expected during scaffolding — scripts use `--passWithNoTests` |
 | Commit rejected by hook | Message not Conventional Commit | Reword per §4 |
-| Push to `main` rejected | `main` is protected | Push a branch and open a PR |
+| Push to `dev`/`main` rejected | both are protected | Push a feature branch and open a PR into `dev` |
 | Merge button disabled | Required checks not green / branch behind | Fix CI (§6); update branch (§7) |
 | Prettier check fails in CI | Files not formatted | `pnpm exec prettier --write .` and commit |
 | Local `origin/<branch>` still listed after merge | Stale remote-tracking ref | `git remote prune origin` |
@@ -404,21 +432,24 @@ pnpm turbo lint typecheck build test
 pnpm run dep-check
 pnpm exec prettier --check .       # (--write to fix)
 
-# --- branch & commit ---
-git checkout main && git pull origin main
+# --- branch & commit (start from dev) ---
+git checkout dev && git pull origin dev
 git checkout -b feat/my-thing
 git add -p                         # stage intentionally, review each hunk
 git commit -m "feat(scope): imperative subject"
 
-# --- push & PR ---
+# --- push & PR (base = dev) ---
 git push -u origin feat/my-thing
-gh pr create --base main --title "feat(scope): ..." --body "..."
+gh pr create --base dev --title "feat(scope): ..." --body "..."
 gh pr merge <n> --squash --delete-branch
 
 # --- clean up after merge ---
-git checkout main && git pull origin main
+git checkout dev && git pull origin dev
 git branch -d feat/my-thing
 git remote prune origin
+
+# --- release: promote dev -> main (do NOT delete dev) ---
+gh pr create --base main --head dev --title "chore(release): promote dev to main"
 ```
 
 ---
