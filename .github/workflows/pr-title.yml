@@ -1,0 +1,46 @@
+name: pr-title
+
+# Squash-merge uses the PR title as the commit header, which is what lands on
+# dev/main. Lint it against Conventional Commits so no non-conventional title
+# (e.g. an auto-filled branch name like "Fix/security workflow") gets merged.
+# Runs on the PR, so it never blocks pushes and never re-lints landed history.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+    branches: [dev, main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Keep in sync with commitlint.config.cjs (@commitlint/config-conventional).
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" must start lowercase (Conventional Commits).
+            Example: fix(ci): correct security workflow action versions
