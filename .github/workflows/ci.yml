@@ -34,8 +34,11 @@ jobs:
       - run: pnpm turbo lint typecheck
       - run: pnpm exec prettier --check .
       - run: pnpm run dep-check
-      - name: commitlint (PR commits)
-        if: github.event_name == 'pull_request'
+      - name: commitlint (feature -> dev PRs only)
+        # Only lint incoming commits on feature->dev PRs. dev->main promotions
+        # re-use already-vetted commits (and the squash title is what lands),
+        # so linting that range would fail on historical auto-generated titles.
+        if: github.event_name == 'pull_request' && github.base_ref == 'dev'
         run: >
           pnpm exec commitlint
           --from ${{ github.event.pull_request.base.sha }}
