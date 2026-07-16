@@ -21,6 +21,10 @@ coverage/
 # logs
 *.log
 
+# internal planning docs — confidential, never pushed.
+# guidelines under llm/ ARE tracked; only docs/ is ignored.
+llm/docs/
+
 # os / editor
 .DS_Store
 .idea/
