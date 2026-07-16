@@ -2,10 +2,10 @@
 
 One compose file, two profiles.
 
-| Profile | Services | Used by |
-|---|---|---|
-| `core` | postgres (pgvector), valkey, logto, minio | `make up`, CI integration jobs, self-host base |
-| `dev`  | core + mockllm | `make dev` inner loop |
+| Profile | Services                                  | Used by                                        |
+| ------- | ----------------------------------------- | ---------------------------------------------- |
+| `core`  | postgres (pgvector), valkey, logto, minio | `make up`, CI integration jobs, self-host base |
+| `dev`   | core + mockllm                            | `make dev` inner loop                          |
 
 ## Usage
 
@@ -18,13 +18,13 @@ docker compose --profile core down
 
 ## Ports
 
-| Service | Port | Notes |
-|---|---|---|
-| postgres | 5432 | db `relay` (+ `logto`); roles `relay_app`, `relay_admin` |
-| valkey | 6379 | cache/limits; no persistence (cache semantics) |
-| logto | 3001 / 3002 | OIDC endpoint / admin console |
-| minio | 9000 / 9001 | S3 API / web console |
-| mockllm | 8080 | dev profile only |
+| Service  | Port        | Notes                                                    |
+| -------- | ----------- | -------------------------------------------------------- |
+| postgres | 5432        | db `relay` (+ `logto`); roles `relay_app`, `relay_admin` |
+| valkey   | 6379        | cache/limits; no persistence (cache semantics)           |
+| logto    | 3001 / 3002 | OIDC endpoint / admin console                            |
+| minio    | 9000 / 9001 | S3 API / web console                                     |
+| mockllm  | 8080        | dev profile only                                         |
 
 ## Notes
 

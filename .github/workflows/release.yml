@@ -1,0 +1,25 @@
+name: release
+
+# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 15.
+# Real job: tests -> semantic-release changelog -> buildx multi-arch (amd64+arm64) ->
+# GHCR push -> Syft SBOM -> Cosign keyless sign (OIDC) -> Trivy image gate -> GitHub Release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # GitHub Release + changelog commit
+  packages: write # GHCR push
+  id-token: write # Cosign keyless signing (OIDC) — no stored keys
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: guard — release pipeline not built yet
+        run: |
+          echo "::error::release pipeline lands sprint Day 15 (PRD §9). Tagging before then is intentionally blocked."
+          exit 1

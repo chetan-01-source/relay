@@ -1,0 +1,22 @@
+name: conformance
+
+# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 14.
+# Real job: compose core up -> official OpenAI Py/TS SDKs + LangChain + Vercel AI SDK
+# vs gateway->mockllm -> isolation suite (G4).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *' # nightly 04:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    if: github.event_name == 'workflow_dispatch' # cron placeholder; enable when the suite exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "conformance suite lands sprint Day 14 (PRD §11)"
+          exit 0
