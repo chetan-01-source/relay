@@ -4,7 +4,9 @@
 > Every command here is the one this repo actually uses. If a command in this doc fails on a clean checkout, that's a bug in the doc — fix it.
 
 **Audience:** anyone making a code change to `relay`.
-**Golden rule:** `dev` is the default/integration branch; `main` is the protected release branch. You never push to `dev` or `main` directly. Feature work lands via PR into **`dev`** (green CI required); `dev` is promoted to `main` via a separate PR (green CI required). Both merges are squash-merges. `dev` is long-lived and is **never deleted**.
+**Golden rule:** `dev` is the default/integration branch; `main` is the protected release branch. You never push to `dev` or `main` directly. Feature work lands via PR into **`dev`** (green CI required) and is **squash-merged**. `dev` is promoted to `main` by **fast-forward only** (never squash) — see §5.6. `dev` is long-lived and is **never deleted**.
+
+> **Never squash a `dev`→`main` promotion.** Squash creates a brand-new commit with no shared ancestry, so `main` and `dev` permanently diverge and the gap grows every release. Feature→`dev` squashing is fine (the feature branch is deleted after); `dev`→`main` must fast-forward so the branches stay aligned.
 
 **Branch model:**
 
@@ -290,9 +292,9 @@ gh pr create --base dev --head feat/routing-failover \
 
 Your PR shows required checks. All must pass before the merge button unlocks (see §6). Fix anything red, push again — the same branch/PR updates automatically.
 
-### 5.4 Merge — squash only
+### 5.4 Merge feature → `dev` — squash only
 
-This repo allows **only squash merges**. Merge commits and rebase-merges are disabled.
+Feature PRs into `dev` are **squash-merged** (merge commits and rebase-merges are disabled for these PRs).
 
 **Via web UI:**
 1. Click **Squash and merge** (the only enabled option).
@@ -305,6 +307,8 @@ gh pr merge <number> --squash --delete-branch
 ```
 
 **What squash does:** every commit on your branch (including "wip", "fix typo", "address review") is collapsed into **one** commit on `dev`. `dev` stays linear and each commit maps to one PR. This is why messy in-progress commits on your branch are fine — only the final squashed message matters.
+
+> Squash is correct **only** for feature→`dev`, where the feature branch is deleted right after so lost ancestry doesn't matter. It is **never** used for `dev`→`main` (§5.6) — both branches survive there, so a squash would break shared ancestry and diverge them forever.
 
 ### 5.5 Delete the **feature** branch (only feature branches)
 
@@ -322,19 +326,28 @@ git remote prune origin                    # drop stale remote-tracking refs
 
 > **Never delete `dev` or `main`.** They are long-lived. Protection keeps them from being auto-deleted even when a `dev`→`main` PR merges.
 
-### 5.6 Promoting `dev` → `main` (release)
+### 5.6 Promoting `dev` → `main` (release) — fast-forward only
 
-When `dev` is stable and you want to cut a release to `main`:
+**`main` is a pointer to the last released commit on `dev`'s history.** Promotion moves that pointer forward — it never creates a new commit on `main`. This keeps `main` a strict ancestor of `dev`: **0 ahead / 0 behind**, forever.
+
+> ⚠️ **Do NOT squash and do NOT create a merge commit for `dev`→`main`.** Both mint a fresh commit that only exists on `main`, breaking shared ancestry. `main` goes "ahead" of `dev`, `dev` goes "ahead" of `main`, and the divergence **grows every release**. This already happened once (releases #15/#18/#19) and had to be repaired by resetting `main` back onto `dev`. Fast-forward is the only safe promotion.
+
+**Promote (maintainer only):**
 
 ```bash
-gh pr create --base main --head dev \
-  --title "chore(release): promote dev to main" --body "..."
+git checkout dev && git pull origin dev        # dev is green and stable
+git checkout main && git pull origin main
+git merge --ff-only dev                         # fast-forward; NO new commit
+git tag -a vX.Y.Z -m "release vX.Y.Z"           # releases are marked by tags
+git push origin main --tags
 ```
 
-- Base = `main`, compare = `dev`. CI + security re-run against the merge.
-- **Squash and merge** (or a merge commit if you prefer to preserve dev history — repo is squash-only by default).
-- **Do NOT delete `dev`** afterward. It stays and keeps receiving the next features. (Protection prevents accidental auto-deletion.)
-- After promotion, keep `dev` in sync if `main` got hotfixes: `git checkout dev && git merge origin/main` (rare).
+- `--ff-only` **fails loudly** if `main` ever diverged from `dev` — that failure is your early warning that something was committed to `main` directly or a squash/merge slipped in. Do not work around it; find the divergent commit and reconcile.
+- **Releases are git tags** (`vX.Y.Z`), not `chore(release)` commits. Tag on `main` after the fast-forward.
+- **Do NOT delete `dev`** afterward. It stays and keeps receiving the next features.
+- `main` never gets hotfixes directly (it's fast-forward-only), so there is no back-merge to do. If an emergency ever forces a commit onto `main`, immediately back-merge it into `dev` with a **real merge** (`git merge origin/main` — never squash) to restore alignment.
+
+> **Branch-protection note:** `main` requires PRs and forbids force-push, so the fast-forward is done by a maintainer with bypass, or via a `dev`→`main` PR merged with **"Rebase and merge"** (linear, no squash). Never pick "Squash and merge" on a `dev`→`main` PR.
 
 ### 5.7 The full lifecycle at a glance
 
@@ -350,9 +363,9 @@ feat/x ─edit→ verify(§3) → commit(§4) → push → PR (base=dev)
                                               │
                                      feature branch deleted (prune)
                                               │
-        ── when releasing ──▶ PR dev→main → CI+security green → squash-merge
+        ── when releasing ──▶ dev→main FAST-FORWARD (never squash) + tag vX.Y.Z
                                               │
-                                     main updated · dev KEPT (never deleted)
+                                     main == dev · dev KEPT (never deleted)
 ```
 
 ---
@@ -448,8 +461,11 @@ git checkout dev && git pull origin dev
 git branch -d feat/my-thing
 git remote prune origin
 
-# --- release: promote dev -> main (do NOT delete dev) ---
-gh pr create --base main --head dev --title "chore(release): promote dev to main"
+# --- release: promote dev -> main by FAST-FORWARD (never squash; do NOT delete dev) ---
+git checkout main && git pull origin main
+git merge --ff-only dev            # no new commit; main stays an ancestor of dev
+git tag -a vX.Y.Z -m "release vX.Y.Z"
+git push origin main --tags
 ```
 
 ---
