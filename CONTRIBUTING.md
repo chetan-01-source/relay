@@ -2,14 +2,19 @@
 
 ## Workflow
 
-Trunk-based development. `main` is protected — no direct pushes.
+Two protected branches: **`dev`** (default, integration) and **`main`** (release). No direct pushes to either.
 
-1. Branch off `main`: `git checkout -b <type>/<short-desc>` (e.g. `feat/routing-failover`).
+```
+feature/* ──PR──▶ dev ──PR──▶ main
+```
+
+1. Branch off `dev`: `git checkout -b <type>/<short-desc>` (e.g. `feat/routing-failover`).
 2. Make the change with tests + docs (see Definition of Done below).
-3. Push and open a PR. CI must be green.
-4. Squash-merge. The squash title becomes the release changelog entry, so it **must** be a
+3. Push and open a PR **into `dev`**. CI + security must be green.
+4. Squash-merge. The squash title becomes the changelog entry, so it **must** be a
    [Conventional Commit](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `ci:`.
-5. Head branch auto-deletes on merge.
+5. The **feature** branch auto-deletes on merge. `dev` and `main` are never deleted.
+6. **Release:** promote `dev` → `main` via a separate PR (CI + security re-run). `dev` is **not** deleted after promotion.
 
 ## Definition of Done (a PR is done when it has)
 

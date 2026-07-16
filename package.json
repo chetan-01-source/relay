@@ -38,7 +38,7 @@
       "esbuild"
     ],
     "overrides": {
-      "esbuild": ">=0.25.0",
+      "esbuild": ">=0.28.1",
       "vite": ">=6.4.3",
       "postcss": ">=8.5.10"
     }
