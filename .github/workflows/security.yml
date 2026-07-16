@@ -2,8 +2,9 @@ name: security
 
 on:
   pull_request:
+    branches: [dev, main]
   push:
-    branches: [main]
+    branches: [dev, main]
   schedule:
     - cron: '0 3 * * 1' # weekly Monday 03:00 UTC — catches newly published CVEs
 
