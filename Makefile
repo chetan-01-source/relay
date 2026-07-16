@@ -29,10 +29,10 @@ down: ## stop everything and drop volumes
 	$(COMPOSE) --profile dev --profile core down
 
 migrate: ## apply SQL migrations (advisory-locked)          [sprint Day 2]
-	pnpm --filter @relay/server exec relay migrate
+	pnpm --filter @relay/server exec tsx src/cli/index.ts migrate
 
 seed-auth: ## idempotent Logto bootstrap                     [sprint Day 5]
-	pnpm --filter @relay/server exec relay seed
+	pnpm --filter @relay/server exec tsx src/cli/index.ts seed
 
 seed-demo: ## demo org+app+key+route -> prints working curl  [sprint Day 5]
 	@echo "[make] seed-demo stub — lands sprint Day 5"
