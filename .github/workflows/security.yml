@@ -27,11 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: google/osv-scanner-action/osv-scanner-action@v2.2.4
+      - uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
         with:
+          # osv-scanner exits non-zero on any vulnerability by default.
           scan-args: |-
             --lockfile=pnpm-lock.yaml
-            --fail-on-vuln
 
   gitleaks:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .
