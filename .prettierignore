@@ -1,0 +1,5 @@
+**/dist/**
+**/.next/**
+**/coverage/**
+pnpm-lock.yaml
+llm/

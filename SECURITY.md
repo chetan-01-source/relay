@@ -13,10 +13,10 @@ Please include: affected version/commit, reproduction steps, impact, and any PoC
 
 ## Response targets
 
-| Stage | Target |
-|---|---|
-| Acknowledgement | within 3 business days |
-| Triage + severity | within 7 days |
+| Stage                  | Target                                                |
+| ---------------------- | ----------------------------------------------------- |
+| Acknowledgement        | within 3 business days                                |
+| Triage + severity      | within 7 days                                         |
 | Fix or mitigation plan | within 90 days (sooner for actively exploited issues) |
 
 We will credit reporters unless anonymity is requested.
