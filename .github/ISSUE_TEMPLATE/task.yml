@@ -1,6 +1,6 @@
 name: Task
 description: A unit of work sized for a single PR
-labels: ["task"]
+labels: ['task']
 body:
   - type: textarea
     id: goal
@@ -13,7 +13,7 @@ body:
     id: track
     attributes:
       label: Track
-      options: ["BE-1", "BE-2", "FE-1", "ALL"]
+      options: ['BE-1', 'BE-2', 'FE-1', 'ALL']
     validations:
       required: true
   - type: textarea

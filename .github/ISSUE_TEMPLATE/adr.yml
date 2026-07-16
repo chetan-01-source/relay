@@ -1,12 +1,12 @@
 name: Architecture Decision Record
 description: Propose or record a design decision
-labels: ["adr"]
+labels: ['adr']
 body:
   - type: input
     id: number
     attributes:
       label: ADR number
-      placeholder: "0001"
+      placeholder: '0001'
     validations:
       required: true
   - type: textarea
@@ -31,6 +31,6 @@ body:
     id: status
     attributes:
       label: Status
-      options: ["proposed", "accepted", "superseded"]
+      options: ['proposed', 'accepted', 'superseded']
     validations:
       required: true

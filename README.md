@@ -24,15 +24,15 @@ Target: clean laptop → first proxied call in < 15 minutes.
 
 ## Stack
 
-| Concern | Tool |
-|---|---|
-| Runtime | Node.js 22 LTS + TypeScript 5 (strict) |
-| HTTP | Fastify 5 |
-| Datastore | PostgreSQL 16 + pgvector (RLS forced) |
-| Cache / limits | Valkey 8 |
-| Auth | Logto (OIDC + Orgs + RBAC) |
-| Console | Next.js 14 |
-| Monorepo | pnpm workspaces + Turborepo |
+| Concern        | Tool                                   |
+| -------------- | -------------------------------------- |
+| Runtime        | Node.js 22 LTS + TypeScript 5 (strict) |
+| HTTP           | Fastify 5                              |
+| Datastore      | PostgreSQL 16 + pgvector (RLS forced)  |
+| Cache / limits | Valkey 8                               |
+| Auth           | Logto (OIDC + Orgs + RBAC)             |
+| Console        | Next.js 14                             |
+| Monorepo       | pnpm workspaces + Turborepo            |
 
 ## Development
 
