@@ -1,0 +1,19 @@
+name: bench
+
+# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 14.
+# Real job: k6 vs mockllm on a fixed runner -> overhead histogram ->
+# FAILS if p99 > 25 ms @ 500 RPS / 2 vCPU (G3) -> commit results to bench/results/.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "bench rig lands sprint Day 14 (PRD §5, G3 gate)"
+          exit 0

@@ -14,7 +14,7 @@ Trunk-based development. `main` is protected — no direct pushes.
 ## Definition of Done (a PR is done when it has)
 
 - [ ] Code + tests (unit; integration if it touches Postgres/Valkey)
-- [ ] Docs updated if user-facing (`/docs`); ADR added if a design decision was touched (`docs/adr/`)
+- [ ] Docs updated if user-facing (`/docs`)
 - [ ] Telemetry: any new failure mode emits a metric/log
 - [ ] Audit events for state mutations
 - [ ] Isolation impact considered: a new tenant table ships its RLS policies + an isolation test

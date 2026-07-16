@@ -165,7 +165,7 @@ If that whole line exits 0, CI will almost certainly be green.
 
 - [ ] **Secrets:** no API keys, `.env` values, `sk-…` / `rk_…` strings, tokens in the diff. (Push protection + gitleaks will also block these — but don't rely on the net.)
 - [ ] **Scope:** the diff only contains what the PR is about. No stray debug logs, no unrelated reformatting.
-- [ ] **Docs:** if you changed user-facing behavior, update `/docs`. If you touched a design decision, add/update an ADR in `docs/adr/`.
+- [ ] **Docs:** if you changed user-facing behavior, update `/docs`.
 - [ ] **New tenant table?** It must ship its RLS policies in the same migration + an isolation test. (`scripts/check-rls.sh` enforces the policy part in CI.)
 - [ ] **New failure mode?** It emits a metric/log. **State mutation?** It emits an audit event.
 - [ ] **Public API change?** Attach the OpenAPI diff in the PR description.
