@@ -1,0 +1,23 @@
+name: Task
+description: A unit of work sized for a single PR
+labels: ["task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What "done" looks like
+    validations:
+      required: true
+  - type: dropdown
+    id: track
+    attributes:
+      label: Track
+      options: ["BE-1", "BE-2", "FE-1", "ALL"]
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist that must be true to close
