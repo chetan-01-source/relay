@@ -1,0 +1,12 @@
+# CODEOWNERS — routes PR reviews to owners.
+# Solo project: everything owned by @chetan-01-source.
+# When the team grows, split these lines by track (see Week-0 guide §3.5).
+
+*                                                        @chetan-01-source
+
+# Security spine — RLS migrations + the RLS gate get extra scrutiny.
+/db/migrations/**                                        @chetan-01-source
+/scripts/check-rls.sh                                    @chetan-01-source
+
+# Pipeline changes.
+/.github/workflows/**                                    @chetan-01-source
