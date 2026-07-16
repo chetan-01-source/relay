@@ -13,7 +13,7 @@ jobs:
   bench:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: |
           echo "bench rig lands sprint Day 14 (PRD §5, G3 gate)"
           exit 0
