@@ -8,7 +8,12 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { RelayError } from '@relay/shared';
 import { gatewayOverhead, requestsTotal } from '../../../platform/metrics.js';
-import { type CanonicalRequest, type ProxyService, type Target } from '../types/proxy.types.js';
+import {
+  type CanonicalRequest,
+  type ProxyService,
+  type RequestTiming,
+  type Target,
+} from '../types/proxy.types.js';
 
 export interface ProxyControllerDeps {
   service: ProxyService;
@@ -44,14 +49,16 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
       reply.header('x-relay-provider', target.provider);
       reply.header('x-relay-cache', 'none');
 
+      // accumulates time spent BLOCKED on the provider; subtracted so overhead = gateway-only
+      const timing: RequestTiming = { upstreamMs: 0 };
       const labels = { org: '-', route: parsed.model, provider: target.provider };
       try {
         if (parsed.stream) {
-          await streamOut(reply, deps.service, parsed, target, traceId, start);
+          await streamOut(reply, deps.service, parsed, target, traceId, start, timing);
         } else {
-          const json = await deps.service.complete(parsed, target);
-          gatewayOverhead.observe(elapsed(start));
-          await reply.send(json);
+          const json = await deps.service.complete(parsed, target, timing);
+          await reply.send(json); // observe AFTER the response is fully written (gateway-out counts)
+          observeOverhead(start, timing);
         }
         requestsTotal.inc({ ...labels, status: 'ok' });
       } catch (err) {
@@ -75,8 +82,9 @@ async function streamOut(
   target: Target,
   traceId: string,
   start: bigint,
+  timing: RequestTiming,
 ): Promise<void> {
-  const iterator = service.stream(req, target)[Symbol.asyncIterator]();
+  const iterator = service.stream(req, target, timing)[Symbol.asyncIterator]();
   let step = await iterator.next(); // upstream errors surface here, pre-header
 
   reply.raw.writeHead(200, {
@@ -86,7 +94,6 @@ async function streamOut(
     'x-relay-trace-id': traceId,
     'x-relay-provider': target.provider,
   });
-  gatewayOverhead.observe(elapsed(start)); // time-to-first-byte
 
   const id = `chatcmpl-${traceId}`;
   const created = Math.floor(Date.now() / 1000);
@@ -115,6 +122,13 @@ async function streamOut(
   });
   reply.raw.write('data: [DONE]\n\n');
   reply.raw.end();
+  observeOverhead(start, timing); // whole stream sent — gateway time excludes the per-chunk provider waits
+}
+
+/** Record gateway-only overhead: full in-gateway wall-clock minus time blocked on the provider. */
+function observeOverhead(start: bigint, timing: RequestTiming): void {
+  const overheadSeconds = elapsed(start) - timing.upstreamMs / 1000;
+  gatewayOverhead.observe(Math.max(0, overheadSeconds)); // guard tiny negative from clock granularity
 }
 
 function parseBody(raw: unknown): CanonicalRequest {

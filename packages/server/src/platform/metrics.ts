@@ -10,8 +10,8 @@ collectDefaultMetrics({ register: registry });
 
 export const gatewayOverhead = new Histogram({
   name: 'relay_gateway_overhead_seconds',
-  help: 'Gateway-added latency (excludes upstream time). G3 gate reads this.',
-  buckets: [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1],
+  help: 'Gateway-only latency: full in-gateway time (request in + response out) minus time awaiting the external provider. The G3 gate reads this.',
+  buckets: [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1],
   registers: [registry],
 });
 
