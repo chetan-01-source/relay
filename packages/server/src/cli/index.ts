@@ -111,11 +111,23 @@ program
       console.error('[relay] seed-demo needs RELAY_(MIGRATION_)DATABASE_URL and RELAY_MASTER_KEY');
       process.exit(1);
     }
-    const { apiKey, curl } = await seedDemo(url, masterKey, upstream);
-    console.error('[relay] demo tenant seeded. Virtual key (shown once — store it now):');
-    console.error(`\n  ${apiKey}\n`);
-    console.error('Try it (start the stack first: make dev):\n');
-    console.error(`${curl}\n`);
+    const { apiKey, last4 } = await seedDemo(url, masterKey, upstream);
+
+    // Never log the plaintext key. Write it to a gitignored, owner-only file; the operator reads it
+    // from there (credentials belong in files, not the log stream).
+    const keyFile = path.resolve(repoRoot(), '.relay', 'seed-demo.key');
+    mkdirSync(path.dirname(keyFile), { recursive: true });
+    writeFileSync(keyFile, `${apiKey}\n`, { mode: 0o600 });
+
+    console.error('[relay] demo tenant seeded.');
+    console.error(`  virtual key rk_live_…${last4} written to ${keyFile} (gitignored)`);
+    console.error('  try it (start the stack first: make dev):\n');
+    console.error(`    curl -N http://localhost:3000/v1/chat/completions \\`);
+    console.error(`      -H "authorization: Bearer $(cat '${keyFile}')" \\`);
+    console.error(`      -H 'content-type: application/json' \\`);
+    console.error(
+      `      -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hello"}]}'\n`,
+    );
     process.exit(0);
   });
 

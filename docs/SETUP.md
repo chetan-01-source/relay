@@ -34,7 +34,7 @@ make bootstrap                         # checks tools, copies .env.example→.en
 
 # 3 · bring up infra + migrate + seed
 make up                                # compose core up + relay migrate + seed-auth + seed-demo
-#     seed-demo prints a demo virtual key + a working curl — copy the key.
+#     seed-demo writes the demo key to .relay/seed-demo.key (gitignored) + prints a curl.
 
 # 4 · run the gateway + mockllm (inner loop)
 make dev                               # core + mockllm + turbo dev (gateway on :3000, internal :9090)
@@ -193,7 +193,7 @@ curl -s -X POST localhost:8080/v1/chat/completions -H 'content-type: application
 
 ## 6. Testing the gateway APIs
 
-Get a demo key first: `make seed-demo` prints one (or re-run any time — it mints a fresh key).
+Get a demo key first: `make seed-demo` writes it to `.relay/seed-demo.key` (gitignored) and prints a ready curl. Use `$(cat .relay/seed-demo.key)` as the key.
 
 ```bash
 KEY=rk_live_...        # from seed-demo

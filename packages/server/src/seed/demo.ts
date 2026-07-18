@@ -11,8 +11,10 @@ import pg from 'pg';
 import { sealCredential } from '../platform/crypto.js';
 
 export interface DemoSeedResult {
+  /** Plaintext key — the caller writes it to a secured file, never to logs. */
   apiKey: string;
-  curl: string;
+  /** Last 4 chars, safe to display. */
+  last4: string;
 }
 
 async function insertReturningId(
@@ -110,12 +112,8 @@ export async function seedDemo(
 
     await client.query('COMMIT');
 
-    const curl =
-      `curl -N http://localhost:3000/v1/chat/completions \\\n` +
-      `  -H 'authorization: Bearer ${apiKey}' \\\n` +
-      `  -H 'content-type: application/json' \\\n` +
-      `  -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hello"}]}'`;
-    return { apiKey, curl };
+    // Return the raw pieces only; formatting/surfacing (to a secured file, never logs) is the caller's job.
+    return { apiKey, last4: apiKey.slice(-4) };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
