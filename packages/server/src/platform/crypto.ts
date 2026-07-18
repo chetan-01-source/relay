@@ -4,24 +4,27 @@
  * itself wrapped by the master KEK (RELAY_MASTER_KEY). Plaintext exists only transiently
  * in worker memory at send time — never logged, never stored.
  */
-import { randomBytes, createCipheriv, createDecipheriv, createHmac } from 'node:crypto';
+import { randomBytes, createCipheriv, createDecipheriv, createHmac, pbkdf2Sync } from 'node:crypto';
 
 const ALGO = 'aes-256-gcm';
 const IV_LEN = 12; // GCM standard nonce
 const KEY_LEN = 32;
+const VKEY_ITERATIONS = 100_000;
 
 /**
- * Deterministic keyed hash for a virtual key, for storage + O(1) indexed lookup.
+ * Deterministic verifier for a virtual key, for storage + O(1) indexed lookup.
  *
- * Virtual keys are HIGH-ENTROPY random tokens (192-bit), not human passwords — so a fast keyed hash
- * is the correct construction, NOT a slow password KDF (PBKDF2/bcrypt/argon2). A slow, per-row-salted
- * hash would also break the unique-index lookup the gateway relies on to resolve a key in O(1).
- * The server-side pepper (derived from RELAY_MASTER_KEY) means an attacker with only the database
- * cannot verify guessed keys offline. This is the GitHub/Stripe token-hashing model.
+ * Uses PBKDF2-HMAC-SHA256 (a KDF) with a DETERMINISTIC, server-side salt derived from
+ * RELAY_MASTER_KEY — not a random per-row salt. The determinism is deliberate: the gateway resolves
+ * a presented key by a single unique-index lookup on this verifier, so the same key must always
+ * derive the same value. The pepper-as-salt means an attacker with only the database cannot verify
+ * guessed keys offline. Virtual keys are high-entropy (192-bit) random tokens, so the iteration count
+ * is defense-in-depth rather than the primary barrier; the resolver derives this only on a snapshot
+ * cache miss, never per request on the hot path.
  */
 export function hashVirtualKey(masterKeyB64: string, apiKey: string): Buffer {
-  const pepper = createHmac('sha256', kek(masterKeyB64)).update('relay/virtual-key/v1').digest();
-  return createHmac('sha256', pepper).update(apiKey).digest();
+  const salt = createHmac('sha256', kek(masterKeyB64)).update('relay/virtual-key/salt/v1').digest();
+  return pbkdf2Sync(apiKey, salt, VKEY_ITERATIONS, KEY_LEN, 'sha256');
 }
 
 export interface SealedCredential {
