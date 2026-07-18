@@ -199,14 +199,23 @@ The `Queryable` interface only accepts a `SqlQuery`, so a repository physically 
 Layered, each with a clear scope and gate. **Test business logic in isolation with fakes; test IO
 against real infra.**
 
-| Layer                    | Scope                                                                        | Tooling                                          | Runs                        |
-| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------- |
-| **Unit**                 | services, adapters, repositories (w/ fake `Queryable`), queries, crypto, sse | Vitest, no IO                                    | `make test` (every PR)      |
-| **Integration**          | repository against a REAL Postgres (RLS, real SQL)                           | Vitest, self-skips w/o `RELAY_TEST_DATABASE_URL` | `make test` (locally w/ DB) |
-| **Isolation (G4)**       | every role × endpoint × foreign org — zero cross-tenant reads                | `test/isolation/` + `check-rls.sh`               | PR — **zero tolerance**     |
-| **Smoke**                | end-to-end request contracts against a running stack                         | `scripts/smoke.sh`                               | after `make dev`            |
-| **Load**                 | hot-path throughput + p50/p95/p99                                            | k6 (`test/load/`) or `scripts/load-smoke.mjs`    | local / bench gate (G3)     |
-| **Conformance (Day 14)** | official OpenAI/Anthropic SDKs vs gateway→mockllm                            | `test/conformance/`                              | nightly + release           |
+| Layer                    | Scope                                                                              | Tooling                                          | Runs                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------- |
+| **Unit**                 | services, adapters, repositories (w/ fake `Queryable`), queries, crypto, sse       | Vitest, no IO                                    | `make test` (every PR)                                  |
+| **Integration**          | repository against a REAL Postgres (RLS, real SQL)                                 | Vitest, self-skips w/o `RELAY_TEST_DATABASE_URL` | `make test` (locally w/ DB)                             |
+| **Isolation (G4)**       | every role × endpoint × foreign org — zero cross-tenant reads                      | `test/isolation/` + `check-rls.sh`               | PR — **zero tolerance**                                 |
+| **Smoke**                | end-to-end request contracts against a running stack                               | `scripts/smoke.sh`                               | after `make dev`                                        |
+| **Load / G3**            | gateway-only overhead p99 (`scripts/bench.mjs`) + throughput (`load-smoke.mjs`/k6) | node/k6, warmup + delta-window                   | `make bench` local; advisory on CI, strict on dedicated |
+| **Conformance (Day 14)** | official OpenAI/Anthropic SDKs vs gateway→mockllm                                  | `test/conformance/`                              | nightly + release                                       |
+
+> **G3 overhead metric.** `relay_gateway_overhead_seconds` is **gateway-only** latency: the full
+> in-gateway wall-clock (request-in **and** response-out) **minus** the time awaiting the external
+> provider (`proxy.service.ts` times each provider await into `RequestTiming.upstreamMs`; the
+> controller subtracts it and observes **after** the response is fully sent). So the number is
+> invariant to upstream/mock latency — verify by running the bench with `MOCKLLM_LATENCY_MS=100`; the
+> overhead stays sub-ms. `scripts/bench.mjs` measures a **warmup + delta-window** (steady-state, no
+> cold samples). The strict `<25ms p99` gate is `make bench` on a **dedicated 2-vCPU** host; on CI's
+> shared runner the bench is **advisory** (regression signal, `continue-on-error`).
 
 ### 5.1 Writing unit tests
 

@@ -258,11 +258,11 @@ curl -s localhost:9090/metrics | grep relay_
 
 Headline metrics:
 
-| Metric                            | Meaning                                                      |
-| --------------------------------- | ------------------------------------------------------------ |
-| `relay_gateway_overhead_seconds`  | gateway-added latency histogram (the **G3** gate reads this) |
-| `relay_requests_total{...status}` | request counter by org/route/provider/status                 |
-| `nodejs_eventloop_lag_seconds`    | hot-path health — spikes mean blocking on the event loop     |
+| Metric                            | Meaning                                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `relay_gateway_overhead_seconds`  | **gateway-only** latency histogram — full in-gateway time (request in + response out) **minus** time awaiting the external provider. The **G3** gate reads this. |
+| `relay_requests_total{...status}` | request counter by org/route/provider/status                                                                                                                     |
+| `nodejs_eventloop_lag_seconds`    | hot-path health — spikes mean blocking on the event loop                                                                                                         |
 
 Every response carries **`x-relay-trace-id`**; every log line carries `trace_id` (grep logs by it).
 Run the G3 bench any time: `make bench` (drives load, fails if overhead p99 > 25ms).

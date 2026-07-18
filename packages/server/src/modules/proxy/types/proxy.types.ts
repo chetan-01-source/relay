@@ -53,11 +53,26 @@ export interface ProviderAdapter {
 }
 
 /**
+ * Mutable per-request accumulator for the total time spent BLOCKED on the external provider
+ * (fetch + each upstream body/chunk read). The controller subtracts this from the full in-gateway
+ * wall-clock so `relay_gateway_overhead_seconds` measures gateway-only latency (in + out), never the
+ * provider call. See the overhead measurement in proxy.controller.ts.
+ */
+export interface RequestTiming {
+  upstreamMs: number;
+}
+
+/**
  * Business logic surface (no HTTP, no DB). The controller depends on this interface only.
  * `stream` yields canonical deltas; serializing them to OpenAI SSE is the controller's job.
- * Both methods throw `RelayError` (code `upstream_error` / `upstream_unreachable`) on failure.
+ * Both methods throw `RelayError` (code `upstream_error` / `upstream_unreachable`) on failure and
+ * accumulate provider-wait time into `timing.upstreamMs`.
  */
 export interface ProxyService {
-  complete(req: CanonicalRequest, target: Target): Promise<unknown>;
-  stream(req: CanonicalRequest, target: Target): AsyncIterable<CanonicalDelta>;
+  complete(req: CanonicalRequest, target: Target, timing: RequestTiming): Promise<unknown>;
+  stream(
+    req: CanonicalRequest,
+    target: Target,
+    timing: RequestTiming,
+  ): AsyncIterable<CanonicalDelta>;
 }

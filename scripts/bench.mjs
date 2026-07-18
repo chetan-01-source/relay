@@ -1,19 +1,20 @@
 #!/usr/bin/env node
-// G3 bench gate (PRD §5): drive load through the gateway, then read the gateway's OWN overhead
-// histogram (relay_gateway_overhead_seconds — excludes upstream time) and fail if p99 exceeds the
-// budget. This measures added latency, not total, so it is the honest G3 signal. Zero deps.
-//   RELAY_BASE_URL RELAY_INTERNAL_URL REQUESTS CONCURRENCY OVERHEAD_P99_MAX_MS
+// G3 bench (PRD §5): drive load through the gateway, then read the gateway's OWN overhead histogram
+// (relay_gateway_overhead_seconds = gateway-only latency, in+out, provider excluded) and fail if p99
+// exceeds the budget. Measures a clean STEADY-STATE window: a warmup primes JIT, then the quantile is
+// computed over the DELTA of two /metrics scrapes so cold/prior samples never pollute the tail. Zero deps.
+//   RELAY_BASE_URL RELAY_INTERNAL_URL WARMUP REQUESTS CONCURRENCY OVERHEAD_P99_MAX_MS
 const BASE = process.env.RELAY_BASE_URL || 'http://localhost:3000';
 const INTERNAL = process.env.RELAY_INTERNAL_URL || 'http://localhost:9090';
+const WARMUP = Number(process.env.WARMUP || 200);
 const TOTAL = Number(process.env.REQUESTS || 1000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 25);
 const P99_MAX_MS = Number(process.env.OVERHEAD_P99_MAX_MS || 25);
+const METRIC = 'relay_gateway_overhead_seconds';
 
 const payload = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
 const headers = { 'content-type': 'application/json', authorization: 'Bearer rk_live_bench' };
 
-let ok = 0;
-let errors = 0;
 async function fire() {
   try {
     const res = await fetch(`${BASE}/v1/chat/completions`, {
@@ -22,56 +23,74 @@ async function fire() {
       body: payload,
     });
     await res.text();
-    res.status === 200 ? ok++ : errors++;
+    return res.status === 200;
   } catch {
-    errors++;
+    return false;
   }
 }
 
-// Parse a Prometheus histogram and estimate a quantile by linear interpolation across buckets.
-function histogramQuantile(metricsText, metric, q) {
-  const buckets = [];
-  let count = 0;
-  const bucketRe = new RegExp(`^${metric}_bucket\\{le="([^"]+)"\\}\\s+([0-9.]+)`, 'gm');
-  let m;
-  while ((m = bucketRe.exec(metricsText)) !== null) {
-    buckets.push({ le: m[1] === '+Inf' ? Infinity : Number(m[1]), cum: Number(m[2]) });
-  }
-  const countMatch = new RegExp(`^${metric}_count\\s+([0-9.]+)`, 'm').exec(metricsText);
-  if (countMatch) count = Number(countMatch[1]);
-  if (!count || buckets.length === 0) return null;
+/** Run `count` requests at fixed concurrency; return {ok, errors}. */
+async function drive(count) {
+  let launched = 0;
+  let ok = 0;
+  let errors = 0;
+  const worker = async () => {
+    while (launched < count) {
+      launched++;
+      (await fire()) ? ok++ : errors++;
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return { ok, errors };
+}
 
-  buckets.sort((a, b) => a.le - b.le);
+/** Parse the histogram into a le→cumulative map + total count. */
+async function snapshot() {
+  const text = await (await fetch(`${INTERNAL}/metrics`)).text();
+  const buckets = new Map();
+  const re = new RegExp(`^${METRIC}_bucket\\{le="([^"]+)"\\}\\s+([0-9.]+)`, 'gm');
+  let m;
+  while ((m = re.exec(text)) !== null)
+    buckets.set(m[1] === '+Inf' ? Infinity : Number(m[1]), Number(m[2]));
+  const count = Number(new RegExp(`^${METRIC}_count\\s+([0-9.]+)`, 'm').exec(text)?.[1] ?? 0);
+  return { buckets, count };
+}
+
+/** Quantile over the DELTA between two snapshots (steady-state window only). */
+function quantileOverWindow(base, final, q) {
+  const les = [...final.buckets.keys()].sort((a, b) => a - b);
+  const delta = les.map((le) => ({
+    le,
+    cum: (final.buckets.get(le) ?? 0) - (base.buckets.get(le) ?? 0),
+  }));
+  const count = final.count - base.count;
+  if (count <= 0 || delta.length === 0) return null;
   const target = q * count;
   let prevLe = 0;
   let prevCum = 0;
-  for (const b of buckets) {
+  for (const b of delta) {
     if (b.cum >= target) {
-      if (b.le === Infinity) return prevLe; // in the overflow bucket — report the last finite edge
+      if (b.le === Infinity) return prevLe;
       const span = b.cum - prevCum || 1;
       return prevLe + ((target - prevCum) / span) * (b.le - prevLe);
     }
     prevLe = b.le;
     prevCum = b.cum;
   }
-  return buckets[buckets.length - 1].le;
+  return delta[delta.length - 1].le;
 }
 
-let launched = 0;
-async function worker() {
-  while (launched < TOTAL) {
-    launched++;
-    await fire();
-  }
-}
-await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-
-const metrics = await (await fetch(`${INTERNAL}/metrics`)).text();
-const p50 = histogramQuantile(metrics, 'relay_gateway_overhead_seconds', 0.5);
-const p99 = histogramQuantile(metrics, 'relay_gateway_overhead_seconds', 0.99);
 const ms = (s) => (s === null ? 'n/a' : (s * 1000).toFixed(2));
 
-console.log(`bench: ${TOTAL} reqs @ concurrency ${CONCURRENCY} -> ${BASE}`);
+await drive(WARMUP); // prime JIT / connection pools — discarded
+const base = await snapshot(); // baseline AFTER warmup
+const { ok, errors } = await drive(TOTAL);
+const final = await snapshot();
+
+const p50 = quantileOverWindow(base, final, 0.5);
+const p99 = quantileOverWindow(base, final, 0.99);
+
+console.log(`bench: ${TOTAL} reqs @ concurrency ${CONCURRENCY} (warmup ${WARMUP}) -> ${BASE}`);
 console.log(`  requests   : ${ok} ok, ${errors} errors`);
 console.log(`  overhead   : p50 ${ms(p50)}ms  p99 ${ms(p99)}ms   (budget p99 <= ${P99_MAX_MS}ms)`);
 
@@ -80,7 +99,7 @@ if (errors > 0) {
   process.exit(1);
 }
 if (p99 === null) {
-  console.error('BENCH FAIL: no overhead metric found');
+  console.error('BENCH FAIL: no overhead metric found in the measured window');
   process.exit(1);
 }
 if (p99 * 1000 > P99_MAX_MS) {
