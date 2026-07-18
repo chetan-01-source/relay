@@ -7,7 +7,7 @@
 Report privately via one of:
 
 - GitHub → **Security** tab → **Report a vulnerability** (private advisory), or
-- Email **tech@howl.in** with subject `SECURITY: <summary>`.
+- Email **chetanmarathe1000@gmail.com** with subject `SECURITY: <summary>`.
 
 Please include: affected version/commit, reproduction steps, impact, and any PoC.
 

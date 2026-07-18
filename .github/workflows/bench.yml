@@ -1,9 +1,11 @@
 name: bench
 
-# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 14.
-# Real job: k6 vs mockllm on a fixed runner -> overhead histogram ->
-# FAILS if p99 > 25 ms @ 500 RPS / 2 vCPU (G3) -> commit results to bench/results/.
+# G3 gate (PRD §5): drive load through the gateway and fail if gateway overhead p99 > 25ms.
+# Runs on release tags and on demand. Uses the zero-dep node bench (scripts/bench.mjs) against a
+# real gateway → mockllm over compose infra — no k6 dependency in CI.
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -12,8 +14,57 @@ permissions:
 jobs:
   bench:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relay
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relay"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+      valkey:
+        image: valkey/valkey:8
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      RELAY_MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+      RELAY_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+      RELAY_VALKEY_URL: redis://localhost:6379
+      RELAY_UPSTREAM_URL: http://localhost:8080
+      RELAY_PORT: '3000'
+      RELAY_INTERNAL_PORT: '9090'
+      RELAY_LOG_LEVEL: error
+      PORT: '8080'
+      MOCKLLM_LATENCY_MS: '3'
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          echo "bench rig lands sprint Day 14 (PRD §5, G3 gate)"
-          exit 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build --filter=@relay/server --filter=@relay/mockllm
+      - name: generate master key
+        run: echo "RELAY_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - name: migrate
+        run: pnpm --filter @relay/server exec tsx src/cli/index.ts migrate
+      - name: start mockllm + gateway
+        run: |
+          node packages/mockllm/dist/index.js &
+          node packages/server/dist/index.js serve &
+          for i in $(seq 1 30); do curl -sf http://localhost:9090/healthz && break; sleep 1; done
+      - name: bench (G3 overhead gate)
+        run: |
+          mkdir -p bench/results
+          REQUESTS=2000 CONCURRENCY=50 OVERHEAD_P99_MAX_MS=25 \
+            node scripts/bench.mjs | tee "bench/results/${GITHUB_SHA}.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-results
+          path: bench/results/
+          if-no-files-found: ignore
