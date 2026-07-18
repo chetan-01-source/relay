@@ -6,9 +6,9 @@
  * inline parametrized SQL (still injection-safe). Idempotent by reset: the demo org's child rows are
  * cleared and re-seeded each run, and a new key is minted and printed (plaintext is never recoverable).
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { sealCredential } from '../platform/crypto.js';
+import { hashVirtualKey, sealCredential } from '../platform/crypto.js';
 
 export interface DemoSeedResult {
   /** Plaintext key — the caller writes it to a secured file, never to logs. */
@@ -101,13 +101,14 @@ export async function seedDemo(
       [orgId, versionId, credId],
     );
 
-    // mint a fresh virtual key — shown once, only its SHA-256 is stored
+    // mint a fresh virtual key — shown once; only a peppered HMAC-SHA256 verifier is stored
+    // (high-entropy token, so a fast keyed hash is correct — see hashVirtualKey).
     const apiKey = `rk_live_${randomBytes(24).toString('base64url')}`;
-    const sha256 = createHash('sha256').update(apiKey).digest();
+    const keyHash = hashVirtualKey(masterKey, apiKey);
     await client.query(
       `INSERT INTO virtual_keys (org_id, app_id, key_sha256, last4, name, environment)
        VALUES ($1, $2, $3, $4, 'demo-key', 'live')`,
-      [orgId, appId, sha256, apiKey.slice(-4)],
+      [orgId, appId, keyHash, apiKey.slice(-4)],
     );
 
     await client.query('COMMIT');

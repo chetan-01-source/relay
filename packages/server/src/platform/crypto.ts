@@ -4,11 +4,25 @@
  * itself wrapped by the master KEK (RELAY_MASTER_KEY). Plaintext exists only transiently
  * in worker memory at send time — never logged, never stored.
  */
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { randomBytes, createCipheriv, createDecipheriv, createHmac } from 'node:crypto';
 
 const ALGO = 'aes-256-gcm';
 const IV_LEN = 12; // GCM standard nonce
 const KEY_LEN = 32;
+
+/**
+ * Deterministic keyed hash for a virtual key, for storage + O(1) indexed lookup.
+ *
+ * Virtual keys are HIGH-ENTROPY random tokens (192-bit), not human passwords — so a fast keyed hash
+ * is the correct construction, NOT a slow password KDF (PBKDF2/bcrypt/argon2). A slow, per-row-salted
+ * hash would also break the unique-index lookup the gateway relies on to resolve a key in O(1).
+ * The server-side pepper (derived from RELAY_MASTER_KEY) means an attacker with only the database
+ * cannot verify guessed keys offline. This is the GitHub/Stripe token-hashing model.
+ */
+export function hashVirtualKey(masterKeyB64: string, apiKey: string): Buffer {
+  const pepper = createHmac('sha256', kek(masterKeyB64)).update('relay/virtual-key/v1').digest();
+  return createHmac('sha256', pepper).update(apiKey).digest();
+}
 
 export interface SealedCredential {
   ciphertext: Buffer;

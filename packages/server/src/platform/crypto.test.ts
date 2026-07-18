@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { sealCredential, openCredential } from './crypto.js';
+import { sealCredential, openCredential, hashVirtualKey } from './crypto.js';
 
 const masterKey = randomBytes(32).toString('base64');
 
@@ -33,5 +33,26 @@ describe('envelope crypto', () => {
 
   it('rejects a master key that is not 32 bytes', () => {
     expect(() => sealCredential(Buffer.from('short').toString('base64'), 'sk')).toThrow();
+  });
+});
+
+describe('hashVirtualKey', () => {
+  const master = randomBytes(32).toString('base64');
+
+  it('is deterministic (same key + pepper -> same 32-byte digest) for O(1) lookup', () => {
+    const a = hashVirtualKey(master, 'rk_live_abc');
+    const b = hashVirtualKey(master, 'rk_live_abc');
+    expect(a.equals(b)).toBe(true);
+    expect(a).toHaveLength(32);
+  });
+
+  it('differs per key and per pepper (peppered — DB alone cannot verify guesses)', () => {
+    expect(hashVirtualKey(master, 'rk_live_a').equals(hashVirtualKey(master, 'rk_live_b'))).toBe(
+      false,
+    );
+    const otherMaster = randomBytes(32).toString('base64');
+    expect(
+      hashVirtualKey(master, 'rk_live_a').equals(hashVirtualKey(otherMaster, 'rk_live_a')),
+    ).toBe(false);
   });
 });
