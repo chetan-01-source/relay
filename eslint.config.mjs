@@ -14,6 +14,17 @@ export default tseslint.config(
     },
   },
   {
+    // Test files legitimately mock, parse untyped JSON, and use async fakes that never await.
+    // Relax the strictest type-safety/await rules here; production code keeps them.
+    files: ['**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
+  {
     ignores: ['**/dist/**', '**/.next/**', '**/coverage/**', '**/*.config.*'],
   },
 );

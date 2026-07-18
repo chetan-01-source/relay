@@ -17,6 +17,8 @@ coverage/
 .env
 .env.*
 !.env.example
+# local secrets written by CLIs (e.g. seed-demo.key)
+.relay/
 
 # logs
 *.log

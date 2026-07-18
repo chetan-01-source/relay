@@ -1,2 +1,0 @@
-# feature slices: tenancy identity apps providers routing policy cache proxy metering audit analytics
-# each module exposes ONE public surface: modules/<name>/index.ts (enforced by dependency-cruiser)

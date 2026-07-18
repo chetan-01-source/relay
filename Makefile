@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/compose/compose.yaml
 ENV_FILE := deploy/compose/.env
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test e2e bench release-dry
+.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench release-dry
 
 help: ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -28,17 +28,20 @@ dev: up ## inner loop: core + mockllm + watch all packages
 down: ## stop everything and drop volumes
 	$(COMPOSE) --profile dev --profile core down
 
+# load .env into the node CLI processes (compose reads it itself; the CLIs need it in their env)
+LOADENV := set -a; [ -f $(ENV_FILE) ] && . $(ENV_FILE); set +a;
+
 migrate: ## apply SQL migrations (advisory-locked)          [sprint Day 2]
-	pnpm --filter @relay/server exec relay migrate
+	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts migrate
 
 seed-auth: ## idempotent Logto bootstrap                     [sprint Day 5]
-	pnpm --filter @relay/server exec relay seed
+	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts seed-auth
 
 seed-demo: ## demo org+app+key+route -> prints working curl  [sprint Day 5]
-	@echo "[make] seed-demo stub — lands sprint Day 5"
+	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts seed-demo
 
-generate: ## kysely-codegen + zod->openapi + client types    [sprint Day 2+]
-	@echo "[make] generate stub — lands sprint Day 2+"
+generate: ## dump OpenAPI spec to api/openapi/openapi.json         [sprint Day 2+]
+	pnpm --filter @relay/server exec tsx src/cli/index.ts openapi
 
 lint: ## eslint + prettier + dependency-cruiser + RLS gate
 	pnpm turbo lint
@@ -49,11 +52,20 @@ lint: ## eslint + prettier + dependency-cruiser + RLS gate
 test: ## vitest unit + integration (testcontainers)
 	pnpm turbo test
 
+coverage: ## unit coverage with thresholds (business logic)
+	pnpm --filter @relay/server coverage
+
+smoke: ## end-to-end smoke against a running stack (make dev first)
+	scripts/smoke.sh
+
+load: ## local load smoke on the hot path (node fallback; use k6 for the gate)
+	node scripts/load-smoke.mjs
+
 e2e: ## conformance (real SDKs) + Playwright                 [sprint Day 13-14]
 	@echo "[make] e2e stub — lands sprint Day 13-14"
 
-bench: ## k6 vs mockllm -> overhead histogram               [sprint Day 5/14]
-	@echo "[make] bench stub — lands sprint Day 5"
+bench: ## drive load -> gate gateway overhead p99 < 25ms (G3)  [sprint Day 5/14]
+	node scripts/bench.mjs
 
 release-dry: ## local multi-arch build == CI                 [sprint Day 15]
 	@echo "[make] release-dry stub — lands sprint Day 15"
