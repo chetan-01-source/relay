@@ -40,8 +40,9 @@ seed-auth: ## idempotent Logto bootstrap                     [sprint Day 5]
 seed-demo: ## demo org+app+key+route -> prints working curl  [sprint Day 5]
 	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts seed-demo
 
-generate: ## dump OpenAPI spec to api/openapi/openapi.json         [sprint Day 2+]
+generate: ## dump OpenAPI spec + regen the console's typed API client    [sprint Day 2+]
 	pnpm --filter @relay/server exec tsx src/cli/index.ts openapi
+	pnpm --filter @relay/console gen:api
 
 lint: ## eslint + prettier + dependency-cruiser + RLS gate
 	pnpm turbo lint

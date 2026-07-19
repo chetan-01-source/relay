@@ -135,10 +135,18 @@ program
   .command('openapi')
   .description('dump the OpenAPI 3.1 spec to api/openapi/openapi.json')
   .action(async () => {
-    // stub Queryable — routes are only registered (for the spec), never executed, so no DB is needed
+    // stub Database — routes are only registered (for the spec), never executed, so no DB, Valkey,
+    // or real key are needed. withTenant just runs fn against the empty stub Queryable.
+    const stub = { run: () => Promise.resolve([]) };
     const app = await buildPublicApp({
-      db: { run: () => Promise.resolve([]) },
+      db: {
+        ...stub,
+        withTenant: <T>(_o: string, _s: unknown, fn: (tx: typeof stub) => Promise<T>) => fn(stub),
+        ping: () => Promise.resolve(true),
+        close: () => Promise.resolve(),
+      },
       upstreamUrl: 'http://localhost:8080',
+      masterKey: Buffer.alloc(32).toString('base64'),
     });
     await app.ready();
     const spec = app.swagger();

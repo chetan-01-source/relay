@@ -2,17 +2,22 @@
 # Smoke test — end-to-end sanity against a running stack (mockllm + relay serve).
 # Verifies the full request path and the response contracts. Fast, deterministic, no deps.
 #
+# A REAL virtual key is required now that identity resolves keys (Day 6). Seed one first
+# (`make seed-demo` writes it to .relay/seed-demo.key) or pass RELAY_SMOKE_KEY:
+#
 #   RELAY_BASE_URL=http://localhost:3000 RELAY_INTERNAL_URL=http://localhost:9090 scripts/smoke.sh
 set -euo pipefail
 
 BASE=${RELAY_BASE_URL:-http://localhost:3000}
 INTERNAL=${RELAY_INTERNAL_URL:-http://localhost:9090}
-AUTH='authorization: Bearer rk_live_smoke'
+KEY=${RELAY_SMOKE_KEY:-$(cat .relay/seed-demo.key 2>/dev/null || true)}
+AUTH="authorization: Bearer ${KEY}"
 JSON='content-type: application/json'
 pass() { echo "  ok   $1"; }
 fail() { echo "SMOKE FAIL: $1" >&2; exit 1; }
 
 echo "smoke: $BASE (internal $INTERNAL)"
+[ -n "$KEY" ] || fail "no virtual key — run 'make seed-demo' or set RELAY_SMOKE_KEY"
 
 curl -fsS "$INTERNAL/healthz" | grep -q '"status":"ok"' || fail "healthz"; pass "healthz"
 
@@ -32,5 +37,12 @@ curl -fsS -X POST "$BASE/v1/chat/completions" -H "$AUTH" -H "$JSON" \
 curl -fsS -N -X POST "$BASE/v1/chat/completions" -H "$AUTH" -H "$JSON" \
   -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hi"}]}' \
   | grep -q 'data: \[DONE\]' || fail "stream completion terminator"; pass "stream completion"
+
+# Control plane (/api/*): a missing/invalid Logto JWT is rejected 401 on every route group.
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/me")
+[ "$code" = 401 ] || fail "control plane /api/v1/me should 401 without a JWT (got $code)"; pass "control-plane me 401"
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/platform/orgs")
+[ "$code" = 401 ] || fail "control plane orgs list should 401 without a JWT (got $code)"; pass "control-plane orgs 401"
 
 echo "SMOKE OK"

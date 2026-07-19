@@ -53,6 +53,13 @@ describe('toErrorEnvelope', () => {
     expect(res.body.error.message).not.toContain('secret');
   });
 
+  it('exposes the control-plane codes with their RESTful statuses', () => {
+    expect(new RelayError('conflict').status).toBe(409);
+    expect(new RelayError('conflict').type).toBe('invalid_request_error');
+    expect(new RelayError('service_unavailable').status).toBe(503);
+    expect(new RelayError('service_unavailable').type).toBe('api_error');
+  });
+
   it('every catalog entry has a status, type and message', () => {
     for (const [code, entry] of Object.entries(ERROR_CATALOG)) {
       expect(entry.status, code).toBeGreaterThanOrEqual(400);

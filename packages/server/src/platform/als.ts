@@ -16,6 +16,16 @@ export function runWithContext<T>(ctx: RequestContext, fn: () => T): T {
   return storage.run(ctx, fn);
 }
 
+/**
+ * Bind the context to the CURRENT async execution — used from a Fastify preHandler, whose work
+ * (and every handler after it) shares this async context. Unlike runWithContext it takes no
+ * callback: the store simply persists for the rest of the request, so logs/withTenant/metrics
+ * downstream all see the tenant + trace ids without threading them by hand.
+ */
+export function enterContext(ctx: RequestContext): void {
+  storage.enterWith(ctx);
+}
+
 export function getContext(): RequestContext | undefined {
   return storage.getStore();
 }

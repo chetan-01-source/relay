@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint app",
     "test": "vitest run --passWithNoTests",
+    "gen:api": "openapi-typescript ../../api/openapi/openapi.json -o app/lib/api-types.ts",
     "dev": "next dev -p 3000"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.17.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.6"
   }

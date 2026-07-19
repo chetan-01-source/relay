@@ -5,6 +5,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import type { ProxyController } from '../controllers/proxy.controller.js';
+import type { ProxyPreHandler } from '../types/proxy.types.js';
 
 const chatCompletionSchema = {
   tags: ['chat'],
@@ -42,8 +43,17 @@ const chatCompletionSchema = {
   },
 };
 
-export function registerProxyRoutes(app: FastifyInstance, controller: ProxyController): void {
-  app.post('/v1/chat/completions', { schema: chatCompletionSchema }, (request, reply) =>
-    controller.chatCompletions(request, reply),
+export function registerProxyRoutes(
+  app: FastifyInstance,
+  controller: ProxyController,
+  authVirtualKey?: ProxyPreHandler,
+): void {
+  app.post(
+    '/v1/chat/completions',
+    {
+      schema: chatCompletionSchema,
+      ...(authVirtualKey ? { preHandler: authVirtualKey } : {}),
+    },
+    (request, reply) => controller.chatCompletions(request, reply),
   );
 }

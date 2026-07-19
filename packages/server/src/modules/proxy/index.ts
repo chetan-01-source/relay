@@ -10,13 +10,17 @@ import type { FastifyInstance } from 'fastify';
 import { createProxyService } from './services/proxy.service.js';
 import { createProxyController } from './controllers/proxy.controller.js';
 import { registerProxyRoutes } from './routes/proxy.routes.js';
+import type { ProxyPreHandler } from './types/proxy.types.js';
 
 export interface RegisterProxyOptions {
   upstreamUrl: string;
+  // Data-plane auth (identity module). Resolves the virtual key + tenant context before the handler.
+  // Optional so the offline `relay openapi` dump can register the route without an auth stack.
+  authVirtualKey?: ProxyPreHandler;
 }
 
 export function registerProxy(app: FastifyInstance, opts: RegisterProxyOptions): void {
   const service = createProxyService();
   const controller = createProxyController({ service, upstreamUrl: opts.upstreamUrl });
-  registerProxyRoutes(app, controller);
+  registerProxyRoutes(app, controller, opts.authVirtualKey);
 }

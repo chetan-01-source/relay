@@ -13,11 +13,14 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { RelayError, toErrorEnvelope } from '@relay/shared';
 import type { Config } from './platform/config.js';
-import type { Database, Queryable } from './platform/db.js';
+import type { Database } from './platform/db.js';
 import type { EventBus } from './platform/eventbus.js';
 import { registry } from './platform/metrics.js';
+import { createLogtoOrgSync, type LogtoConfig } from './platform/logto.js';
 import { registerProxy } from './modules/proxy/index.js';
 import { registerModels } from './modules/models/index.js';
+import { registerIdentity, type LogtoJwtConfig } from './modules/identity/index.js';
+import { registerTenancy } from './modules/tenancy/index.js';
 
 export interface AppDeps {
   db: Database;
@@ -30,8 +33,12 @@ export interface Servers {
 }
 
 export interface PublicAppDeps {
-  db: Queryable;
+  db: Database; // identity's key lookup needs withTenant; models uses it as a plain Queryable
   upstreamUrl: string;
+  masterKey: string;
+  bus?: EventBus; // present when serving; absent for the offline `relay openapi` spec dump
+  logto?: LogtoJwtConfig; // control-plane JWT verification (identity)
+  logtoM2m?: LogtoConfig; // Logto Management API creds (tenancy org sync); absent → onboarding 503
 }
 
 const OPENAPI_DOC = {
@@ -44,6 +51,8 @@ const OPENAPI_DOC = {
   tags: [
     { name: 'chat', description: 'Chat completions (OpenAI-compatible hot path)' },
     { name: 'models', description: 'Model discovery' },
+    { name: 'identity', description: 'Control-plane identity (Logto JWT + scopes)' },
+    { name: 'tenancy', description: 'Platform control plane: org lifecycle + entitlements' },
   ],
 };
 
@@ -76,7 +85,27 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     void reply.code(status).send(body);
   });
 
-  registerProxy(app, { upstreamUrl: deps.upstreamUrl });
+  // Identity is the auth spine: it registers the control-plane /api routes and returns the
+  // preHandlers the data plane guards with. Registered before the data routes so its /api paths and
+  // the proxy's virtual-key guard are both in place.
+  const identity = await registerIdentity(app, {
+    db: deps.db,
+    masterKey: deps.masterKey,
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    ...(deps.logto ? { logto: deps.logto } : {}),
+  });
+
+  // Tenancy is a platform control-plane module: it manages the tenant lifecycle, guarded by the
+  // identity JWT preHandlers. Logto org-sync is wired only when M2M creds are present; without them
+  // onboarding returns 503 while the rest of the control plane works.
+  registerTenancy(app, {
+    db: deps.db,
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    ...(deps.logtoM2m ? { logto: createLogtoOrgSync(deps.logtoM2m) } : {}),
+    guards: { authJwt: identity.authJwt, requireScope: identity.requireScope },
+  });
+
+  registerProxy(app, { upstreamUrl: deps.upstreamUrl, authVirtualKey: identity.authVirtualKey });
   registerModels(app, { db: deps.db });
 
   // machine-readable spec next to the human UI at /docs
@@ -86,7 +115,28 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
 }
 
 export async function buildServers(config: Config, deps: AppDeps): Promise<Servers> {
-  const publicApp = await buildPublicApp({ db: deps.db, upstreamUrl: config.RELAY_UPSTREAM_URL });
+  const logto: LogtoJwtConfig | undefined = config.RELAY_LOGTO_ENDPOINT
+    ? { endpoint: config.RELAY_LOGTO_ENDPOINT, audience: config.RELAY_LOGTO_JWT_AUDIENCE }
+    : undefined;
+  // Logto Management API creds for tenancy org-sync — present only when all three are configured.
+  const logtoM2m: LogtoConfig | undefined =
+    config.RELAY_LOGTO_ENDPOINT &&
+    config.RELAY_LOGTO_M2M_APP_ID &&
+    config.RELAY_LOGTO_M2M_APP_SECRET
+      ? {
+          endpoint: config.RELAY_LOGTO_ENDPOINT,
+          m2mAppId: config.RELAY_LOGTO_M2M_APP_ID,
+          m2mAppSecret: config.RELAY_LOGTO_M2M_APP_SECRET,
+        }
+      : undefined;
+  const publicApp = await buildPublicApp({
+    db: deps.db,
+    upstreamUrl: config.RELAY_UPSTREAM_URL,
+    masterKey: config.RELAY_MASTER_KEY,
+    bus: deps.bus,
+    ...(logto ? { logto } : {}),
+    ...(logtoM2m ? { logtoM2m } : {}),
+  });
 
   const internalApp = Fastify({ logger: false });
   internalApp.get('/healthz', () => ({ status: 'ok' }));

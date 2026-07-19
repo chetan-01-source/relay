@@ -22,6 +22,19 @@ const schema = z.object({
 
   // upstream (Phase-1 skeleton: hardcoded target → mockllm)
   RELAY_UPSTREAM_URL: z.string().url().default('http://localhost:8080'),
+
+  // Logto — control-plane (/api/*) JWT verification (Week 2 Day 6 · ADR two-auth-planes).
+  // Issuer is `${endpoint}/oidc`; JWKS is fetched + cached from its discovery document. Audience is
+  // the Relay API resource indicator. Optional: when unset, the control plane rejects every JWT
+  // (401) since it cannot verify one — the data plane (virtual keys) works regardless.
+  RELAY_LOGTO_ENDPOINT: z.string().url().optional(),
+  RELAY_LOGTO_JWT_AUDIENCE: z.string().default('https://relay.gateway/api'),
+
+  // Logto Management API M2M app (Week 2 Day 7 · ADR-7). Used by the tenancy module to create Logto
+  // organizations and send admin invites at onboarding. Optional: without all three the control
+  // plane still runs, but org onboarding returns 503 (service_unavailable) since it cannot sync Logto.
+  RELAY_LOGTO_M2M_APP_ID: z.string().optional(),
+  RELAY_LOGTO_M2M_APP_SECRET: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
