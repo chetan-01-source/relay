@@ -19,7 +19,10 @@ const payload = JSON.stringify({
   messages: [{ role: 'user', content: 'hi' }],
 });
 const params = {
-  headers: { 'content-type': 'application/json', authorization: `Bearer ${__ENV.RELAY_LOAD_KEY || 'rk_live_load'}` },
+  headers: {
+    'content-type': 'application/json',
+    authorization: `Bearer ${__ENV.RELAY_LOAD_KEY || 'rk_live_load'}`,
+  },
 };
 
 export default function () {
