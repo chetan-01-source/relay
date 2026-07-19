@@ -7,7 +7,8 @@ const TOTAL = Number(process.env.REQUESTS || 500);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 20);
 
 const payload = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
-const headers = { 'content-type': 'application/json', authorization: 'Bearer rk_live_load' };
+const KEY = process.env.RELAY_LOAD_KEY || 'rk_live_load';
+const headers = { 'content-type': 'application/json', authorization: `Bearer ${KEY}` };
 
 const latencies = [];
 let ok = 0;
