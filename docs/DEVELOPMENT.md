@@ -91,6 +91,12 @@ modules/<name>/
 - `modules/audit/` — a **library module** (no routes yet): `createAuditRepository()` appends
   hash-chained, per-org audit rows inside the caller's transaction. Layers: `repository → queries`
   - `lib/` (the pure hash chain). Other modules import it via `index.ts`. Endpoints land Day 12.
+- `modules/apps/` — org-scoped app + virtual-key lifecycle (Week 2 Day 8, `/api/v1/apps`,
+  `/api/v1/keys`). Full stack; the service mints/rotates/revokes keys (rotate is a single-transaction
+  successor + grace invariant) and publishes `key.invalidate`. See ADR `0005`.
+- `modules/providers/` — org-scoped, write-only credential store (Week 2 Day 8, `/api/v1/providers`).
+  Seals upstream keys with envelope crypto; reads return metadata only (queries never select the
+  sealed columns). `lib/` holds the pure health-score stub the Day-9 router consumes. See ADR `0005`.
 
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**

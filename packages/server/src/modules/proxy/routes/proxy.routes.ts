@@ -25,7 +25,13 @@ const chatCompletionSchema = {
           required: ['role', 'content'],
           properties: {
             role: { type: 'string', enum: ['system', 'user', 'assistant'] },
-            content: { type: 'string' },
+            // Text (string) or OpenAI-style multimodal parts (e.g. inline image_url).
+            content: {
+              anyOf: [
+                { type: 'string' },
+                { type: 'array', items: { type: 'object', additionalProperties: true } },
+              ],
+            },
           },
         },
       },

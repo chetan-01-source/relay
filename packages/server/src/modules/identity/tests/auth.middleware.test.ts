@@ -20,6 +20,7 @@ function snapshot(over: Partial<VirtualKeySnapshot> = {}): VirtualKeySnapshot {
     environment: 'live',
     orgStatus: 'active',
     keyStatus: 'active',
+    graceUntil: null,
     entitlements: {},
     policy: {},
     ...over,

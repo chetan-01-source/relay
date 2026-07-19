@@ -13,7 +13,8 @@ const P99_MAX_MS = Number(process.env.OVERHEAD_P99_MAX_MS || 25);
 const METRIC = 'relay_gateway_overhead_seconds';
 
 const payload = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
-const headers = { 'content-type': 'application/json', authorization: 'Bearer rk_live_bench' };
+const KEY = process.env.RELAY_LOAD_KEY || 'rk_live_bench';
+const headers = { 'content-type': 'application/json', authorization: `Bearer ${KEY}` };
 
 async function fire() {
   try {

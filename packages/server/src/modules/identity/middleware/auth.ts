@@ -50,6 +50,12 @@ export function createAuthVirtualKey(resolver: VirtualKeyResolver): AuthPreHandl
     if (snapshot.keyStatus === 'revoked') {
       throw new RelayError('key_revoked', { message: 'This virtual key has been revoked.' });
     }
+    // A rotated predecessor stays usable only until its grace window closes, then it is dead.
+    if (snapshot.graceUntil && Date.now() > Date.parse(snapshot.graceUntil)) {
+      throw new RelayError('key_revoked', {
+        message: 'This virtual key has expired after rotation.',
+      });
+    }
     if (snapshot.orgStatus === 'suspended') {
       throw new RelayError('org_suspended', { message: 'This organization is suspended.' });
     }

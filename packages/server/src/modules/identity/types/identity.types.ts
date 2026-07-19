@@ -38,6 +38,8 @@ export interface VirtualKeySnapshot {
   environment: VirtualKeyEnvironment;
   orgStatus: 'active' | 'suspended';
   keyStatus: 'active' | 'revoked';
+  /** Set on a rotated predecessor: the key stops working after this instant. Null = no expiry. */
+  graceUntil: string | null;
   entitlements: Record<string, unknown>;
   policy: Record<string, unknown>;
 }
