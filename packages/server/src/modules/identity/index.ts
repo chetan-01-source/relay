@@ -25,6 +25,15 @@ import { registerIdentityRoutes } from './routes/identity.routes.js';
 import type { VirtualKeyResolver, VirtualKeySnapshot } from './types/identity.types.js';
 
 export type { VirtualKeySnapshot, JwtClaims } from './types/identity.types.js';
+export type { AuthPreHandler } from './middleware/auth.js';
+
+// The write side of the snapshot-invalidation contract — other modules publish through these so the
+// data plane's in-process snapshots stay correct (tenancy suspends orgs, apps revoke keys).
+export {
+  publishKeyInvalidation,
+  publishOrgSuspend,
+  publishOrgFeaturesUpdated,
+} from './lib/invalidation.js';
 
 export interface LogtoJwtConfig {
   endpoint: string; // Logto endpoint; issuer is `${endpoint}/oidc`, JWKS `${endpoint}/oidc/jwks`

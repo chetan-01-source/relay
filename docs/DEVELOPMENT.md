@@ -84,6 +84,13 @@ modules/<name>/
   `authVirtualKey` (data plane), `authJwt` + `requireScope` (control plane), which `app.ts` attaches
   per route group. Layers: `middleware → services (resolver/jwt) → repository → queries`, plus
   `lib/` (LRU snapshot + invalidation contract). See ADRs `0001`–`0003`.
+- `modules/tenancy/` — the platform control plane (Week 2 Day 7, `/api/v1/platform/orgs/*`). Full
+  stack `routes → controller → service → repository → queries` + `lib/` (entitlement templates + the
+  onboarding state machine). Its service orchestrates Logto org-sync, the audit trail, and snapshot
+  invalidation; routes are guarded by the identity preHandlers passed in from `app.ts`. See ADR `0004`.
+- `modules/audit/` — a **library module** (no routes yet): `createAuditRepository()` appends
+  hash-chained, per-org audit rows inside the caller's transaction. Layers: `repository → queries`
+  - `lib/` (the pure hash chain). Other modules import it via `index.ts`. Endpoints land Day 12.
 
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**
@@ -246,7 +253,10 @@ scripts/check-rls.sh          # static: every tenant table has FORCE RLS + both 
 pnpm --filter @relay/server test   # dynamic: integration + (soon) test/isolation cross-tenant probes
 ```
 
-Both must be green. The dynamic isolation suite proves org A cannot read org B for every role.
+Both must be green. The dynamic isolation suite proves org A cannot read org B for every role. Its
+probes live in `packages/server/src/isolation/` (so they run in the server's Vitest with a DB); the
+`test/isolation/` directory is the documented index. RLS is bypassed by superusers, so the suite
+self-skips unless a real `relay_app` URL is supplied via `RELAY_ISOLATION_APP_URL` (see its README).
 
 ### 5.4 API documentation — generate it once the endpoints are tested
 

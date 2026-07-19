@@ -32,6 +32,11 @@ export const ERROR_CATALOG = {
     message: 'This organization is suspended.',
   },
   not_found: { status: 404, type: 'not_found_error', message: 'Resource not found.' },
+  conflict: {
+    status: 409,
+    type: 'invalid_request_error',
+    message: 'The resource already exists or conflicts with an existing one.',
+  },
   model_not_found: { status: 404, type: 'not_found_error', message: 'The model does not exist.' },
   model_capability_mismatch: {
     status: 400,
@@ -52,6 +57,11 @@ export const ERROR_CATALOG = {
     message: 'The upstream provider is unreachable.',
   },
   internal_error: { status: 500, type: 'api_error', message: 'An internal error occurred.' },
+  service_unavailable: {
+    status: 503,
+    type: 'api_error',
+    message: 'A required dependency is unavailable. Try again shortly.',
+  },
 } as const satisfies Record<string, { status: number; type: string; message: string }>;
 
 export type ErrorCode = keyof typeof ERROR_CATALOG;

@@ -41,6 +41,11 @@ export default async function Home() {
           ) : (
             <p>Control-plane call: {meError ?? 'no data'}</p>
           )}
+          {me?.is_platform_admin ? (
+            <p>
+              <a href="/orgs">Manage organizations →</a>
+            </p>
+          ) : null}
           <form action={signOutAction}>
             <button type="submit">Sign out</button>
           </form>

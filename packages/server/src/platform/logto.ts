@@ -107,3 +107,49 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
 
   return { apiResourceId, roleIds, created };
 }
+
+// ── Organization sync (Week 2 Day 7 · tenancy module) ────────────────────────
+// Runtime Logto operations the tenancy module performs at onboarding. Kept behind this one interface
+// (ADR-7) so no module ever talks to Logto directly; the tenancy service depends on the interface and
+// is unit-tested with a fake. Each call fetches a fresh M2M token — onboarding is low-frequency, so a
+// per-call token keeps the surface simple and avoids caching an expiring credential.
+
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export interface LogtoOrgSync {
+  /** Create a Logto organization; returns its id. */
+  createOrganization(name: string): Promise<string>;
+  /** Delete a Logto organization — used to compensate a failed onboarding transaction. */
+  deleteOrganization(orgId: string): Promise<void>;
+  /** Invite a user (by email) into the organization. Returns the invitation id. */
+  inviteAdmin(orgId: string, email: string): Promise<string>;
+}
+
+export function createLogtoOrgSync(cfg: LogtoConfig): LogtoOrgSync {
+  return {
+    async createOrganization(name) {
+      const token = await getToken(cfg);
+      const org = await api<Named>(cfg, token, 'POST', '/organizations', { name });
+      return org.id;
+    },
+    async deleteOrganization(orgId) {
+      const token = await getToken(cfg);
+      await api<null>(cfg, token, 'DELETE', `/organizations/${orgId}`);
+    },
+    async inviteAdmin(orgId, email) {
+      const token = await getToken(cfg);
+      const invitation = await api<{ id: string }>(
+        cfg,
+        token,
+        'POST',
+        '/organization-invitations',
+        {
+          organizationId: orgId,
+          invitee: email,
+          expiresAt: Date.now() + INVITE_TTL_MS,
+        },
+      );
+      return invitation.id;
+    },
+  };
+}

@@ -35,6 +35,7 @@ same envelope, so client SDKs handle them natively:
 | `insufficient_scope`        | 403  | `permission_error`      | Key lacks the required scope                                  |
 | `org_suspended`             | 403  | `permission_error`      | Organization is suspended                                     |
 | `not_found`                 | 404  | `not_found_error`       | Unknown route / resource                                      |
+| `conflict`                  | 409  | `invalid_request_error` | Resource already exists (e.g. onboarding a duplicate org)     |
 | `model_not_found`           | 404  | `not_found_error`       | Model id does not exist                                       |
 | `payload_too_large`         | 413  | `invalid_request_error` | Body exceeds the configured limit                             |
 | `rate_limited`              | 429  | `rate_limit_error`      | Token-bucket rate limit exceeded                              |
@@ -42,6 +43,7 @@ same envelope, so client SDKs handle them natively:
 | `upstream_error`            | 502* | `api_error`             | Upstream provider returned non-2xx (*status may pass through) |
 | `upstream_unreachable`      | 502  | `api_error`             | Upstream provider could not be reached                        |
 | `internal_error`            | 500  | `api_error`             | Unexpected exception (details logged, never returned)         |
+| `service_unavailable`       | 503  | `api_error`             | A required dependency (e.g. Logto) is unavailable             |
 
 ## How it works
 

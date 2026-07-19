@@ -29,6 +29,12 @@ const schema = z.object({
   // (401) since it cannot verify one — the data plane (virtual keys) works regardless.
   RELAY_LOGTO_ENDPOINT: z.string().url().optional(),
   RELAY_LOGTO_JWT_AUDIENCE: z.string().default('https://relay.gateway/api'),
+
+  // Logto Management API M2M app (Week 2 Day 7 · ADR-7). Used by the tenancy module to create Logto
+  // organizations and send admin invites at onboarding. Optional: without all three the control
+  // plane still runs, but org onboarding returns 503 (service_unavailable) since it cannot sync Logto.
+  RELAY_LOGTO_M2M_APP_ID: z.string().optional(),
+  RELAY_LOGTO_M2M_APP_SECRET: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
