@@ -4,10 +4,21 @@
  * fixture; nothing else. Phase-1 ships `openai` (canonical passthrough) and `anthropic`
  * (translates the request and normalizes Anthropic's typed SSE events back to canonical).
  */
-import type { CanonicalRequest, ProviderAdapter, ProviderName } from '../types/proxy.types.js';
+import type {
+  CanonicalRequest,
+  ContentPart,
+  ProviderAdapter,
+  ProviderName,
+} from '../types/proxy.types.js';
+
+/** Concatenate the text of a message's content, ignoring non-text (image) parts. */
+function textOf(content: string | ContentPart[]): string {
+  if (typeof content === 'string') return content;
+  return content.map((part) => (part.type === 'text' ? part.text : '')).join('');
+}
 
 function estimateTokens(req: CanonicalRequest): number {
-  const chars = req.messages.reduce((n, m) => n + m.content.length, 0);
+  const chars = req.messages.reduce((n, m) => n + textOf(m.content).length, 0);
   return Math.ceil(chars / 4) + (req.max_tokens ?? 0);
 }
 
@@ -48,17 +59,28 @@ export const openaiAdapter: ProviderAdapter = {
   countTokens: estimateTokens,
 };
 
+/** Translate canonical (OpenAI-style) content to Anthropic's content blocks. A plain string stays a
+ * string; parts map text→text blocks and image_url→a URL image source (Anthropic's vision format). */
+function toAnthropicContent(content: string | ContentPart[]): unknown {
+  if (typeof content === 'string') return content;
+  return content.map((part) =>
+    part.type === 'text'
+      ? { type: 'text', text: part.text }
+      : { type: 'image', source: { type: 'url', url: part.image_url.url } },
+  );
+}
+
 // ── Anthropic adapter — different request shape AND typed event stream ──────────────
 export const anthropicAdapter: ProviderAdapter = {
   name: 'anthropic',
   translate(req, target) {
     const system = req.messages
       .filter((m) => m.role === 'system')
-      .map((m) => m.content)
+      .map((m) => textOf(m.content))
       .join('\n');
     const messages = req.messages
       .filter((m) => m.role !== 'system')
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: toAnthropicContent(m.content) }));
     return {
       url: `${target.baseUrl}/v1/messages`,
       headers: {
@@ -102,9 +124,27 @@ export const anthropicAdapter: ProviderAdapter = {
   countTokens: estimateTokens,
 };
 
+// ── OpenAI-compatible adapter (vLLM / Ollama / LM Studio) ────────────────────────────
+// Same wire format as OpenAI, but these are self-hosted at an arbitrary base URL and many run
+// without auth. So we reuse the OpenAI translation and rewrite one header: send Authorization only
+// when a key is actually configured, so a local Ollama (no key) isn't handed a bogus "Bearer ".
+export const openaiCompatAdapter: ProviderAdapter = {
+  name: 'openai_compat',
+  translate(req, target) {
+    const base = openaiAdapter.translate(req, target);
+    if (target.apiKey) return base;
+    // Local servers (e.g. Ollama) need no auth — strip the Authorization header we'd otherwise send.
+    const headers = { ...base.headers };
+    delete headers.authorization;
+    return { ...base, headers };
+  },
+  toDelta: (event) => openaiAdapter.toDelta(event),
+  countTokens: estimateTokens,
+};
+
 const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   openai: openaiAdapter,
-  openai_compat: openaiAdapter, // OpenAI-compatible providers reuse the OpenAI adapter
+  openai_compat: openaiCompatAdapter,
   anthropic: anthropicAdapter,
 };
 

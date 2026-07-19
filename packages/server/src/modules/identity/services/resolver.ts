@@ -98,6 +98,7 @@ function toSnapshot(row: VirtualKeyRow, entitlements: Record<string, unknown>): 
     environment: row.environment,
     orgStatus: row.org_status,
     keyStatus: row.status,
+    graceUntil: row.grace_until,
     entitlements,
     policy: {}, // reserved for Day 10 (rate limits + budgets)
   };

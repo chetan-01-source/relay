@@ -45,4 +45,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/me")
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/platform/orgs")
 [ "$code" = 401 ] || fail "control plane orgs list should 401 without a JWT (got $code)"; pass "control-plane orgs 401"
 
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/providers")
+[ "$code" = 401 ] || fail "providers list should 401 without a JWT (got $code)"; pass "control-plane providers 401"
+
 echo "SMOKE OK"

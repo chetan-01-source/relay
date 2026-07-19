@@ -21,6 +21,8 @@ import { registerProxy } from './modules/proxy/index.js';
 import { registerModels } from './modules/models/index.js';
 import { registerIdentity, type LogtoJwtConfig } from './modules/identity/index.js';
 import { registerTenancy } from './modules/tenancy/index.js';
+import { registerApps } from './modules/apps/index.js';
+import { registerProviders } from './modules/providers/index.js';
 
 export interface AppDeps {
   db: Database;
@@ -53,6 +55,8 @@ const OPENAPI_DOC = {
     { name: 'models', description: 'Model discovery' },
     { name: 'identity', description: 'Control-plane identity (Logto JWT + scopes)' },
     { name: 'tenancy', description: 'Platform control plane: org lifecycle + entitlements' },
+    { name: 'apps', description: 'Applications + virtual-key lifecycle (issue/rotate/revoke)' },
+    { name: 'providers', description: 'Encrypted upstream provider credentials' },
   ],
 };
 
@@ -104,6 +108,17 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     ...(deps.logtoM2m ? { logto: createLogtoOrgSync(deps.logtoM2m) } : {}),
     guards: { authJwt: identity.authJwt, requireScope: identity.requireScope },
   });
+
+  // Org-scoped control plane: applications + virtual-key lifecycle, and the encrypted provider
+  // credential store. Both guarded by the identity JWT preHandlers.
+  const guards = { authJwt: identity.authJwt, requireScope: identity.requireScope };
+  registerApps(app, {
+    db: deps.db,
+    masterKey: deps.masterKey,
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    guards,
+  });
+  registerProviders(app, { db: deps.db, masterKey: deps.masterKey, guards });
 
   registerProxy(app, { upstreamUrl: deps.upstreamUrl, authVirtualKey: identity.authVirtualKey });
   registerModels(app, { db: deps.db });

@@ -9,9 +9,20 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
  * index.ts — so routes/ can reference it without a routes ↔ index import cycle. */
 export type ProxyPreHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
+/** OpenAI-style multimodal content parts. Text-only messages stay a plain string. */
+export interface TextPart {
+  type: 'text';
+  text: string;
+}
+export interface ImagePart {
+  type: 'image_url';
+  image_url: { url: string };
+}
+export type ContentPart = TextPart | ImagePart;
+
 export interface CanonicalMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ContentPart[];
 }
 
 export interface CanonicalRequest {

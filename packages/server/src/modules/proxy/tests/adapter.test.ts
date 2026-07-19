@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { openaiAdapter, anthropicAdapter, adapterFor } from '../adapters/adapter.js';
+import {
+  openaiAdapter,
+  anthropicAdapter,
+  openaiCompatAdapter,
+  adapterFor,
+} from '../adapters/adapter.js';
 import type { CanonicalRequest, Target } from '../types/proxy.types.js';
 
 const req: CanonicalRequest = {
@@ -77,8 +82,9 @@ describe('anthropicAdapter', () => {
 });
 
 describe('adapterFor + countTokens', () => {
-  it('maps openai_compat to the openai adapter', () => {
-    expect(adapterFor('openai_compat')).toBe(openaiAdapter);
+  it('resolves each provider to its adapter', () => {
+    expect(adapterFor('openai')).toBe(openaiAdapter);
+    expect(adapterFor('openai_compat')).toBe(openaiCompatAdapter);
     expect(adapterFor('anthropic')).toBe(anthropicAdapter);
   });
   it('estimates tokens from chars/4 plus max_tokens', () => {

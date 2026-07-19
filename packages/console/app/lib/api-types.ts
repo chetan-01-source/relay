@@ -816,6 +816,997 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/apps': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List applications */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                id?: string;
+                name?: string;
+                description?: null | string;
+                created_at?: string;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Create an application */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            name: string;
+            description?: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              name?: string;
+              description?: null | string;
+              created_at?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/apps/{appId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retrieve an application */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          appId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              name?: string;
+              description?: null | string;
+              created_at?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/apps/{appId}/keys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List an application’s virtual keys (never returns secrets) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          appId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                id?: string;
+                app_id?: string;
+                key_id?: null | string;
+                name?: null | string;
+                last4?: string;
+                /** @enum {string} */
+                environment?: 'live' | 'test';
+                /** @enum {string} */
+                status?: 'active' | 'revoked';
+                successor_id?: null | string;
+                grace_until?: null | string;
+                created_at?: string;
+                revoked_at?: null | string;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Issue a virtual key (plaintext returned once) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          appId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            name?: string;
+            /** @enum {string} */
+            environment?: 'live' | 'test';
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              app_id?: string;
+              key_id?: null | string;
+              name?: null | string;
+              last4?: string;
+              /** @enum {string} */
+              environment?: 'live' | 'test';
+              /** @enum {string} */
+              status?: 'active' | 'revoked';
+              successor_id?: null | string;
+              grace_until?: null | string;
+              created_at?: string;
+              revoked_at?: null | string;
+              key?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/keys/{keyId}/rotate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rotate a key: issue a successor, grace the predecessor */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          keyId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              app_id?: string;
+              key_id?: null | string;
+              name?: null | string;
+              last4?: string;
+              /** @enum {string} */
+              environment?: 'live' | 'test';
+              /** @enum {string} */
+              status?: 'active' | 'revoked';
+              successor_id?: null | string;
+              grace_until?: null | string;
+              created_at?: string;
+              revoked_at?: null | string;
+              key?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/keys/{keyId}/revoke': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Revoke a key immediately (data plane rejects it ≤1s later) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          keyId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              app_id?: string;
+              key_id?: null | string;
+              name?: null | string;
+              last4?: string;
+              /** @enum {string} */
+              environment?: 'live' | 'test';
+              /** @enum {string} */
+              status?: 'active' | 'revoked';
+              successor_id?: null | string;
+              grace_until?: null | string;
+              created_at?: string;
+              revoked_at?: null | string;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/providers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List provider credentials (metadata only) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                id?: string;
+                name?: string;
+                /** @enum {string} */
+                provider?: 'openai' | 'anthropic' | 'openai_compat';
+                last4?: string;
+                base_url?: null | string;
+                /** @enum {string} */
+                status?: 'active' | 'disabled';
+                health_score?: number;
+                created_at?: string;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Store a provider credential (sealed on write, never returned) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            name: string;
+            /** @enum {string} */
+            provider: 'openai' | 'anthropic' | 'openai_compat';
+            apiKey: string;
+            /** Format: uri */
+            baseUrl?: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              name?: string;
+              /** @enum {string} */
+              provider?: 'openai' | 'anthropic' | 'openai_compat';
+              last4?: string;
+              base_url?: null | string;
+              /** @enum {string} */
+              status?: 'active' | 'disabled';
+              health_score?: number;
+              created_at?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/providers/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retrieve a provider credential (metadata only) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              name?: string;
+              /** @enum {string} */
+              provider?: 'openai' | 'anthropic' | 'openai_compat';
+              last4?: string;
+              base_url?: null | string;
+              /** @enum {string} */
+              status?: 'active' | 'disabled';
+              health_score?: number;
+              created_at?: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    /** Delete a provider credential */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/chat/completions': {
     parameters: {
       query?: never;
@@ -843,7 +1834,11 @@ export interface paths {
             messages: {
               /** @enum {string} */
               role: 'system' | 'user' | 'assistant';
-              content: string;
+              content:
+                | string
+                | {
+                    [key: string]: unknown;
+                  }[];
             }[];
             stream?: boolean;
             max_tokens?: number;

@@ -24,7 +24,13 @@ const adminUrl = process.env.RELAY_MIGRATION_DATABASE_URL; // superuser — seed
 const master = process.env.RELAY_MASTER_KEY ?? randomBytes(32).toString('base64');
 
 // Every tenant table that carries org_id. A cross-tenant read of any of these must return nothing.
-const TENANT_TABLES = ['applications', 'virtual_keys', 'org_features', 'audit_log'] as const;
+const TENANT_TABLES = [
+  'applications',
+  'virtual_keys',
+  'provider_credentials',
+  'org_features',
+  'audit_log',
+] as const;
 
 /** Seed one org (as superuser, bypassing RLS) with a row in every tenant table. Returns its id. */
 async function seedOrg(client: pg.Client, label: string): Promise<string> {
@@ -42,6 +48,12 @@ async function seedOrg(client: pg.Client, label: string): Promise<string> {
     `INSERT INTO virtual_keys (org_id, app_id, key_id, key_sha256, last4, environment)
      VALUES ($1, $2, $3, $4, $5, 'live')`,
     [orgId, app.rows[0]!.id, minted.keyId, minted.secretVerifier, minted.last4],
+  );
+  await client.query(
+    `INSERT INTO provider_credentials
+       (org_id, name, provider, ciphertext, iv, auth_tag, wrapped_dek, last4)
+     VALUES ($1, 'iso-cred', 'openai', $2, $3, $4, $5, 'wxyz')`,
+    [orgId, randomBytes(16), randomBytes(12), randomBytes(16), randomBytes(60)],
   );
   await client.query(
     `INSERT INTO org_features (org_id, feature_key, value) VALUES ($1, 'cache.exact', 'true')`,
