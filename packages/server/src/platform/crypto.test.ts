@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { sealCredential, openCredential, hashVirtualKey } from './crypto.js';
+import {
+  sealCredential,
+  openCredential,
+  hashVirtualKey,
+  mintVirtualKey,
+  parseVirtualKey,
+  verifyVirtualKeySecret,
+} from './crypto.js';
 
 const masterKey = randomBytes(32).toString('base64');
 
@@ -54,5 +61,49 @@ describe('hashVirtualKey', () => {
     expect(
       hashVirtualKey(master, 'rk_live_a').equals(hashVirtualKey(otherMaster, 'rk_live_a')),
     ).toBe(false);
+  });
+});
+
+describe('virtual-key format (mint / parse / verify)', () => {
+  const master = randomBytes(32).toString('base64');
+
+  it('mints rk_<env>_<keyId>.<secret> and its verifier round-trips', () => {
+    const minted = mintVirtualKey(master, 'live');
+    expect(minted.plaintext).toMatch(/^rk_live_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+
+    const parsed = parseVirtualKey(minted.plaintext);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.environment).toBe('live');
+    expect(parsed!.keyId).toBe(minted.keyId);
+    expect(minted.last4).toBe(parsed!.secret.slice(-4));
+
+    expect(verifyVirtualKeySecret(master, parsed!.secret, minted.secretVerifier)).toBe(true);
+  });
+
+  it('honours the environment prefix (test)', () => {
+    const minted = mintVirtualKey(master, 'test');
+    expect(minted.plaintext.startsWith('rk_test_')).toBe(true);
+    expect(parseVirtualKey(minted.plaintext)!.environment).toBe('test');
+  });
+
+  it('rejects a wrong secret and a wrong master key (timing-safe verify)', () => {
+    const minted = mintVirtualKey(master, 'live');
+    const secret = parseVirtualKey(minted.plaintext)!.secret;
+    expect(verifyVirtualKeySecret(master, `${secret}x`, minted.secretVerifier)).toBe(false);
+    const otherMaster = randomBytes(32).toString('base64');
+    expect(verifyVirtualKeySecret(otherMaster, secret, minted.secretVerifier)).toBe(false);
+  });
+
+  it('returns null for malformed keys — never throws on input', () => {
+    for (const bad of [
+      '',
+      'rk_live_nodot',
+      'sk-openai-xyz',
+      'rk_prod_a.b',
+      'rk_live_.b',
+      'garbage',
+    ]) {
+      expect(parseVirtualKey(bad)).toBeNull();
+    }
   });
 });

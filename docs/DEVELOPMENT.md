@@ -79,8 +79,14 @@ modules/<name>/
   formats) and `lib/` (the SSE parser). Layers: `routes → controller → service → adapters/lib`.
 - `modules/models/` — the DB-backed vertical (`GET /v1/models`). Full stack:
   `routes → controller → service → repository → queries`, reading the global `model_catalog` table.
+- `modules/identity/` — the auth spine (Week 2 Day 6). Its public surface is a set of Fastify
+  **preHandlers**, not routes: `registerIdentity(app, {db, bus, masterKey, logto})` returns
+  `authVirtualKey` (data plane), `authJwt` + `requireScope` (control plane), which `app.ts` attaches
+  per route group. Layers: `middleware → services (resolver/jwt) → repository → queries`, plus
+  `lib/` (LRU snapshot + invalidation contract). See ADRs `0001`–`0003`.
 
-**Copy `modules/models/` as the template for any new DB-backed feature.**
+**Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
+the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**
 
 **Every package follows a layered layout — not just the server.** The `mockllm` package is organized
 the same way (`app.ts` composition root + `routes/`, `providers/` (its handlers), `lib/`, `types/`,

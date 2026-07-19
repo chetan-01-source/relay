@@ -9,6 +9,103 @@
     "schemas": {}
   },
   "paths": {
+    "/api/v1/me": {
+      "get": {
+        "summary": "Return the authenticated caller (control plane)",
+        "tags": ["identity"],
+        "description": "Requires a Logto JWT: `Authorization: Bearer <token>` with the `relay:read` scope. Returns 401 without a valid token and 403 without the scope.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string"
+                    },
+                    "user_id": {
+                      "type": "string"
+                    },
+                    "org_id": {
+                      "type": ["null", "string"]
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "is_platform_admin": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/chat/completions": {
       "post": {
         "summary": "Create a chat completion (streaming or non-streaming)",
@@ -168,8 +265,14 @@
                         "message": {
                           "type": "string"
                         },
+                        "type": {
+                          "type": "string"
+                        },
                         "code": {
                           "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
                         }
                       }
                     }
@@ -190,6 +293,10 @@
     {
       "name": "models",
       "description": "Model discovery"
+    },
+    {
+      "name": "identity",
+      "description": "Control-plane identity (Logto JWT + scopes)"
     }
   ]
 }

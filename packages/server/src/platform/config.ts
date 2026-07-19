@@ -22,6 +22,13 @@ const schema = z.object({
 
   // upstream (Phase-1 skeleton: hardcoded target → mockllm)
   RELAY_UPSTREAM_URL: z.string().url().default('http://localhost:8080'),
+
+  // Logto — control-plane (/api/*) JWT verification (Week 2 Day 6 · ADR two-auth-planes).
+  // Issuer is `${endpoint}/oidc`; JWKS is fetched + cached from its discovery document. Audience is
+  // the Relay API resource indicator. Optional: when unset, the control plane rejects every JWT
+  // (401) since it cannot verify one — the data plane (virtual keys) works regardless.
+  RELAY_LOGTO_ENDPOINT: z.string().url().optional(),
+  RELAY_LOGTO_JWT_AUDIENCE: z.string().default('https://relay.gateway/api'),
 });
 
 export type Config = z.infer<typeof schema>;

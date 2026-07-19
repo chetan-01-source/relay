@@ -6,9 +6,8 @@
  * inline parametrized SQL (still injection-safe). Idempotent by reset: the demo org's child rows are
  * cleared and re-seeded each run, and a new key is minted and printed (plaintext is never recoverable).
  */
-import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { hashVirtualKey, sealCredential } from '../platform/crypto.js';
+import { mintVirtualKey, sealCredential } from '../platform/crypto.js';
 
 export interface DemoSeedResult {
   /** Plaintext key — the caller writes it to a secured file, never to logs. */
@@ -101,20 +100,19 @@ export async function seedDemo(
       [orgId, versionId, credId],
     );
 
-    // mint a fresh virtual key — shown once; only a peppered HMAC-SHA256 verifier is stored
-    // (high-entropy token, so a fast keyed hash is correct — see hashVirtualKey).
-    const apiKey = `rk_live_${randomBytes(24).toString('base64url')}`;
-    const keyHash = hashVirtualKey(masterKey, apiKey);
+    // mint a fresh virtual key — shown once (rk_live_<keyId>.<secret>). Only the public key_id
+    // selector and a peppered PBKDF2 verifier of the SECRET half are stored (ADR virtual-key-format).
+    const minted = mintVirtualKey(masterKey, 'live');
     await client.query(
-      `INSERT INTO virtual_keys (org_id, app_id, key_sha256, last4, name, environment)
-       VALUES ($1, $2, $3, $4, 'demo-key', 'live')`,
-      [orgId, appId, keyHash, apiKey.slice(-4)],
+      `INSERT INTO virtual_keys (org_id, app_id, key_id, key_sha256, last4, name, environment)
+       VALUES ($1, $2, $3, $4, $5, 'demo-key', 'live')`,
+      [orgId, appId, minted.keyId, minted.secretVerifier, minted.last4],
     );
 
     await client.query('COMMIT');
 
     // Return the raw pieces only; formatting/surfacing (to a secured file, never logs) is the caller's job.
-    return { apiKey, last4: apiKey.slice(-4) };
+    return { apiKey: minted.plaintext, last4: minted.last4 };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

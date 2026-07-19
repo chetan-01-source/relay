@@ -4,27 +4,90 @@
  * itself wrapped by the master KEK (RELAY_MASTER_KEY). Plaintext exists only transiently
  * in worker memory at send time — never logged, never stored.
  */
-import { randomBytes, createCipheriv, createDecipheriv, createHmac, pbkdf2Sync } from 'node:crypto';
+import {
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  pbkdf2Sync,
+  timingSafeEqual,
+} from 'node:crypto';
 
 const ALGO = 'aes-256-gcm';
 const IV_LEN = 12; // GCM standard nonce
 const KEY_LEN = 32;
 const VKEY_ITERATIONS = 100_000;
 
+const KEY_ID_BYTES = 16; // public lookup selector — indexed, not secret
+const SECRET_BYTES = 24; // 192-bit random secret half — the actual credential
+export type VirtualKeyEnvironment = 'live' | 'test';
+
+/** The three fields a freshly minted key yields. Plaintext is shown to the caller exactly once. */
+export interface MintedVirtualKey {
+  plaintext: string; // rk_<env>_<keyId>.<secret> — never stored
+  keyId: string; // public selector — stored in virtual_keys.key_id (indexed)
+  secretVerifier: Buffer; // PBKDF2(secret, pepper) — stored in virtual_keys.key_sha256
+  last4: string; // display only
+}
+
+/** The parts parsed out of a presented key. Never logged. */
+export interface ParsedVirtualKey {
+  environment: VirtualKeyEnvironment;
+  keyId: string;
+  secret: string;
+}
+
+// rk_<env>_<keyId>.<secret> — env is live|test, keyId/secret are base64url (no dot inside either).
+const VKEY_RE = /^rk_(live|test)_([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/;
+
 /**
- * Deterministic verifier for a virtual key, for storage + O(1) indexed lookup.
+ * Deterministic verifier for a virtual key's SECRET half — for storage + timing-safe verification.
  *
  * Uses PBKDF2-HMAC-SHA256 (a KDF) with a DETERMINISTIC, server-side salt derived from
- * RELAY_MASTER_KEY — not a random per-row salt. The determinism is deliberate: the gateway resolves
- * a presented key by a single unique-index lookup on this verifier, so the same key must always
- * derive the same value. The pepper-as-salt means an attacker with only the database cannot verify
- * guessed keys offline. Virtual keys are high-entropy (192-bit) random tokens, so the iteration count
- * is defense-in-depth rather than the primary barrier; the resolver derives this only on a snapshot
- * cache miss, never per request on the hot path.
+ * RELAY_MASTER_KEY — not a random per-row salt. Determinism is deliberate: the resolver first finds
+ * the row by the public key_id (a fast unique-index probe, no hashing), then verifies the presented
+ * secret against this value, so the same secret must always derive the same verifier. The
+ * pepper-as-salt means an attacker with only the database cannot verify guessed secrets offline.
+ * Secrets are high-entropy (192-bit) random tokens, so the iteration count is defense-in-depth
+ * rather than the primary barrier; the resolver derives this only on a snapshot miss, never per
+ * request on the hot path.
  */
-export function hashVirtualKey(masterKeyB64: string, apiKey: string): Buffer {
+export function hashVirtualKey(masterKeyB64: string, secret: string): Buffer {
   const salt = createHmac('sha256', kek(masterKeyB64)).update('relay/virtual-key/salt/v1').digest();
-  return pbkdf2Sync(apiKey, salt, VKEY_ITERATIONS, KEY_LEN, 'sha256');
+  return pbkdf2Sync(secret, salt, VKEY_ITERATIONS, KEY_LEN, 'sha256');
+}
+
+/** Mint a new virtual key: public keyId selector + random secret + its stored verifier. */
+export function mintVirtualKey(
+  masterKeyB64: string,
+  environment: VirtualKeyEnvironment = 'live',
+): MintedVirtualKey {
+  const keyId = randomBytes(KEY_ID_BYTES).toString('base64url');
+  const secret = randomBytes(SECRET_BYTES).toString('base64url');
+  const plaintext = `rk_${environment}_${keyId}.${secret}`;
+  return {
+    plaintext,
+    keyId,
+    secretVerifier: hashVirtualKey(masterKeyB64, secret),
+    last4: secret.slice(-4),
+  };
+}
+
+/** Parse a presented key into its parts, or null if the shape is invalid. Never throws on input. */
+export function parseVirtualKey(plaintext: string): ParsedVirtualKey | null {
+  const m = VKEY_RE.exec(plaintext);
+  if (!m) return null;
+  return { environment: m[1] as VirtualKeyEnvironment, keyId: m[2]!, secret: m[3]! };
+}
+
+/** Constant-time check of a presented secret against a stored verifier. */
+export function verifyVirtualKeySecret(
+  masterKeyB64: string,
+  secret: string,
+  storedVerifier: Buffer,
+): boolean {
+  const candidate = hashVirtualKey(masterKeyB64, secret);
+  return candidate.length === storedVerifier.length && timingSafeEqual(candidate, storedVerifier);
 }
 
 export interface SealedCredential {

@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { RelayError } from '@relay/shared';
+import { getContext } from '../../../platform/als.js';
 import { gatewayOverhead, requestsTotal } from '../../../platform/metrics.js';
 import {
   type CanonicalRequest,
@@ -24,18 +25,14 @@ export interface ProxyController {
   chatCompletions(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
 }
 
-const VIRTUAL_KEY_RE = /^Bearer\s+rk_(live|test)_/;
-
 export function createProxyController(deps: ProxyControllerDeps): ProxyController {
   return {
     async chatCompletions(request, reply) {
       const start = process.hrtime.bigint();
-      const traceId = randomUUID();
-
-      const auth = request.headers.authorization;
-      if (!auth || !VIRTUAL_KEY_RE.test(auth)) {
-        throw new RelayError('invalid_api_key', { message: 'Missing or malformed virtual key.' });
-      }
+      // Identity + trace are resolved by the authVirtualKey preHandler and bound to the ALS context.
+      const ctx = getContext();
+      const traceId = ctx?.traceId ?? randomUUID();
+      const orgLabel = request.identity?.orgId ?? '-';
 
       const parsed = parseBody(request.body); // body already schema-validated by the route
       const target: Target = {
@@ -51,7 +48,7 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
 
       // accumulates time spent BLOCKED on the provider; subtracted so overhead = gateway-only
       const timing: RequestTiming = { upstreamMs: 0 };
-      const labels = { org: '-', route: parsed.model, provider: target.provider };
+      const labels = { org: orgLabel, route: parsed.model, provider: target.provider };
       try {
         if (parsed.stream) {
           await streamOut(reply, deps.service, parsed, target, traceId, start, timing);

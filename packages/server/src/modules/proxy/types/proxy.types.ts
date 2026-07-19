@@ -3,6 +3,11 @@
  * (adapter.ts, proxy.service.ts, proxy.controller.ts) depend on abstractions, not each other.
  * The canonical shape is OpenAI Chat Completions — the gateway's Layer-2 domain type.
  */
+import type { FastifyReply, FastifyRequest } from 'fastify';
+
+/** An async Fastify preHandler (matches the identity module's authVirtualKey). Lives here — not in
+ * index.ts — so routes/ can reference it without a routes ↔ index import cycle. */
+export type ProxyPreHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface CanonicalMessage {
   role: 'system' | 'user' | 'assistant';

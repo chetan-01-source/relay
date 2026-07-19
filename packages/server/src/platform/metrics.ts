@@ -21,3 +21,15 @@ export const requestsTotal = new Counter({
   labelNames: ['org', 'route', 'provider', 'status'] as const,
   registers: [registry],
 });
+
+/**
+ * Snapshot invalidation lag (Week 2 Day 6 DoD): seconds from a key/org mutation being published on
+ * the Valkey bus to a worker dropping the stale entry from its in-process snapshot. The revocation
+ * SLA is ≤1s; this histogram is how we prove it. Observed by the identity module's bus subscriber.
+ */
+export const snapshotInvalidationLag = new Histogram({
+  name: 'relay_snapshot_invalidation_lag',
+  help: 'Seconds from a bus invalidation message to the local snapshot entry being dropped (revocation SLA ≤1s).',
+  buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2],
+  registers: [registry],
+});
