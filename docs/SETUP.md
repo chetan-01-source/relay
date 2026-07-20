@@ -40,9 +40,9 @@ make up                                # compose core up + relay migrate + seed-
 make dev                               # core + mockllm + turbo dev (gateway on :3000, internal :9090)
 ```
 
-> **Port note (dev):** the console and the gateway both default to `:3000`. Run **one** at a time on
-> 3000, or start the gateway on another port: `RELAY_PORT=3100 pnpm --filter @relay/server dev`.
-> The console must stay on `:3000` to match its Logto redirect URI (`http://localhost:3000/callback`).
+> **Port note (dev):** the **gateway** owns `:3000` (data plane, `/docs`, `/v1/*`, `/openapi.json`);
+> the **console** runs on `:3100` (`next dev -p 3100`). They no longer collide, so `make dev` starts
+> both. The console's Logto redirect URI must therefore be `http://localhost:3100/callback`.
 
 ---
 
@@ -80,7 +80,7 @@ Console (`packages/console/.env.local`, gitignored — see `.env.example`):
 | mockllm  | 8080        | mock upstream provider     | `curl` — §5.5                          |
 | Gateway  | 3000        | data plane `/v1/*`         | `curl` / SDK — §6                      |
 | Gateway  | 9090        | internal: health · metrics | `curl` — §7                            |
-| Console  | 3000        | dashboard + Logto sign-in  | browser `http://localhost:3000` — §5.6 |
+| Console  | 3100        | dashboard + Logto sign-in  | browser `http://localhost:3100` — §5.6 |
 
 Container status: `docker compose -f deploy/compose/compose.yaml ps`.
 Logs for one service: `docker compose -f deploy/compose/compose.yaml logs -f postgres`.
@@ -157,7 +157,7 @@ docker exec -it relay-valkey-1 valkey-cli      # or: redis-cli -h localhost -p 6
 make seed-auth        # idempotent: ensures the Relay API resource + relay_admin/relay_member roles
 ```
 
-- **Console sign-in app:** a Traditional web app with redirect URI `http://localhost:3000/callback`;
+- **Console sign-in app:** a Traditional web app with redirect URI `http://localhost:3100/callback`;
   its ID/secret go in `packages/console/.env.local`.
 - **Read Logto state (its own DB):**
 
@@ -187,7 +187,7 @@ curl -s -X POST localhost:8080/v1/chat/completions -H 'content-type: application
 
 ### 5.6 Console
 
-`http://localhost:3000` → "Sign in with Logto" → Logto sign-in page → back to `/callback` → signed in.
+`http://localhost:3100` → "Sign in with Logto" → Logto sign-in page → back to `/callback` → signed in.
 
 ---
 
@@ -296,7 +296,7 @@ Run the G3 bench any time: `make bench` (drives load, fails if overhead p99 > 25
 | psql as `relay_app` returns 0 rows                       | RLS — set `app.current_org` in the tx (§5.1) or use the superuser role.                        |
 | `migration … modified after applied (checksum mismatch)` | You edited an applied migration. Revert it and **add a new** migration instead.                |
 | `Database.get() before Database.init()`                  | Something used the DB singleton before `serve` called `initDb`. Boot via `relay serve`.        |
-| Console sign-in loops / redirect error                   | `LOGTO_BASE_URL` + the Logto app's redirect URI must both be `http://localhost:3000/callback`. |
+| Console sign-in loops / redirect error                   | `LOGTO_BASE_URL` + the Logto app's redirect URI must both be `http://localhost:3100/callback`. |
 | `seed-demo needs RELAY_MASTER_KEY`                       | Set `RELAY_MASTER_KEY` (`openssl rand -base64 32`) in `.env`.                                  |
 | `seed-auth skipped`                                      | `RELAY_LOGTO_*` not set — do the one-time M2M setup (§5.3).                                    |
 | Port `3000` in use                                       | Console and gateway both want 3000 — run the gateway on another port (§2 note).                |

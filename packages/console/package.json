@@ -8,7 +8,7 @@
     "lint": "eslint app",
     "test": "vitest run --passWithNoTests",
     "gen:api": "openapi-typescript ../../api/openapi/openapi.json -o app/lib/api-types.ts",
-    "dev": "next dev -p 3000"
+    "dev": "next dev -p 3100"
   },
   "dependencies": {
     "@logto/next": "^4.2.10",
