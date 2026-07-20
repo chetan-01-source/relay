@@ -23,7 +23,7 @@ up: ## compose core + migrate + seeds (full local stack)
 
 dev: up ## inner loop: core + mockllm + watch all packages
 	$(COMPOSE) --profile dev up -d mockllm
-	pnpm turbo dev
+	$(LOADENV) pnpm turbo dev   # load .env so the gateway (turbo task) gets RELAY_* config at boot
 
 down: ## stop everything and drop volumes
 	$(COMPOSE) --profile dev --profile core down
