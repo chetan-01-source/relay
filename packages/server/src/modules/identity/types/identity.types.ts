@@ -41,7 +41,23 @@ export interface VirtualKeySnapshot {
   /** Set on a rotated predecessor: the key stops working after this instant. Null = no expiry. */
   graceUntil: string | null;
   entitlements: Record<string, unknown>;
-  policy: Record<string, unknown>;
+  policy: VirtualKeyPolicy;
+}
+
+export interface RateLimitSnapshot {
+  rpm: number | null;
+  tpm: number | null;
+}
+
+export interface BudgetSnapshot {
+  period: 'daily' | 'monthly';
+  limitUsd: number;
+  hardCutoff: boolean;
+}
+
+export interface VirtualKeyPolicy {
+  rateLimit: RateLimitSnapshot | null;
+  budget: BudgetSnapshot | null;
 }
 
 /** Data-access boundary. The ONLY layer that touches the database. */
@@ -51,9 +67,11 @@ export interface IdentityRepository {
    * This is the one read on the data path that must cross the org boundary (a presented key names
    * no org yet), so it runs as a platform admin. Called only on a snapshot miss.
    */
-  resolveByKeyId(
-    keyId: string,
-  ): Promise<{ row: VirtualKeyRow; entitlements: Record<string, unknown> } | null>;
+  resolveByKeyId(keyId: string): Promise<{
+    row: VirtualKeyRow;
+    entitlements: Record<string, unknown>;
+    policy: VirtualKeyPolicy;
+  } | null>;
 }
 
 /** Resolves a presented virtual key to a snapshot, backed by an in-process cache + bus invalidation. */

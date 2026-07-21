@@ -30,3 +30,25 @@ export function listOrgFeaturesQuery(orgId: string): SqlQuery {
     values: [orgId],
   };
 }
+
+export function listRateLimitPolicyQuery(orgId: string): SqlQuery {
+  return {
+    text: `SELECT scope, rpm, tpm
+             FROM rate_limits
+            WHERE org_id = $1
+         ORDER BY CASE scope WHEN 'key' THEN 0 ELSE 1 END
+            LIMIT 1`,
+    values: [orgId],
+  };
+}
+
+export function listBudgetPolicyQuery(orgId: string): SqlQuery {
+  return {
+    text: `SELECT period, limit_usd::text, hard_cutoff
+             FROM budgets
+            WHERE org_id = $1
+         ORDER BY CASE period WHEN 'monthly' THEN 0 ELSE 1 END
+            LIMIT 1`,
+    values: [orgId],
+  };
+}

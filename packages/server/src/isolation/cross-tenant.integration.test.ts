@@ -30,6 +30,11 @@ const TENANT_TABLES = [
   'provider_credentials',
   'org_features',
   'audit_log',
+  'routes',
+  'route_versions',
+  'route_targets',
+  'budgets',
+  'rate_limits',
 ] as const;
 
 /** Seed one org (as superuser, bypassing RLS) with a row in every tenant table. Returns its id. */
@@ -49,10 +54,10 @@ async function seedOrg(client: pg.Client, label: string): Promise<string> {
      VALUES ($1, $2, $3, $4, $5, 'live')`,
     [orgId, app.rows[0]!.id, minted.keyId, minted.secretVerifier, minted.last4],
   );
-  await client.query(
+  const cred = await client.query<{ id: string }>(
     `INSERT INTO provider_credentials
        (org_id, name, provider, ciphertext, iv, auth_tag, wrapped_dek, last4)
-     VALUES ($1, 'iso-cred', 'openai', $2, $3, $4, $5, 'wxyz')`,
+     VALUES ($1, 'iso-cred', 'openai', $2, $3, $4, $5, 'wxyz') RETURNING id`,
     [orgId, randomBytes(16), randomBytes(12), randomBytes(16), randomBytes(60)],
   );
   await client.query(
@@ -63,6 +68,37 @@ async function seedOrg(client: pg.Client, label: string): Promise<string> {
     `INSERT INTO audit_log (org_id, seq, actor, action, canonical_json, hash)
      VALUES ($1, 1, 'system', 'org.create', '{}'::jsonb, $2)`,
     [orgId, randomBytes(32)],
+  );
+
+  // Day 9 routing chain: route → version → target (target references the credential above).
+  const route = await client.query<{ id: string }>(
+    `INSERT INTO routes (org_id, model_name) VALUES ($1, 'gpt-4o') RETURNING id`,
+    [orgId],
+  );
+  const routeId = route.rows[0]!.id;
+  const version = await client.query<{ id: string }>(
+    `INSERT INTO route_versions (org_id, route_id, version, strategy)
+     VALUES ($1, $2, 1, 'priority') RETURNING id`,
+    [orgId, routeId],
+  );
+  await client.query(`UPDATE routes SET active_version_id = $1 WHERE id = $2`, [
+    version.rows[0]!.id,
+    routeId,
+  ]);
+  await client.query(
+    `INSERT INTO route_targets (org_id, route_version_id, credential_id, provider, model)
+     VALUES ($1, $2, $3, 'openai', 'gpt-4o')`,
+    [orgId, version.rows[0]!.id, cred.rows[0]!.id],
+  );
+
+  // Day 10 policy config rows.
+  await client.query(
+    `INSERT INTO budgets (org_id, period, limit_usd, hard_cutoff) VALUES ($1, 'monthly', 25, true)`,
+    [orgId],
+  );
+  await client.query(
+    `INSERT INTO rate_limits (org_id, scope, rpm, tpm) VALUES ($1, 'org', 60, 1000)`,
+    [orgId],
   );
   return orgId;
 }

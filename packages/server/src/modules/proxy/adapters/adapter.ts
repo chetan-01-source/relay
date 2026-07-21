@@ -6,6 +6,7 @@
  */
 import type {
   CanonicalRequest,
+  CanonicalResponse,
   ContentPart,
   ProviderAdapter,
   ProviderName,
@@ -56,8 +57,31 @@ export const openaiAdapter: ProviderAdapter = {
       return null;
     }
   },
+  // Canonical IS OpenAI, so the body passes through; we only lift usage for metering/budget settle.
+  toResponse(json) {
+    const usage = (json as { usage?: { prompt_tokens?: number; completion_tokens?: number } })
+      .usage;
+    return {
+      body: json,
+      ...(usage
+        ? {
+            usage: {
+              inputTokens: usage.prompt_tokens ?? 0,
+              outputTokens: usage.completion_tokens ?? 0,
+            },
+          }
+        : {}),
+    };
+  },
   countTokens: estimateTokens,
 };
+
+/** Map Anthropic's stop_reason to the OpenAI finish_reason vocabulary. */
+function anthropicFinishReason(stop: string | null | undefined): string {
+  if (stop === 'max_tokens') return 'length';
+  if (stop === 'tool_use') return 'tool_calls';
+  return 'stop'; // end_turn, stop_sequence, null → stop
+}
 
 /** Translate canonical (OpenAI-style) content to Anthropic's content blocks. A plain string stays a
  * string; parts map text→text blocks and image_url→a URL image source (Anthropic's vision format). */
@@ -121,6 +145,44 @@ export const anthropicAdapter: ProviderAdapter = {
       return null;
     }
   },
+  // Anthropic's Messages body differs from OpenAI's: rebuild it as a Chat Completion so clients
+  // using the OpenAI SDK get the shape they expect, and lift usage for metering/budget settle.
+  toResponse(json, req): CanonicalResponse {
+    const j = json as {
+      id?: string;
+      model?: string;
+      stop_reason?: string | null;
+      content?: { type?: string; text?: string }[];
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    const text = (j.content ?? [])
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text ?? '')
+      .join('');
+    const inputTokens = j.usage?.input_tokens ?? 0;
+    const outputTokens = j.usage?.output_tokens ?? 0;
+    return {
+      body: {
+        id: j.id ?? 'chatcmpl-anthropic',
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: j.model ?? req.model,
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: text },
+            finish_reason: anthropicFinishReason(j.stop_reason),
+          },
+        ],
+        usage: {
+          prompt_tokens: inputTokens,
+          completion_tokens: outputTokens,
+          total_tokens: inputTokens + outputTokens,
+        },
+      },
+      usage: { inputTokens, outputTokens },
+    };
+  },
   countTokens: estimateTokens,
 };
 
@@ -139,6 +201,7 @@ export const openaiCompatAdapter: ProviderAdapter = {
     return { ...base, headers };
   },
   toDelta: (event) => openaiAdapter.toDelta(event),
+  toResponse: (json, req) => openaiAdapter.toResponse(json, req),
   countTokens: estimateTokens,
 };
 

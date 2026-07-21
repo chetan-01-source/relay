@@ -40,6 +40,11 @@ export interface Target {
   model: string; // provider-native model id
   baseUrl: string;
   apiKey: string; // plaintext, decrypted in worker memory (skeleton: dummy)
+  routeTargetId?: string;
+  credentialId?: string;
+  breakerKey?: string;
+  inputUsdPer1k?: number;
+  outputUsdPer1k?: number;
 }
 
 export interface ProviderRequest {
@@ -60,11 +65,19 @@ export interface SseEvent {
   data: string;
 }
 
+/** A normalized non-streaming response: the OpenAI-canonical body plus extracted usage (Layer 2). */
+export interface CanonicalResponse {
+  body: unknown; // OpenAI ChatCompletion object, ready to send to the client
+  usage?: { inputTokens: number; outputTokens: number };
+}
+
 /** Layer-1 boundary: the ONLY place a provider's native wire format lives. */
 export interface ProviderAdapter {
   readonly name: ProviderName;
   translate(req: CanonicalRequest, target: Target): ProviderRequest;
   toDelta(event: SseEvent): CanonicalDelta | null;
+  /** Normalize a provider's non-streaming JSON body into an OpenAI-canonical response + usage. */
+  toResponse(json: unknown, req: CanonicalRequest): CanonicalResponse;
   countTokens(req: CanonicalRequest): number;
 }
 
@@ -76,6 +89,10 @@ export interface ProviderAdapter {
  */
 export interface RequestTiming {
   upstreamMs: number;
+  failover?: boolean;
+  selectedProvider?: ProviderName;
+  selectedTarget?: Target;
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 /**
@@ -85,10 +102,53 @@ export interface RequestTiming {
  * accumulate provider-wait time into `timing.upstreamMs`.
  */
 export interface ProxyService {
-  complete(req: CanonicalRequest, target: Target, timing: RequestTiming): Promise<unknown>;
+  complete(req: CanonicalRequest, targets: Target[], timing: RequestTiming): Promise<unknown>;
   stream(
     req: CanonicalRequest,
-    target: Target,
+    targets: Target[],
     timing: RequestTiming,
   ): AsyncIterable<CanonicalDelta>;
+}
+
+/** Public routing contract consumed by the proxy module. Implemented by modules/routing. */
+export interface ProxyRoutingService {
+  selectTargets(orgId: string, req: CanonicalRequest): Promise<Target[]>;
+}
+
+export interface ProxyRateLimitSnapshot {
+  rpm: number | null;
+  tpm: number | null;
+}
+
+export interface ProxyBudgetSnapshot {
+  period: 'daily' | 'monthly';
+  limitUsd: number;
+  hardCutoff: boolean;
+}
+
+export interface ProxyIdentitySnapshot {
+  orgId: string;
+  keyId: string;
+  policy: {
+    rateLimit: ProxyRateLimitSnapshot | null;
+    budget: ProxyBudgetSnapshot | null;
+  };
+}
+
+export interface ProxyPolicyDecision {
+  headers: Record<string, string>;
+}
+
+/** Public policy contract consumed by the proxy module. Implemented by modules/policy. */
+export interface ProxyPolicyService {
+  authorize(
+    identity: ProxyIdentitySnapshot,
+    req: CanonicalRequest,
+    targets: Target[],
+  ): Promise<ProxyPolicyDecision>;
+  settle(
+    decision: ProxyPolicyDecision,
+    target: Target | undefined,
+    usage: { inputTokens: number; outputTokens: number } | undefined,
+  ): Promise<void>;
 }

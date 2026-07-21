@@ -20,7 +20,18 @@ function fakeRepo(rows: Record<string, VirtualKeyRow>) {
     resolveByKeyId(keyId) {
       reads.count += 1;
       const row = rows[keyId];
-      return Promise.resolve(row ? { row, entitlements: { 'cache.exact': true } } : null);
+      return Promise.resolve(
+        row
+          ? {
+              row,
+              entitlements: { 'cache.exact': true },
+              policy: {
+                rateLimit: { rpm: 60, tpm: 1000 },
+                budget: { period: 'monthly', limitUsd: 25, hardCutoff: true },
+              },
+            }
+          : null,
+      );
     },
   };
   return { repo, reads };
@@ -77,7 +88,10 @@ describe('virtual-key resolver', () => {
     expect(first?.orgId).toBe('org-1');
     expect(first?.appId).toBe('app-1');
     expect(first?.entitlements).toEqual({ 'cache.exact': true });
-    expect(first?.policy).toEqual({});
+    expect(first?.policy).toEqual({
+      rateLimit: { rpm: 60, tpm: 1000 },
+      budget: { period: 'monthly', limitUsd: 25, hardCutoff: true },
+    });
     expect(second).toEqual(first);
     expect(reads.count).toBe(1); // second call served from cache
   });

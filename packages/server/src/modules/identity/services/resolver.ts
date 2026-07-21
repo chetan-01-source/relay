@@ -21,6 +21,7 @@ import {
 } from '../lib/invalidation.js';
 import type {
   IdentityRepository,
+  VirtualKeyPolicy,
   VirtualKeyResolver,
   VirtualKeyRow,
   VirtualKeySnapshot,
@@ -50,7 +51,7 @@ export function createVirtualKeyResolver(deps: ResolverDeps): VirtualKeyResolver
     // resolve — and must not be cached, so it cannot poison a later correct lookup.
     if (!verifyVirtualKeySecret(masterKey, parsed.secret, found.row.key_sha256)) return null;
 
-    const snapshot = toSnapshot(found.row, found.entitlements);
+    const snapshot = toSnapshot(found.row, found.entitlements, found.policy);
     cache.set(parsed.keyId, snapshot);
     return snapshot;
   }
@@ -89,7 +90,11 @@ export function createVirtualKeyResolver(deps: ResolverDeps): VirtualKeyResolver
   return { resolve, invalidate, start };
 }
 
-function toSnapshot(row: VirtualKeyRow, entitlements: Record<string, unknown>): VirtualKeySnapshot {
+function toSnapshot(
+  row: VirtualKeyRow,
+  entitlements: Record<string, unknown>,
+  policy: VirtualKeyPolicy,
+): VirtualKeySnapshot {
   return {
     virtualKeyId: row.id,
     keyId: row.key_id,
@@ -100,6 +105,6 @@ function toSnapshot(row: VirtualKeyRow, entitlements: Record<string, unknown>): 
     keyStatus: row.status,
     graceUntil: row.grace_until,
     entitlements,
-    policy: {}, // reserved for Day 10 (rate limits + budgets)
+    policy,
   };
 }

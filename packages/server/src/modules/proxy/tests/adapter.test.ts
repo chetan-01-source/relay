@@ -46,6 +46,17 @@ describe('openaiAdapter', () => {
     ).toEqual({ usage: { inputTokens: 3, outputTokens: 5 } });
     expect(openaiAdapter.toDelta({ data: 'not json' })).toBeNull();
   });
+
+  it('toResponse passes the OpenAI body through and lifts usage', () => {
+    const body = { id: 'x', usage: { prompt_tokens: 7, completion_tokens: 11 } };
+    const out = openaiAdapter.toResponse(body, req);
+    expect(out.body).toBe(body); // canonical is already OpenAI — identity passthrough
+    expect(out.usage).toEqual({ inputTokens: 7, outputTokens: 11 });
+  });
+
+  it('toResponse omits usage when the body has none', () => {
+    expect(openaiAdapter.toResponse({ id: 'x' }, req).usage).toBeUndefined();
+  });
 });
 
 describe('anthropicAdapter', () => {
@@ -78,6 +89,42 @@ describe('anthropicAdapter', () => {
       done: true,
     });
     expect(anthropicAdapter.toDelta({ data: JSON.stringify({ type: 'ping' }) })).toBeNull();
+  });
+
+  it('toResponse rebuilds the Messages body as an OpenAI ChatCompletion', () => {
+    const anthropicBody = {
+      id: 'msg_1',
+      model: 'claude-3-5-sonnet',
+      stop_reason: 'end_turn',
+      content: [
+        { type: 'text', text: 'Hel' },
+        { type: 'text', text: 'lo' },
+      ],
+      usage: { input_tokens: 9, output_tokens: 3 },
+    };
+    const out = anthropicAdapter.toResponse(anthropicBody, req);
+    const body = out.body as {
+      object: string;
+      model: string;
+      choices: { message: { role: string; content: string }; finish_reason: string }[];
+      usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    };
+    expect(body.object).toBe('chat.completion');
+    expect(body.model).toBe('claude-3-5-sonnet');
+    expect(body.choices[0]!.message).toEqual({ role: 'assistant', content: 'Hello' });
+    expect(body.choices[0]!.finish_reason).toBe('stop');
+    expect(body.usage).toEqual({ prompt_tokens: 9, completion_tokens: 3, total_tokens: 12 });
+    expect(out.usage).toEqual({ inputTokens: 9, outputTokens: 3 });
+  });
+
+  it('toResponse maps stop_reason max_tokens to finish_reason length', () => {
+    const out = anthropicAdapter.toResponse(
+      { content: [{ type: 'text', text: 'x' }], stop_reason: 'max_tokens' },
+      req,
+    );
+    expect((out.body as { choices: { finish_reason: string }[] }).choices[0]!.finish_reason).toBe(
+      'length',
+    );
   });
 });
 

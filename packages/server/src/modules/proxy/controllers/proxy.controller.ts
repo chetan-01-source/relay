@@ -11,14 +11,17 @@ import { getContext } from '../../../platform/als.js';
 import { gatewayOverhead, requestsTotal } from '../../../platform/metrics.js';
 import {
   type CanonicalRequest,
+  type ProxyPolicyDecision,
+  type ProxyPolicyService,
   type ProxyService,
+  type ProxyRoutingService,
   type RequestTiming,
-  type Target,
 } from '../types/proxy.types.js';
 
 export interface ProxyControllerDeps {
   service: ProxyService;
-  upstreamUrl: string;
+  routing: ProxyRoutingService;
+  policy: ProxyPolicyService;
 }
 
 export interface ProxyController {
@@ -35,30 +38,36 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
       const orgLabel = request.identity?.orgId ?? '-';
 
       const parsed = parseBody(request.body); // body already schema-validated by the route
-      const target: Target = {
-        provider: 'openai',
-        model: parsed.model,
-        baseUrl: deps.upstreamUrl,
-        apiKey: 'sk-mock-skeleton', // real credential decrypt lands Day 8
-      };
+      const identity = request.identity;
+      if (!identity) throw new RelayError('invalid_api_key');
+      const targets = await deps.routing.selectTargets(identity.orgId, parsed);
+      const decision = await deps.policy.authorize(identity, parsed, targets);
 
       reply.header('x-relay-trace-id', traceId);
-      reply.header('x-relay-provider', target.provider);
+      reply.header('x-relay-provider', targets[0]?.provider ?? 'unknown');
       reply.header('x-relay-cache', 'none');
+      for (const [name, value] of Object.entries(decision.headers)) reply.header(name, value);
 
       // accumulates time spent BLOCKED on the provider; subtracted so overhead = gateway-only
       const timing: RequestTiming = { upstreamMs: 0 };
-      const labels = { org: orgLabel, route: parsed.model, provider: target.provider };
+      const labels = {
+        org: orgLabel,
+        route: parsed.model,
+        provider: targets[0]?.provider ?? 'none',
+      };
       try {
         if (parsed.stream) {
-          await streamOut(reply, deps.service, parsed, target, traceId, start, timing);
+          await streamOut(reply, deps.service, parsed, targets, decision, traceId, start, timing);
         } else {
-          const json = await deps.service.complete(parsed, target, timing);
+          const json = await deps.service.complete(parsed, targets, timing);
+          setResolvedHeaders(reply, timing);
           await reply.send(json); // observe AFTER the response is fully written (gateway-out counts)
           observeOverhead(start, timing);
         }
+        await deps.policy.settle(decision, timing.selectedTarget, timing.usage);
         requestsTotal.inc({ ...labels, status: 'ok' });
       } catch (err) {
+        await deps.policy.settle(decision, undefined, undefined);
         requestsTotal.inc({ ...labels, status: 'error' });
         throw err; // central errorHandler formats the envelope
       }
@@ -76,12 +85,13 @@ async function streamOut(
   reply: FastifyReply,
   service: ProxyService,
   req: CanonicalRequest,
-  target: Target,
+  targets: Parameters<ProxyService['stream']>[1],
+  decision: ProxyPolicyDecision,
   traceId: string,
   start: bigint,
   timing: RequestTiming,
 ): Promise<void> {
-  const iterator = service.stream(req, target, timing)[Symbol.asyncIterator]();
+  const iterator = service.stream(req, targets, timing)[Symbol.asyncIterator]();
   let step = await iterator.next(); // upstream errors surface here, pre-header
 
   reply.raw.writeHead(200, {
@@ -89,7 +99,9 @@ async function streamOut(
     'cache-control': 'no-cache',
     connection: 'keep-alive',
     'x-relay-trace-id': traceId,
-    'x-relay-provider': target.provider,
+    'x-relay-provider': timing.selectedProvider ?? targets[0]?.provider ?? 'unknown',
+    ...(timing.failover ? { 'x-relay-failover': 'true' } : {}),
+    ...decision.headers,
   });
 
   const id = `chatcmpl-${traceId}`;
@@ -120,6 +132,11 @@ async function streamOut(
   reply.raw.write('data: [DONE]\n\n');
   reply.raw.end();
   observeOverhead(start, timing); // whole stream sent — gateway time excludes the per-chunk provider waits
+}
+
+function setResolvedHeaders(reply: FastifyReply, timing: RequestTiming): void {
+  if (timing.selectedProvider) reply.header('x-relay-provider', timing.selectedProvider);
+  if (timing.failover) reply.header('x-relay-failover', 'true');
 }
 
 /** Record gateway-only overhead: full in-gateway wall-clock minus time blocked on the provider. */

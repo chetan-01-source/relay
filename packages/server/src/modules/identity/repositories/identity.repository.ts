@@ -7,8 +7,10 @@
  */
 import type { Database } from '../../../platform/db.js';
 import {
+  listBudgetPolicyQuery,
   resolveVirtualKeyByKeyIdQuery,
   listOrgFeaturesQuery,
+  listRateLimitPolicyQuery,
 } from '../queries/identity.queries.js';
 import type { IdentityRepository, VirtualKeyRow } from '../types/identity.types.js';
 
@@ -31,7 +33,29 @@ export function createIdentityRepository(db: Database): IdentityRepository {
         const entitlements: Record<string, unknown> = {};
         for (const feature of features) entitlements[feature.feature_key] = feature.value;
 
-        return { row, entitlements };
+        const [rateLimit] = await tx.run<{ rpm: number | null; tpm: number | null }>(
+          listRateLimitPolicyQuery(row.org_id),
+        );
+        const [budget] = await tx.run<{
+          period: 'daily' | 'monthly';
+          limit_usd: string;
+          hard_cutoff: boolean;
+        }>(listBudgetPolicyQuery(row.org_id));
+
+        return {
+          row,
+          entitlements,
+          policy: {
+            rateLimit: rateLimit ? { rpm: rateLimit.rpm, tpm: rateLimit.tpm } : null,
+            budget: budget
+              ? {
+                  period: budget.period,
+                  limitUsd: Number(budget.limit_usd),
+                  hardCutoff: budget.hard_cutoff,
+                }
+              : null,
+          },
+        };
       });
     },
   };

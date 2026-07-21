@@ -43,6 +43,7 @@ seed-demo: ## demo org+app+key+route -> prints working curl  [sprint Day 5]
 generate: ## dump OpenAPI spec + regen the console's typed API client    [sprint Day 2+]
 	pnpm --filter @relay/server exec tsx src/cli/index.ts openapi
 	pnpm --filter @relay/console gen:api
+	pnpm exec prettier --write api/openapi/openapi.json packages/console/app/lib/api-types.ts
 
 lint: ## eslint + prettier + dependency-cruiser + RLS gate
 	pnpm turbo lint
