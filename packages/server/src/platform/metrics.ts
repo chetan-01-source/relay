@@ -33,3 +33,24 @@ export const snapshotInvalidationLag = new Histogram({
   buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2],
   registers: [registry],
 });
+
+export const rateLimitRejections = new Counter({
+  name: 'relay_rate_limit_rejections_total',
+  help: 'Rate-limit rejections by org and limited dimension.',
+  labelNames: ['org', 'dimension'] as const,
+  registers: [registry],
+});
+
+export const budgetRejections = new Counter({
+  name: 'relay_budget_rejections_total',
+  help: 'Budget hard-cutoff rejections by org.',
+  labelNames: ['org'] as const,
+  registers: [registry],
+});
+
+export const budgetSettles = new Counter({
+  name: 'relay_budget_settles_total',
+  help: 'Budget settle operations by org.',
+  labelNames: ['org'] as const,
+  registers: [registry],
+});

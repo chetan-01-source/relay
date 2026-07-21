@@ -97,6 +97,15 @@ modules/<name>/
 - `modules/providers/` — org-scoped, write-only credential store (Week 2 Day 8, `/api/v1/providers`).
   Seals upstream keys with envelope crypto; reads return metadata only (queries never select the
   sealed columns). `lib/` holds the pure health-score stub the Day-9 router consumes. See ADR `0005`.
+- `modules/routing/` — the Day-9 **library module** that turns a client `model` into an ordered
+  failover plan (no HTTP surface): `service → repository → queries`, read inside `withTenant`. Applies
+  the capability filter (`model_not_found` / `model_capability_mismatch`), priority/weighted ordering,
+  and opens the provider credential in memory. Injected into `modules/proxy`, which owns the upstream
+  I/O + circuit breaker + pre-first-token failover. See ADR `0006`.
+- `modules/policy/` — the Day-10 **library module** enforcing rate limits + budgets on the data plane
+  via atomic Valkey Lua (`authorize` before the call, `settle` after). Postgres holds config only;
+  Valkey is the live counter so cluster replicas agree. Emits `429 rate_limited` / `budget_exceeded`
+  and `X-RateLimit-*` headers. See ADR `0007`.
 
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**

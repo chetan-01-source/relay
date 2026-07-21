@@ -22,7 +22,7 @@ function snapshot(over: Partial<VirtualKeySnapshot> = {}): VirtualKeySnapshot {
     keyStatus: 'active',
     graceUntil: null,
     entitlements: {},
-    policy: {},
+    policy: { rateLimit: null, budget: null },
     ...over,
   };
 }

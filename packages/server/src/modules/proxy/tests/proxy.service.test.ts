@@ -26,7 +26,7 @@ describe('proxy.service', () => {
       vi.fn(async () => new Response(JSON.stringify({ id: 'x' }), { status: 200 })),
     );
     const timing = newTiming();
-    const out = await createProxyService().complete(req, target, timing);
+    const out = await createProxyService().complete(req, [target], timing);
     expect(out).toEqual({ id: 'x' });
     expect(timing.upstreamMs).toBeGreaterThanOrEqual(0); // fetch + res.json() counted as provider wait
   });
@@ -36,7 +36,7 @@ describe('proxy.service', () => {
       'fetch',
       vi.fn(async () => new Response('rate limited', { status: 429 })),
     );
-    await expect(createProxyService().complete(req, target, newTiming())).rejects.toMatchObject({
+    await expect(createProxyService().complete(req, [target], newTiming())).rejects.toMatchObject({
       code: 'upstream_error',
       status: 429,
     });
@@ -50,7 +50,7 @@ describe('proxy.service', () => {
       }),
     );
     const err = await createProxyService()
-      .complete(req, target, newTiming())
+      .complete(req, [target], newTiming())
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RelayError);
     expect(err).toMatchObject({ code: 'upstream_unreachable', status: 502 });
@@ -68,10 +68,60 @@ describe('proxy.service', () => {
     );
     const timing = newTiming();
     const texts: string[] = [];
-    for await (const d of createProxyService().stream(req, target, timing)) {
+    for await (const d of createProxyService().stream(req, [target], timing)) {
       if (d.text) texts.push(d.text);
     }
     expect(texts).toEqual(['Hel', 'lo']);
     expect(timing.upstreamMs).toBeGreaterThanOrEqual(0); // each reader.read() wait accumulated
+  });
+
+  it('complete() normalizes an Anthropic body to OpenAI shape and records usage', async () => {
+    const anthropicTarget: Target = {
+      ...target,
+      provider: 'anthropic',
+      baseUrl: 'http://anthropic',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              id: 'msg_1',
+              model: 'claude-3-5-sonnet',
+              stop_reason: 'end_turn',
+              content: [{ type: 'text', text: 'hi there' }],
+              usage: { input_tokens: 4, output_tokens: 2 },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const timing = newTiming();
+    const out = (await createProxyService().complete(req, [anthropicTarget], timing)) as {
+      object: string;
+      choices: { message: { content: string } }[];
+    };
+    expect(out.object).toBe('chat.completion');
+    expect(out.choices[0]!.message.content).toBe('hi there');
+    expect(timing.usage).toEqual({ inputTokens: 4, outputTokens: 2 });
+  });
+
+  it('complete() retries the next target before returning an upstream failure', async () => {
+    const secondary: Target = { ...target, baseUrl: 'http://backup', breakerKey: 'backup' };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockRejectedValueOnce(new Error('primary down'))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'ok' }), { status: 200 })),
+    );
+
+    const timing = newTiming();
+    await expect(
+      createProxyService().complete(req, [{ ...target, breakerKey: 'primary' }, secondary], timing),
+    ).resolves.toEqual({ id: 'ok' });
+    expect(timing.failover).toBe(true);
+    expect(timing.selectedProvider).toBe('openai');
   });
 });

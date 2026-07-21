@@ -12,7 +12,9 @@
     "/api/v1/me": {
       "get": {
         "summary": "Return the authenticated caller (control plane)",
-        "tags": ["identity"],
+        "tags": [
+          "identity"
+        ],
         "description": "Requires a Logto JWT: `Authorization: Bearer <token>` with the `relay:read` scope. Returns 401 without a valid token and 403 without the scope.",
         "responses": {
           "200": {
@@ -29,7 +31,10 @@
                       "type": "string"
                     },
                     "org_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "scopes": {
                       "type": "array",
@@ -65,7 +70,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -94,7 +102,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -109,14 +120,18 @@
     "/api/v1/platform/orgs": {
       "post": {
         "summary": "Onboard a new organization (Logto org + entitlements + admin invite)",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name"],
+                "required": [
+                  "name"
+                ],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -129,7 +144,11 @@
                   },
                   "template": {
                     "type": "string",
-                    "enum": ["default", "trial", "internal"]
+                    "enum": [
+                      "default",
+                      "trial",
+                      "internal"
+                    ]
                   }
                 }
               }
@@ -155,11 +174,19 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "suspended"]
+                      "enum": [
+                        "active",
+                        "suspended"
+                      ]
                     },
                     "onboarding_state": {
                       "type": "string",
-                      "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                      "enum": [
+                        "created",
+                        "admin_invited",
+                        "provider_added",
+                        "first_request"
+                      ]
                     },
                     "logto_org_id": {
                       "type": "string"
@@ -192,7 +219,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -221,7 +251,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -250,7 +283,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -263,7 +299,9 @@
       },
       "get": {
         "summary": "List organizations",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "responses": {
           "200": {
             "description": "Default Response",
@@ -291,11 +329,19 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["active", "suspended"]
+                            "enum": [
+                              "active",
+                              "suspended"
+                            ]
                           },
                           "onboarding_state": {
                             "type": "string",
-                            "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                            "enum": [
+                              "created",
+                              "admin_invited",
+                              "provider_added",
+                              "first_request"
+                            ]
                           },
                           "logto_org_id": {
                             "type": "string"
@@ -331,7 +377,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -360,7 +409,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -375,7 +427,9 @@
     "/api/v1/platform/orgs/{orgId}": {
       "get": {
         "summary": "Retrieve an organization",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "parameters": [
           {
             "schema": {
@@ -406,11 +460,19 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "suspended"]
+                      "enum": [
+                        "active",
+                        "suspended"
+                      ]
                     },
                     "onboarding_state": {
                       "type": "string",
-                      "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                      "enum": [
+                        "created",
+                        "admin_invited",
+                        "provider_added",
+                        "first_request"
+                      ]
                     },
                     "logto_org_id": {
                       "type": "string"
@@ -443,7 +505,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -472,7 +537,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -501,7 +569,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -516,7 +587,9 @@
     "/api/v1/platform/orgs/{orgId}/suspend": {
       "post": {
         "summary": "Suspend an organization (data plane rejects its keys ≤1s later)",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "parameters": [
           {
             "schema": {
@@ -547,11 +620,19 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "suspended"]
+                      "enum": [
+                        "active",
+                        "suspended"
+                      ]
                     },
                     "onboarding_state": {
                       "type": "string",
-                      "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                      "enum": [
+                        "created",
+                        "admin_invited",
+                        "provider_added",
+                        "first_request"
+                      ]
                     },
                     "logto_org_id": {
                       "type": "string"
@@ -584,7 +665,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -613,7 +697,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -642,7 +729,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -657,7 +747,9 @@
     "/api/v1/platform/orgs/{orgId}/unsuspend": {
       "post": {
         "summary": "Reactivate a suspended organization",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "parameters": [
           {
             "schema": {
@@ -688,11 +780,19 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "suspended"]
+                      "enum": [
+                        "active",
+                        "suspended"
+                      ]
                     },
                     "onboarding_state": {
                       "type": "string",
-                      "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                      "enum": [
+                        "created",
+                        "admin_invited",
+                        "provider_added",
+                        "first_request"
+                      ]
                     },
                     "logto_org_id": {
                       "type": "string"
@@ -725,7 +825,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -754,7 +857,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -783,7 +889,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -798,7 +907,9 @@
     "/api/v1/platform/orgs/{orgId}/entitlements": {
       "get": {
         "summary": "Read an organization's entitlement flags",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "parameters": [
           {
             "schema": {
@@ -853,7 +964,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -882,7 +996,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -911,7 +1028,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -924,14 +1044,18 @@
       },
       "put": {
         "summary": "Replace/merge an organization's entitlement flags (hot-reloaded ≤1s)",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["features"],
+                "required": [
+                  "features"
+                ],
                 "properties": {
                   "features": {
                     "type": "object",
@@ -996,7 +1120,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1025,7 +1152,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1054,7 +1184,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1069,18 +1202,26 @@
     "/api/v1/platform/orgs/{orgId}/onboarding/advance": {
       "post": {
         "summary": "Advance the onboarding state machine one step",
-        "tags": ["tenancy"],
+        "tags": [
+          "tenancy"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["state"],
+                "required": [
+                  "state"
+                ],
                 "properties": {
                   "state": {
                     "type": "string",
-                    "enum": ["admin_invited", "provider_added", "first_request"]
+                    "enum": [
+                      "admin_invited",
+                      "provider_added",
+                      "first_request"
+                    ]
                   }
                 }
               }
@@ -1117,11 +1258,19 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "suspended"]
+                      "enum": [
+                        "active",
+                        "suspended"
+                      ]
                     },
                     "onboarding_state": {
                       "type": "string",
-                      "enum": ["created", "admin_invited", "provider_added", "first_request"]
+                      "enum": [
+                        "created",
+                        "admin_invited",
+                        "provider_added",
+                        "first_request"
+                      ]
                     },
                     "logto_org_id": {
                       "type": "string"
@@ -1154,7 +1303,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1183,7 +1335,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1212,7 +1367,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1227,14 +1385,18 @@
     "/api/v1/apps": {
       "post": {
         "summary": "Create an application",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name"],
+                "required": [
+                  "name"
+                ],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -1268,7 +1430,10 @@
                       "type": "string"
                     },
                     "description": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "created_at": {
                       "type": "string"
@@ -1298,7 +1463,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1327,7 +1495,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1340,7 +1511,9 @@
       },
       "get": {
         "summary": "List applications",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "responses": {
           "200": {
             "description": "Default Response",
@@ -1367,7 +1540,10 @@
                             "type": "string"
                           },
                           "description": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "created_at": {
                             "type": "string"
@@ -1400,7 +1576,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1429,7 +1608,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1444,7 +1626,9 @@
     "/api/v1/apps/{appId}": {
       "get": {
         "summary": "Retrieve an application",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "parameters": [
           {
             "schema": {
@@ -1474,7 +1658,10 @@
                       "type": "string"
                     },
                     "description": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "created_at": {
                       "type": "string"
@@ -1504,7 +1691,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1533,7 +1723,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1562,7 +1755,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1577,7 +1773,9 @@
     "/api/v1/apps/{appId}/keys": {
       "post": {
         "summary": "Issue a virtual key (plaintext returned once)",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1591,7 +1789,10 @@
                   },
                   "environment": {
                     "type": "string",
-                    "enum": ["live", "test"]
+                    "enum": [
+                      "live",
+                      "test"
+                    ]
                   }
                 }
               }
@@ -1627,33 +1828,54 @@
                       "type": "string"
                     },
                     "key_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "name": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "last4": {
                       "type": "string"
                     },
                     "environment": {
                       "type": "string",
-                      "enum": ["live", "test"]
+                      "enum": [
+                        "live",
+                        "test"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "revoked"]
+                      "enum": [
+                        "active",
+                        "revoked"
+                      ]
                     },
                     "successor_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "grace_until": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "created_at": {
                       "type": "string"
                     },
                     "revoked_at": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "key": {
                       "type": "string"
@@ -1683,7 +1905,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1712,7 +1937,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1741,7 +1969,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1754,7 +1985,9 @@
       },
       "get": {
         "summary": "List an application’s virtual keys (never returns secrets)",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "parameters": [
           {
             "schema": {
@@ -1792,33 +2025,54 @@
                             "type": "string"
                           },
                           "key_id": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "name": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "last4": {
                             "type": "string"
                           },
                           "environment": {
                             "type": "string",
-                            "enum": ["live", "test"]
+                            "enum": [
+                              "live",
+                              "test"
+                            ]
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["active", "revoked"]
+                            "enum": [
+                              "active",
+                              "revoked"
+                            ]
                           },
                           "successor_id": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "grace_until": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "created_at": {
                             "type": "string"
                           },
                           "revoked_at": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           }
                         }
                       }
@@ -1848,7 +2102,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1877,7 +2134,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1906,7 +2166,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -1921,7 +2184,9 @@
     "/api/v1/keys/{keyId}/rotate": {
       "post": {
         "summary": "Rotate a key: issue a successor, grace the predecessor",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "parameters": [
           {
             "schema": {
@@ -1951,33 +2216,54 @@
                       "type": "string"
                     },
                     "key_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "name": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "last4": {
                       "type": "string"
                     },
                     "environment": {
                       "type": "string",
-                      "enum": ["live", "test"]
+                      "enum": [
+                        "live",
+                        "test"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "revoked"]
+                      "enum": [
+                        "active",
+                        "revoked"
+                      ]
                     },
                     "successor_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "grace_until": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "created_at": {
                       "type": "string"
                     },
                     "revoked_at": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "key": {
                       "type": "string"
@@ -2007,7 +2293,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2036,7 +2325,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2065,7 +2357,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2094,7 +2389,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2109,7 +2407,9 @@
     "/api/v1/keys/{keyId}/revoke": {
       "post": {
         "summary": "Revoke a key immediately (data plane rejects it ≤1s later)",
-        "tags": ["apps"],
+        "tags": [
+          "apps"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2139,33 +2439,54 @@
                       "type": "string"
                     },
                     "key_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "name": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "last4": {
                       "type": "string"
                     },
                     "environment": {
                       "type": "string",
-                      "enum": ["live", "test"]
+                      "enum": [
+                        "live",
+                        "test"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "revoked"]
+                      "enum": [
+                        "active",
+                        "revoked"
+                      ]
                     },
                     "successor_id": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "grace_until": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "created_at": {
                       "type": "string"
                     },
                     "revoked_at": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     }
                   }
                 }
@@ -2192,7 +2513,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2221,7 +2545,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2250,7 +2577,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2265,14 +2595,20 @@
     "/api/v1/providers": {
       "post": {
         "summary": "Store a provider credential (sealed on write, never returned)",
-        "tags": ["providers"],
+        "tags": [
+          "providers"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name", "provider", "apiKey"],
+                "required": [
+                  "name",
+                  "provider",
+                  "apiKey"
+                ],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -2281,7 +2617,11 @@
                   },
                   "provider": {
                     "type": "string",
-                    "enum": ["openai", "anthropic", "openai_compat"]
+                    "enum": [
+                      "openai",
+                      "anthropic",
+                      "openai_compat"
+                    ]
                   },
                   "apiKey": {
                     "type": "string",
@@ -2315,17 +2655,27 @@
                     },
                     "provider": {
                       "type": "string",
-                      "enum": ["openai", "anthropic", "openai_compat"]
+                      "enum": [
+                        "openai",
+                        "anthropic",
+                        "openai_compat"
+                      ]
                     },
                     "last4": {
                       "type": "string"
                     },
                     "base_url": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "disabled"]
+                      "enum": [
+                        "active",
+                        "disabled"
+                      ]
                     },
                     "health_score": {
                       "type": "number"
@@ -2358,7 +2708,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2387,7 +2740,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2416,7 +2772,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2429,7 +2788,9 @@
       },
       "get": {
         "summary": "List provider credentials (metadata only)",
-        "tags": ["providers"],
+        "tags": [
+          "providers"
+        ],
         "responses": {
           "200": {
             "description": "Default Response",
@@ -2457,17 +2818,27 @@
                           },
                           "provider": {
                             "type": "string",
-                            "enum": ["openai", "anthropic", "openai_compat"]
+                            "enum": [
+                              "openai",
+                              "anthropic",
+                              "openai_compat"
+                            ]
                           },
                           "last4": {
                             "type": "string"
                           },
                           "base_url": {
-                            "type": ["null", "string"]
+                            "type": [
+                              "null",
+                              "string"
+                            ]
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["active", "disabled"]
+                            "enum": [
+                              "active",
+                              "disabled"
+                            ]
                           },
                           "health_score": {
                             "type": "number"
@@ -2503,7 +2874,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2532,7 +2906,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2547,7 +2924,9 @@
     "/api/v1/providers/{id}": {
       "get": {
         "summary": "Retrieve a provider credential (metadata only)",
-        "tags": ["providers"],
+        "tags": [
+          "providers"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2578,17 +2957,27 @@
                     },
                     "provider": {
                       "type": "string",
-                      "enum": ["openai", "anthropic", "openai_compat"]
+                      "enum": [
+                        "openai",
+                        "anthropic",
+                        "openai_compat"
+                      ]
                     },
                     "last4": {
                       "type": "string"
                     },
                     "base_url": {
-                      "type": ["null", "string"]
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["active", "disabled"]
+                      "enum": [
+                        "active",
+                        "disabled"
+                      ]
                     },
                     "health_score": {
                       "type": "number"
@@ -2621,7 +3010,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2650,7 +3042,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2679,7 +3074,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2692,7 +3090,9 @@
       },
       "delete": {
         "summary": "Delete a provider credential",
-        "tags": ["providers"],
+        "tags": [
+          "providers"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2728,7 +3128,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2757,7 +3160,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2786,7 +3192,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }
@@ -2801,7 +3210,9 @@
     "/v1/chat/completions": {
       "post": {
         "summary": "Create a chat completion (streaming or non-streaming)",
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "description": "OpenAI-compatible. Requires a virtual key: `Authorization: Bearer rk_live_…`. With `stream:true` the response is an SSE stream of `chat.completion.chunk` events.",
         "requestBody": {
           "required": true,
@@ -2809,7 +3220,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["model", "messages"],
+                "required": [
+                  "model",
+                  "messages"
+                ],
                 "properties": {
                   "model": {
                     "type": "string"
@@ -2818,11 +3232,18 @@
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "required": ["role", "content"],
+                      "required": [
+                        "role",
+                        "content"
+                      ],
                       "properties": {
                         "role": {
                           "type": "string",
-                          "enum": ["system", "user", "assistant"]
+                          "enum": [
+                            "system",
+                            "user",
+                            "assistant"
+                          ]
                         },
                         "content": {
                           "anyOf": [
@@ -2874,7 +3295,9 @@
     "/v1/models": {
       "get": {
         "summary": "List available models",
-        "tags": ["models"],
+        "tags": [
+          "models"
+        ],
         "responses": {
           "200": {
             "description": "Default Response",
@@ -2896,7 +3319,9 @@
                           },
                           "object": {
                             "type": "string",
-                            "enum": ["model"]
+                            "enum": [
+                              "model"
+                            ]
                           },
                           "created": {
                             "type": "integer"
@@ -2918,7 +3343,9 @@
     "/v1/models/{model}": {
       "get": {
         "summary": "Retrieve a model by id",
-        "tags": ["models"],
+        "tags": [
+          "models"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2942,7 +3369,9 @@
                     },
                     "object": {
                       "type": "string",
-                      "enum": ["model"]
+                      "enum": [
+                        "model"
+                      ]
                     },
                     "created": {
                       "type": "integer"
@@ -2975,7 +3404,10 @@
                           "type": "string"
                         },
                         "param": {
-                          "type": ["null", "string"]
+                          "type": [
+                            "null",
+                            "string"
+                          ]
                         }
                       }
                     }

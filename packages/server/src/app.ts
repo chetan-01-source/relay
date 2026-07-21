@@ -23,6 +23,8 @@ import { registerIdentity, type LogtoJwtConfig } from './modules/identity/index.
 import { registerTenancy } from './modules/tenancy/index.js';
 import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
+import { createRoutingService } from './modules/routing/index.js';
+import { createPolicyService } from './modules/policy/index.js';
 
 export interface AppDeps {
   db: Database;
@@ -120,7 +122,13 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   });
   registerProviders(app, { db: deps.db, masterKey: deps.masterKey, guards });
 
-  registerProxy(app, { upstreamUrl: deps.upstreamUrl, authVirtualKey: identity.authVirtualKey });
+  const routing = createRoutingService({
+    db: deps.db,
+    masterKey: deps.masterKey,
+    fallbackBaseUrl: deps.upstreamUrl,
+  });
+  const policy = createPolicyService({ ...(deps.bus ? { bus: deps.bus } : {}) });
+  registerProxy(app, { routing, policy, authVirtualKey: identity.authVirtualKey });
   registerModels(app, { db: deps.db });
 
   // machine-readable spec next to the human UI at /docs
