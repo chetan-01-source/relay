@@ -3,7 +3,7 @@
  * nodejs_eventloop_lag_seconds (the hot-path discipline guardrail); we add the gateway
  * overhead histogram (G3 gate reads this) and the request counter.
  */
-import { Registry, collectDefaultMetrics, Histogram, Counter } from 'prom-client';
+import { Registry, collectDefaultMetrics, Histogram, Counter, Gauge } from 'prom-client';
 
 export const registry = new Registry();
 collectDefaultMetrics({ register: registry });
@@ -52,5 +52,41 @@ export const budgetSettles = new Counter({
   name: 'relay_budget_settles_total',
   help: 'Budget settle operations by org.',
   labelNames: ['org'] as const,
+  registers: [registry],
+});
+
+/**
+ * Day-11 value layer. Cache result per request; metering queue depth + drops (the ring queue must
+ * shed load rather than block the hot path); rollup worker outcomes. The dashboards read rollups.
+ */
+export const cacheHits = new Counter({
+  name: 'relay_cache_hits_total',
+  help: 'Exact-cache lookups by result (hit-exact | miss).',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+export const meteringQueueDepth = new Gauge({
+  name: 'relay_metering_queue_depth',
+  help: 'Current depth of the in-process metering ring queue.',
+  registers: [registry],
+});
+
+export const meteringDropped = new Counter({
+  name: 'relay_metering_dropped_total',
+  help: 'Usage events dropped because the metering ring queue was full.',
+  registers: [registry],
+});
+
+export const meteringFlushFailures = new Counter({
+  name: 'relay_metering_flush_failures_total',
+  help: 'Metering flush transactions that failed (events for that batch are lost; best-effort).',
+  registers: [registry],
+});
+
+export const rollupRuns = new Counter({
+  name: 'relay_rollup_runs_total',
+  help: 'Hourly rollup worker runs by result (ok | error).',
+  labelNames: ['result'] as const,
   registers: [registry],
 });

@@ -25,6 +25,8 @@ import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
 import { createRoutingService } from './modules/routing/index.js';
 import { createPolicyService } from './modules/policy/index.js';
+import { createCacheService } from './modules/cache/index.js';
+import { createMeteringService } from './modules/metering/index.js';
 
 export interface AppDeps {
   db: Database;
@@ -43,6 +45,12 @@ export interface PublicAppDeps {
   bus?: EventBus; // present when serving; absent for the offline `relay openapi` spec dump
   logto?: LogtoJwtConfig; // control-plane JWT verification (identity)
   logtoM2m?: LogtoConfig; // Logto Management API creds (tenancy org sync); absent → onboarding 503
+  // Day-11 value-layer knobs (defaulted so the offline spec dump needs none).
+  cacheTtlS?: number;
+  cacheMaxBytes?: number;
+  meteringQueueMax?: number;
+  meteringFlushIntervalMs?: number;
+  rollupIntervalMs?: number;
 }
 
 const OPENAPI_DOC = {
@@ -128,7 +136,28 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     fallbackBaseUrl: deps.upstreamUrl,
   });
   const policy = createPolicyService({ ...(deps.bus ? { bus: deps.bus } : {}) });
-  registerProxy(app, { routing, policy, authVirtualKey: identity.authVirtualKey });
+
+  // Value layer (Day 11): exact cache (Valkey, no-op without a bus) + metering (async ring queue).
+  const cache = createCacheService({
+    ...(deps.bus ? { client: deps.bus.client } : {}),
+    ttlSeconds: deps.cacheTtlS ?? 0,
+    maxBytes: deps.cacheMaxBytes ?? 256 * 1024,
+  });
+  const metering = createMeteringService({
+    db: deps.db,
+    queueMax: deps.meteringQueueMax ?? 10_000,
+    flushIntervalMs: deps.meteringFlushIntervalMs ?? 2_000,
+    rollupIntervalMs: deps.rollupIntervalMs ?? 60_000,
+  });
+  // Start the flush/rollup workers only when serving (a bus is present); the offline spec dump doesn't.
+  if (deps.bus) {
+    metering.start();
+    app.addHook('onClose', async () => {
+      await metering.stop();
+    });
+  }
+
+  registerProxy(app, { routing, policy, cache, metering, authVirtualKey: identity.authVirtualKey });
   registerModels(app, { db: deps.db });
 
   // machine-readable spec next to the human UI at /docs
@@ -157,6 +186,11 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
     upstreamUrl: config.RELAY_UPSTREAM_URL,
     masterKey: config.RELAY_MASTER_KEY,
     bus: deps.bus,
+    cacheTtlS: config.RELAY_CACHE_TTL_S,
+    cacheMaxBytes: config.RELAY_CACHE_MAX_BYTES,
+    meteringQueueMax: config.RELAY_METERING_QUEUE_MAX,
+    meteringFlushIntervalMs: config.RELAY_METERING_FLUSH_INTERVAL_MS,
+    rollupIntervalMs: config.RELAY_ROLLUP_INTERVAL_MS,
     ...(logto ? { logto } : {}),
     ...(logtoM2m ? { logtoM2m } : {}),
   });

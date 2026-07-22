@@ -40,6 +40,7 @@ export interface Target {
   model: string; // provider-native model id
   baseUrl: string;
   apiKey: string; // plaintext, decrypted in worker memory (skeleton: dummy)
+  routeId?: string; // the route that resolved this target — carried onto the usage event
   routeTargetId?: string;
   credentialId?: string;
   breakerKey?: string;
@@ -113,6 +114,41 @@ export interface ProxyService {
 /** Public routing contract consumed by the proxy module. Implemented by modules/routing. */
 export interface ProxyRoutingService {
   selectTargets(orgId: string, req: CanonicalRequest): Promise<Target[]>;
+}
+
+/** A cached completion (structural mirror of modules/cache CachedCompletion). */
+export interface ProxyCachedCompletion {
+  body: unknown; // OpenAI chat.completion JSON — served verbatim on a non-stream hit
+  content: string; // assistant text — replayed as one SSE chunk on a stream hit
+  usage?: { inputTokens: number; outputTokens: number };
+}
+
+/** Public cache contract consumed by the proxy. Implemented by modules/cache (Valkey-backed). */
+export interface ProxyCacheService {
+  keyFor(orgId: string, req: CanonicalRequest): string;
+  get(key: string): Promise<ProxyCachedCompletion | null>;
+  set(key: string, value: ProxyCachedCompletion): Promise<void>;
+}
+
+/** A metered request (structural mirror of modules/metering UsageEvent). */
+export interface ProxyUsageEvent {
+  orgId: string;
+  appId: string;
+  keyId: string | null;
+  routeId: string | null;
+  requestId: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  status: 'ok' | 'error' | 'rate_limited' | 'budget_exceeded';
+  latencyMs: number | null;
+}
+
+/** Public metering contract consumed by the proxy. `recordUsage` is a non-blocking enqueue. */
+export interface ProxyMeteringService {
+  recordUsage(event: ProxyUsageEvent): void;
 }
 
 export interface ProxyRateLimitSnapshot {
