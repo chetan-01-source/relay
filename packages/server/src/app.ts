@@ -208,15 +208,13 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
   });
 
   const internalApp = Fastify({ logger: false });
-  // Rate-limit the internal app too (its /readyz probe touches the DB). The ceiling is generous and
-  // loopback is allow-listed so orchestrator health probes and Prometheus scrapes are never throttled.
-  await internalApp.register(rateLimit, {
-    max: 6000,
-    timeWindow: '1 minute',
-    allowList: ['127.0.0.1', '::1'],
-  });
+  // Rate-limit the internal app (its /readyz probe touches the DB). The ceiling is generous so
+  // orchestrator health probes and Prometheus scrapes are never throttled in practice.
+  const internalRateLimit = { max: 6000, timeWindow: '1 minute' };
+  await internalApp.register(rateLimit, internalRateLimit);
   internalApp.get('/healthz', () => ({ status: 'ok' }));
-  internalApp.get('/readyz', async (_req, reply) => {
+  // The readiness probe pings Postgres + Valkey, so it carries an explicit per-route rate limit.
+  internalApp.get('/readyz', { config: { rateLimit: internalRateLimit } }, async (_req, reply) => {
     const [pg, valkey] = await Promise.all([deps.db.ping(), deps.bus.ping()]);
     const ready = pg && valkey;
     return reply
