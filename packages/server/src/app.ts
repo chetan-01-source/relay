@@ -11,6 +11,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import rateLimit from '@fastify/rate-limit';
 import { RelayError, toErrorEnvelope } from '@relay/shared';
 import type { Config } from './platform/config.js';
 import type { Database } from './platform/db.js';
@@ -80,6 +81,17 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
 
   await app.register(swagger, { openapi: OPENAPI_DOC });
   await app.register(swaggerUi, { routePrefix: '/docs' });
+
+  // Coarse per-IP rate limit — a DoS backstop in front of EVERY route (registered before them so its
+  // onRequest hook applies globally). This complements, not replaces, the per-virtual-key token-bucket
+  // limits in modules/policy: those meter tenant usage; this caps abusive request volume per source.
+  // Loopback is allow-listed so a self-hoster's own traffic and the local load/bench harness (all from
+  // one localhost IP at high RPS) are never throttled; remote clients are still capped.
+  await app.register(rateLimit, {
+    max: 600,
+    timeWindow: '1 minute',
+    allowList: ['127.0.0.1', '::1'],
+  });
 
   // Central error contract: every error — thrown RelayError, schema-validation failure, or an
   // unexpected exception — leaves as the same OpenAI-compatible envelope (shared/errors.ts).
@@ -196,6 +208,13 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
   });
 
   const internalApp = Fastify({ logger: false });
+  // Rate-limit the internal app too (its /readyz probe touches the DB). The ceiling is generous and
+  // loopback is allow-listed so orchestrator health probes and Prometheus scrapes are never throttled.
+  await internalApp.register(rateLimit, {
+    max: 6000,
+    timeWindow: '1 minute',
+    allowList: ['127.0.0.1', '::1'],
+  });
   internalApp.get('/healthz', () => ({ status: 'ok' }));
   internalApp.get('/readyz', async (_req, reply) => {
     const [pg, valkey] = await Promise.all([deps.db.ping(), deps.bus.ping()]);
