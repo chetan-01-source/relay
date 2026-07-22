@@ -106,6 +106,16 @@ modules/<name>/
   via atomic Valkey Lua (`authorize` before the call, `settle` after). Postgres holds config only;
   Valkey is the live counter so cluster replicas agree. Emits `429 rate_limited` / `budget_exceeded`
   and `X-RateLimit-*` headers. See ADR `0007`.
+- `modules/cache/` — the Day-11 **library module** for exact-match response caching (Valkey only, no
+  Postgres): `service → lib` (pure key derivation). The key is `c:{org}:{sha256(semantic request)}` so
+  a hit is tenant-isolated by construction; disabled-safe when Valkey/TTL is absent. Injected into the
+  proxy, checked before routing; a hit sets `X-Relay-Cache: hit-exact` and skips upstream + budget
+  (rate limits still apply). See ADR `0008`.
+- `modules/metering/` — the Day-11 **library module** that records one priced usage event per request.
+  `recordUsage` is a NON-blocking enqueue on the hot path (`lib/ring-queue.ts`, bounded, drop-oldest);
+  background workers flush events to `usage_events` per-org and recompute `usage_rollups_hourly`
+  (dashboards read rollups, never raw partitions). Layers: `service → repository → queries` + `lib/`.
+  See ADR `0009`.
 
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**

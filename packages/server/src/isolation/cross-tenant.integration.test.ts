@@ -35,6 +35,8 @@ const TENANT_TABLES = [
   'route_targets',
   'budgets',
   'rate_limits',
+  'usage_events',
+  'usage_rollups_hourly',
 ] as const;
 
 /** Seed one org (as superuser, bypassing RLS) with a row in every tenant table. Returns its id. */
@@ -99,6 +101,18 @@ async function seedOrg(client: pg.Client, label: string): Promise<string> {
   await client.query(
     `INSERT INTO rate_limits (org_id, scope, rpm, tpm) VALUES ($1, 'org', 60, 1000)`,
     [orgId],
+  );
+
+  // Day 11 metering rows: one raw usage event + one hourly rollup.
+  await client.query(
+    `INSERT INTO usage_events (org_id, app_id, request_id, provider, model, status)
+     VALUES ($1, $2, 'iso-trace', 'openai', 'gpt-4o', 'ok')`,
+    [orgId, app.rows[0]!.id],
+  );
+  await client.query(
+    `INSERT INTO usage_rollups_hourly (org_id, hour, app_id, provider, model, requests)
+     VALUES ($1, date_trunc('hour', now()), $2, 'openai', 'gpt-4o', 1)`,
+    [orgId, app.rows[0]!.id],
   );
   return orgId;
 }

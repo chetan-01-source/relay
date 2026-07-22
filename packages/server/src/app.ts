@@ -11,6 +11,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import rateLimit from '@fastify/rate-limit';
 import { RelayError, toErrorEnvelope } from '@relay/shared';
 import type { Config } from './platform/config.js';
 import type { Database } from './platform/db.js';
@@ -25,6 +26,8 @@ import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
 import { createRoutingService } from './modules/routing/index.js';
 import { createPolicyService } from './modules/policy/index.js';
+import { createCacheService } from './modules/cache/index.js';
+import { createMeteringService } from './modules/metering/index.js';
 
 export interface AppDeps {
   db: Database;
@@ -43,6 +46,12 @@ export interface PublicAppDeps {
   bus?: EventBus; // present when serving; absent for the offline `relay openapi` spec dump
   logto?: LogtoJwtConfig; // control-plane JWT verification (identity)
   logtoM2m?: LogtoConfig; // Logto Management API creds (tenancy org sync); absent → onboarding 503
+  // Day-11 value-layer knobs (defaulted so the offline spec dump needs none).
+  cacheTtlS?: number;
+  cacheMaxBytes?: number;
+  meteringQueueMax?: number;
+  meteringFlushIntervalMs?: number;
+  rollupIntervalMs?: number;
 }
 
 const OPENAPI_DOC = {
@@ -72,6 +81,17 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
 
   await app.register(swagger, { openapi: OPENAPI_DOC });
   await app.register(swaggerUi, { routePrefix: '/docs' });
+
+  // Coarse per-IP rate limit — a DoS backstop in front of EVERY route (registered before them so its
+  // onRequest hook applies globally). This complements, not replaces, the per-virtual-key token-bucket
+  // limits in modules/policy: those meter tenant usage; this caps abusive request volume per source.
+  // Loopback is allow-listed so a self-hoster's own traffic and the local load/bench harness (all from
+  // one localhost IP at high RPS) are never throttled; remote clients are still capped.
+  await app.register(rateLimit, {
+    max: 600,
+    timeWindow: '1 minute',
+    allowList: ['127.0.0.1', '::1'],
+  });
 
   // Central error contract: every error — thrown RelayError, schema-validation failure, or an
   // unexpected exception — leaves as the same OpenAI-compatible envelope (shared/errors.ts).
@@ -128,7 +148,28 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     fallbackBaseUrl: deps.upstreamUrl,
   });
   const policy = createPolicyService({ ...(deps.bus ? { bus: deps.bus } : {}) });
-  registerProxy(app, { routing, policy, authVirtualKey: identity.authVirtualKey });
+
+  // Value layer (Day 11): exact cache (Valkey, no-op without a bus) + metering (async ring queue).
+  const cache = createCacheService({
+    ...(deps.bus ? { client: deps.bus.client } : {}),
+    ttlSeconds: deps.cacheTtlS ?? 0,
+    maxBytes: deps.cacheMaxBytes ?? 256 * 1024,
+  });
+  const metering = createMeteringService({
+    db: deps.db,
+    queueMax: deps.meteringQueueMax ?? 10_000,
+    flushIntervalMs: deps.meteringFlushIntervalMs ?? 2_000,
+    rollupIntervalMs: deps.rollupIntervalMs ?? 60_000,
+  });
+  // Start the flush/rollup workers only when serving (a bus is present); the offline spec dump doesn't.
+  if (deps.bus) {
+    metering.start();
+    app.addHook('onClose', async () => {
+      await metering.stop();
+    });
+  }
+
+  registerProxy(app, { routing, policy, cache, metering, authVirtualKey: identity.authVirtualKey });
   registerModels(app, { db: deps.db });
 
   // machine-readable spec next to the human UI at /docs
@@ -157,13 +198,23 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
     upstreamUrl: config.RELAY_UPSTREAM_URL,
     masterKey: config.RELAY_MASTER_KEY,
     bus: deps.bus,
+    cacheTtlS: config.RELAY_CACHE_TTL_S,
+    cacheMaxBytes: config.RELAY_CACHE_MAX_BYTES,
+    meteringQueueMax: config.RELAY_METERING_QUEUE_MAX,
+    meteringFlushIntervalMs: config.RELAY_METERING_FLUSH_INTERVAL_MS,
+    rollupIntervalMs: config.RELAY_ROLLUP_INTERVAL_MS,
     ...(logto ? { logto } : {}),
     ...(logtoM2m ? { logtoM2m } : {}),
   });
 
   const internalApp = Fastify({ logger: false });
+  // Rate-limit the internal app (its /readyz probe touches the DB). The ceiling is generous so
+  // orchestrator health probes and Prometheus scrapes are never throttled in practice.
+  const internalRateLimit = { max: 6000, timeWindow: '1 minute' };
+  await internalApp.register(rateLimit, internalRateLimit);
   internalApp.get('/healthz', () => ({ status: 'ok' }));
-  internalApp.get('/readyz', async (_req, reply) => {
+  // The readiness probe pings Postgres + Valkey, so it carries an explicit per-route rate limit.
+  internalApp.get('/readyz', { config: { rateLimit: internalRateLimit } }, async (_req, reply) => {
     const [pg, valkey] = await Promise.all([deps.db.ping(), deps.bus.ping()]);
     const ready = pg && valkey;
     return reply

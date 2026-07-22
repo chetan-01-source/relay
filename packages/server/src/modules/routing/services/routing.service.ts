@@ -55,6 +55,7 @@ export function createRoutingService(deps: RoutingServiceDeps) {
         model: row.model,
         baseUrl: row.base_url ?? defaultBaseUrl(row.provider, deps.fallbackBaseUrl),
         apiKey,
+        routeId: row.route_id,
         routeTargetId: row.target_id,
         credentialId: row.credential_id,
         breakerKey: `${row.credential_id}:${row.model}`,

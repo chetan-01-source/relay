@@ -23,6 +23,20 @@ const schema = z.object({
   // upstream (Phase-1 skeleton: hardcoded target → mockllm)
   RELAY_UPSTREAM_URL: z.string().url().default('http://localhost:8080'),
 
+  // Day-11 exact response cache (Valkey). TTL 0 disables it; responses over the byte cap aren't cached.
+  RELAY_CACHE_TTL_S: z.coerce.number().int().nonnegative().default(0),
+  RELAY_CACHE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024),
+
+  // Day-11 metering. Usage events buffer in a bounded in-process ring queue (drops oldest when full),
+  // flushed to Postgres on an interval; hourly rollups are recomputed periodically for dashboards.
+  RELAY_METERING_QUEUE_MAX: z.coerce.number().int().positive().default(10_000),
+  RELAY_METERING_FLUSH_INTERVAL_MS: z.coerce.number().int().positive().default(2_000),
+  RELAY_ROLLUP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+
   // Logto — control-plane (/api/*) JWT verification (Week 2 Day 6 · ADR two-auth-planes).
   // Issuer is `${endpoint}/oidc`; JWKS is fetched + cached from its discovery document. Audience is
   // the Relay API resource indicator. Optional: when unset, the control plane rejects every JWT
