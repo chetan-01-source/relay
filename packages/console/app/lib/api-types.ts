@@ -1807,6 +1807,286 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/analytics/usage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Grouped usage/spend for the caller’s organization (reads hourly rollups) */
+    get: {
+      parameters: {
+        query?: {
+          group_by?: 'app' | 'route' | 'model' | 'day';
+          format?: 'json' | 'csv';
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              group_by?: string;
+              data?: {
+                key?: string;
+                requests?: number;
+                input_tokens?: number;
+                output_tokens?: number;
+                cost_usd?: number;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/platform/analytics/usage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Cross-org spend summary grouped by org (platform-admin only) */
+    get: {
+      parameters: {
+        query?: {
+          format?: 'json' | 'csv';
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              group_by?: string;
+              data?: {
+                key?: string;
+                requests?: number;
+                input_tokens?: number;
+                output_tokens?: number;
+                cost_usd?: number;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/audit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the organization’s audit trail (newest first) */
+    get: {
+      parameters: {
+        query?: {
+          limit?: number;
+          before?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                id?: string;
+                seq?: number;
+                actor?: string;
+                action?: string;
+                target?: null | string;
+                hash?: string;
+                created_at?: string;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/chat/completions': {
     parameters: {
       query?: never;

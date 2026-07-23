@@ -24,6 +24,8 @@ import { registerIdentity, type LogtoJwtConfig } from './modules/identity/index.
 import { registerTenancy } from './modules/tenancy/index.js';
 import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
+import { registerAnalytics } from './modules/analytics/index.js';
+import { registerAudit } from './modules/audit/index.js';
 import { createRoutingService } from './modules/routing/index.js';
 import { createPolicyService } from './modules/policy/index.js';
 import { createCacheService } from './modules/cache/index.js';
@@ -68,6 +70,8 @@ const OPENAPI_DOC = {
     { name: 'tenancy', description: 'Platform control plane: org lifecycle + entitlements' },
     { name: 'apps', description: 'Applications + virtual-key lifecycle (issue/rotate/revoke)' },
     { name: 'providers', description: 'Encrypted upstream provider credentials' },
+    { name: 'analytics', description: 'Usage/spend reporting over hourly rollups' },
+    { name: 'audit', description: 'Append-only, hash-chained audit trail (read/verify)' },
   ],
 };
 
@@ -141,6 +145,11 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     guards,
   });
   registerProviders(app, { db: deps.db, masterKey: deps.masterKey, guards });
+
+  // Value-layer read surfaces (Day 12): usage/spend analytics over the hourly rollups, and the
+  // read/verify endpoints for the append-only audit trail. Both guarded by the identity preHandlers.
+  registerAnalytics(app, { db: deps.db, guards });
+  registerAudit(app, { db: deps.db, guards });
 
   const routing = createRoutingService({
     db: deps.db,

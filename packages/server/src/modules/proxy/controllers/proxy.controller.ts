@@ -13,6 +13,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { RelayError, isRelayError } from '@relay/shared';
 import { getContext } from '../../../platform/als.js';
 import { cacheHits, gatewayOverhead, requestsTotal } from '../../../platform/metrics.js';
+import { manifestImages } from '../lib/image-manifest.js';
 import {
   type CanonicalRequest,
   type ProxyCacheService,
@@ -57,6 +58,11 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
       const identity = request.identity;
       if (!identity) throw new RelayError('invalid_api_key');
 
+      // Validate + manifest inline images at ingress (Day 12d): reject spoofed/oversized attachments
+      // before routing or the upstream. Text-only requests short-circuit with no decode work.
+      const manifest = manifestImages(parsed);
+      if (!manifest.ok) throw new RelayError('invalid_request', { message: manifest.reason });
+
       const cacheKey = deps.cache.keyFor(identity.orgId, parsed);
       const labels = { org: identity.orgId, route: parsed.model };
       let decision: ProxyPolicyDecision | undefined;
@@ -85,6 +91,7 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
         reply.header('x-relay-trace-id', traceId);
         reply.header('x-relay-provider', targets[0]?.provider ?? 'unknown');
         reply.header('x-relay-cache', 'miss');
+        reply.header('x-relay-modalities', modalitiesOf(parsed));
         for (const [name, value] of Object.entries(decision.headers)) reply.header(name, value);
 
         const timing: RequestTiming = { upstreamMs: 0 };
@@ -159,6 +166,9 @@ async function sendCached(
     reply.header('x-relay-trace-id', traceId);
     reply.header('x-relay-provider', 'cache');
     reply.header('x-relay-cache', 'hit-exact');
+    reply.header('x-relay-failover', 'false');
+    reply.header('x-relay-cost-usd', formatCostUsd(0)); // a cache hit skips the upstream → no cost
+    reply.header('x-relay-modalities', modalitiesOf(req));
     for (const [name, value] of Object.entries(decision.headers)) reply.header(name, value);
     await reply.send(cached.body);
     return;
@@ -170,6 +180,9 @@ async function sendCached(
     'x-relay-trace-id': traceId,
     'x-relay-provider': 'cache',
     'x-relay-cache': 'hit-exact',
+    'x-relay-failover': 'false',
+    'x-relay-cost-usd': formatCostUsd(0),
+    'x-relay-modalities': modalitiesOf(req),
     ...decision.headers,
   });
   const id = `chatcmpl-${traceId}`;
@@ -201,6 +214,11 @@ async function streamOut(
   const iterator = service.stream(req, targets, timing)[Symbol.asyncIterator]();
   let step = await iterator.next(); // upstream errors surface here, pre-header
 
+  // Streaming writes headers atomically here (they cannot be set after the first byte), so the full
+  // response-header contract (§4.2) must be assembled in this object — reply.header() does not apply.
+  // Note: usage typically arrives in the final SSE chunk, i.e. AFTER these headers are sent, so the
+  // streaming x-relay-cost-usd reflects only what is known at header time (often 0.000000); the exact
+  // settled cost always lands on the metered usage event and the analytics rollups, not this header.
   reply.raw.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
@@ -208,7 +226,9 @@ async function streamOut(
     'x-relay-trace-id': traceId,
     'x-relay-provider': timing.selectedProvider ?? targets[0]?.provider ?? 'unknown',
     'x-relay-cache': 'miss',
-    ...(timing.failover ? { 'x-relay-failover': 'true' } : {}),
+    'x-relay-failover': timing.failover ? 'true' : 'false',
+    'x-relay-cost-usd': formatCostUsd(costForTiming(timing)),
+    'x-relay-modalities': modalitiesOf(req),
     ...decision.headers,
   });
 
@@ -328,9 +348,40 @@ function statusForError(err: unknown): ProxyUsageEvent['status'] {
   return 'error';
 }
 
+/**
+ * Apply the resolved half of the response-header contract (§4.2) for a non-stream response — the
+ * fields only known after the upstream call settles: the provider actually used, whether a failover
+ * happened, and the metered USD cost. `x-relay-trace-id` / `x-relay-cache` / `x-relay-modalities`
+ * were already set pre-call; `x-ratelimit-*` come from the policy decision.
+ */
 function setResolvedHeaders(reply: FastifyReply, timing: RequestTiming): void {
   if (timing.selectedProvider) reply.header('x-relay-provider', timing.selectedProvider);
-  if (timing.failover) reply.header('x-relay-failover', 'true');
+  reply.header('x-relay-failover', timing.failover ? 'true' : 'false');
+  reply.header('x-relay-cost-usd', formatCostUsd(costForTiming(timing)));
+}
+
+/** The settled USD cost of a request — the same rate-card math the usage event records; 0 when no
+ * target resolved or usage is unknown (e.g. an error before the upstream returned). */
+function costForTiming(timing: RequestTiming): number {
+  if (!timing.selectedTarget || !timing.usage) return 0;
+  return costUsd(timing.selectedTarget, timing.usage.inputTokens, timing.usage.outputTokens);
+}
+
+/** Fixed 6-dp string, matching the `cost_usd numeric(_,6)` column precision. */
+function formatCostUsd(cost: number): string {
+  return cost.toFixed(6);
+}
+
+/** The `x-relay-modalities` value: 'text' is always present; 'image' is added when any message carries
+ * an image content part. Recomputed from the request here — routing derives the same set from the
+ * model-catalog capabilities but does not surface it back onto the timing. */
+function modalitiesOf(req: CanonicalRequest): string {
+  const modalities = ['text'];
+  const hasImage = req.messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((part) => part.type === 'image_url'),
+  );
+  if (hasImage) modalities.push('image');
+  return modalities.join(',');
 }
 
 /** Record gateway-only overhead: full in-gateway wall-clock minus time blocked on the provider. */
