@@ -36,3 +36,37 @@ export function computeAuditHash(prevHash: Buffer | null, canonicalJson: string)
   hash.update(canonicalJson, 'utf8');
   return hash.digest();
 }
+
+/** One row as read back for verification. `canonicalJson` is the PARSED jsonb payload (pg returns
+ * jsonb as an object, not the original string) — `verifyChain` re-canonicalizes it, which reproduces
+ * the exact string that was hashed because `canonicalize` is idempotent. Rows must be seq-ordered. */
+export interface AuditChainEntry {
+  seq: number;
+  canonicalJson: unknown;
+  hash: Buffer;
+}
+
+/** Result of walking one org's chain: whether it holds, how many rows, and where it first broke. */
+export interface ChainVerification {
+  valid: boolean;
+  count: number;
+  brokenAtSeq?: number;
+}
+
+/**
+ * Re-walk a hash chain and prove it is intact. Each row's hash must equal sha256(previous row's
+ * stored hash || canonicalize(this row's payload)); the first row chains from null. Any tampered
+ * payload fails at that row, and any tampered hash fails at the NEXT row (its prev no longer matches)
+ * — so a single altered row is always caught. `relay audit verify` runs this per org.
+ */
+export function verifyChain(entries: readonly AuditChainEntry[]): ChainVerification {
+  let prevHash: Buffer | null = null;
+  for (const entry of entries) {
+    const recomputed = computeAuditHash(prevHash, canonicalize(entry.canonicalJson));
+    if (!entry.hash.equals(recomputed)) {
+      return { valid: false, count: entries.length, brokenAtSeq: entry.seq };
+    }
+    prevHash = entry.hash;
+  }
+  return { valid: true, count: entries.length };
+}

@@ -8,6 +8,7 @@ import { buildServers, buildPublicApp } from '../app.js';
 import { runMigrations } from '../platform/migrate.js';
 import { bootstrapLogto } from '../platform/logto.js';
 import { seedDemo } from '../seed/demo.js';
+import { createAuditService, createAuditRepository } from '../modules/audit/index.js';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -129,6 +130,41 @@ program
       `      -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hello"}]}'\n`,
     );
     process.exit(0);
+  });
+
+program
+  .command('audit')
+  .description('audit trail operator commands')
+  .command('verify')
+  .description('re-walk every org’s hash chain and fail (exit 1) on any break')
+  .action(async () => {
+    const url = process.env.RELAY_MIGRATION_DATABASE_URL ?? process.env.RELAY_DATABASE_URL;
+    if (!url) {
+      console.error('[relay] set RELAY_(MIGRATION_)DATABASE_URL to verify the audit trail');
+      process.exit(1);
+    }
+    const db = initDb(url);
+    const service = createAuditService({ db, repo: createAuditRepository() });
+    try {
+      const results = await service.verifyAll();
+      let broken = 0;
+      for (const r of results) {
+        if (r.valid) {
+          console.error(`[relay] audit ok      org ${r.orgId} — ${r.count} rows`);
+        } else {
+          broken++;
+          console.error(
+            `[relay] audit BROKEN  org ${r.orgId} — chain breaks at seq ${r.brokenAtSeq}`,
+          );
+        }
+      }
+      console.error(
+        `[relay] audit verify done — ${results.length} org(s) checked, ${broken} broken`,
+      );
+      process.exit(broken > 0 ? 1 : 0);
+    } finally {
+      await db.close();
+    }
   });
 
 program

@@ -34,6 +34,15 @@ curl -fsS -X POST "$BASE/v1/chat/completions" -H "$AUTH" -H "$JSON" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}' \
   | grep -q '"object":"chat.completion"' || fail "non-stream completion"; pass "non-stream completion"
 
+# Response-header contract (§4.2 / Day 12c): every proxied response carries the full header set.
+hdrs=$(curl -fsS -D - -o /dev/null -X POST "$BASE/v1/chat/completions" -H "$AUTH" -H "$JSON" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}')
+for h in x-relay-trace-id x-relay-provider x-relay-cache x-relay-failover x-relay-cost-usd x-relay-modalities; do
+  echo "$hdrs" | grep -qi "^$h:" || fail "response missing header $h"
+done
+echo "$hdrs" | grep -qi '^x-relay-modalities: *text' || fail "x-relay-modalities should include text"
+pass "response-header contract"
+
 curl -fsS -N -X POST "$BASE/v1/chat/completions" -H "$AUTH" -H "$JSON" \
   -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hi"}]}' \
   | grep -q 'data: \[DONE\]' || fail "stream completion terminator"; pass "stream completion"
@@ -47,5 +56,11 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/platform/orgs")
 
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/providers")
 [ "$code" = 401 ] || fail "providers list should 401 without a JWT (got $code)"; pass "control-plane providers 401"
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/analytics/usage")
+[ "$code" = 401 ] || fail "analytics usage should 401 without a JWT (got $code)"; pass "control-plane analytics 401"
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/audit")
+[ "$code" = 401 ] || fail "audit list should 401 without a JWT (got $code)"; pass "control-plane audit 401"
 
 echo "SMOKE OK"

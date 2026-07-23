@@ -88,9 +88,12 @@ modules/<name>/
   stack `routes → controller → service → repository → queries` + `lib/` (entitlement templates + the
   onboarding state machine). Its service orchestrates Logto org-sync, the audit trail, and snapshot
   invalidation; routes are guarded by the identity preHandlers passed in from `app.ts`. See ADR `0004`.
-- `modules/audit/` — a **library module** (no routes yet): `createAuditRepository()` appends
-  hash-chained, per-org audit rows inside the caller's transaction. Layers: `repository → queries`
-  - `lib/` (the pure hash chain). Other modules import it via `index.ts`. Endpoints land Day 12.
+- `modules/audit/` — the append-only, hash-chained trail. `createAuditRepository()` appends per-org
+  rows inside the caller's transaction (the append side, `AuditRepository`). Since Day 12 it also has a
+  read/verify surface: `GET /api/v1/audit` (tenant-scoped list) and the `relay audit verify` CLI that
+  re-walks each org's chain (pure `verifyChain` in `lib/`). Layers: `routes → controller → service →
+repository → queries` + `lib/`. Interface-segregated: read/verify use a separate `AuditReadRepository`
+  so append-only callers don't depend on it. See ADR `0010`.
 - `modules/apps/` — org-scoped app + virtual-key lifecycle (Week 2 Day 8, `/api/v1/apps`,
   `/api/v1/keys`). Full stack; the service mints/rotates/revokes keys (rotate is a single-transaction
   successor + grace invariant) and publishes `key.invalidate`. See ADR `0005`.
@@ -116,6 +119,11 @@ modules/<name>/
   background workers flush events to `usage_events` per-org and recompute `usage_rollups_hourly`
   (dashboards read rollups, never raw partitions). Layers: `service → repository → queries` + `lib/`.
   See ADR `0009`.
+- `modules/analytics/` — the Day-12 read model over the hourly rollups (`GET /api/v1/analytics/usage`).
+  Full stack `routes → controller → service → repository → queries` + `lib/` (pure param validation +
+  CSV). Reads `usage_rollups_hourly` **only**, scoped by RLS via `withTenant`; `group_by` is an
+  allowlisted enum mapped to a column inside `queries/` (never interpolated). A platform-admin variant
+  (`GET /api/v1/platform/analytics/usage`) summarizes spend across orgs. See ADR `0010`.
 
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**

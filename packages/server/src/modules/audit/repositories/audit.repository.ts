@@ -11,11 +11,33 @@ import {
   lockOrgAuditChainQuery,
   getAuditTailQuery,
   insertAuditQuery,
+  listAuditQuery,
+  readAuditChainQuery,
+  listAuditOrgsQuery,
 } from '../queries/audit.queries.js';
-import type { AuditRepository, AuditTailRow } from '../types/audit.types.js';
+import type {
+  AuditChainRow,
+  AuditListRow,
+  AuditReadRepository,
+  AuditRepository,
+  AuditTailRow,
+} from '../types/audit.types.js';
 
-export function createAuditRepository(): AuditRepository {
+export function createAuditRepository(): AuditRepository & AuditReadRepository {
   return {
+    listWithTx(tx, orgId, opts) {
+      return tx.run<AuditListRow>(listAuditQuery(orgId, opts.limit, opts.before));
+    },
+
+    readChainWithTx(tx, orgId) {
+      return tx.run<AuditChainRow>(readAuditChainQuery(orgId));
+    },
+
+    async listOrgsWithTx(tx) {
+      const rows = await tx.run<{ org_id: string }>(listAuditOrgsQuery());
+      return rows.map((r) => r.org_id);
+    },
+
     async appendWithTx(tx, orgId, event) {
       // Serialize per-org appends so concurrent writers get contiguous seq + a stable prev_hash.
       await tx.run(lockOrgAuditChainQuery(orgId));
