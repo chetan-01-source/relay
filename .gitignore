@@ -12,6 +12,9 @@ dist/
 
 # test / coverage
 coverage/
+test-results/
+playwright-report/
+.playwright/
 
 # env & secrets — only .env.example is committed
 .env

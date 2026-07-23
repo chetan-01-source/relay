@@ -63,8 +63,9 @@ smoke: ## end-to-end smoke against a running stack (make dev first)
 load: ## local load smoke on the hot path (node fallback; use k6 for the gate)
 	node scripts/load-smoke.mjs
 
-e2e: ## conformance (real SDKs) + Playwright                 [sprint Day 13-14]
-	@echo "[make] e2e stub — lands sprint Day 13-14"
+e2e: ## Playwright console E2E (start the stack first: make dev)   [sprint Day 13]
+	pnpm --filter @relay/console exec playwright install --with-deps chromium
+	pnpm --filter @relay/console e2e
 
 bench: ## drive load -> gate gateway overhead p99 < 25ms (G3)  [sprint Day 5/14]
 	node scripts/bench.mjs
