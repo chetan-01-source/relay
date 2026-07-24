@@ -387,3 +387,40 @@ make load        # local hot-path load smoke (p50/p95/p99)
 > extra setup. The full **build-flow** spec self-skips unless you supply an authenticated Logto session
 > via `RELAY_E2E_STORAGE_STATE` (a saved `storageState` file). Unit tests (`pnpm --filter @relay/console
 test`) cover the pure logic (usage aggregation, checklist, snippet builder) and need no stack.
+
+---
+
+## 12. Reset to a clean slate
+
+Two levels of reset. **Data reset** (recommended) wipes all tenant data but keeps Logto (admin user,
+M2M app, console app) so sign-in still works. **Full nuke** also destroys Logto — only for a truly
+fresh machine; you must redo the one-time Logto setup (§5.3) afterward.
+
+### 12.1 Data reset — wipe tenant data, keep auth
+
+```bash
+source deploy/compose/.env
+
+# Valkey: rate-limit buckets + cache + pub/sub
+docker exec relay-valkey-1 valkey-cli FLUSHALL
+
+# Postgres: all tenant rows (keeps schema, migrations, global model_catalog + rate_cards)
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -U postgres -d relay -v ON_ERROR_STOP=1 -c \
+  "TRUNCATE organizations CASCADE; TRUNCATE usage_events;"
+
+# forget the old demo key, then re-seed a fresh demo tenant
+rm -f .relay/seed-demo.key
+make seed-demo
+```
+
+`TRUNCATE organizations CASCADE` removes every tenant table's rows via the `org_id` FK cascade;
+`usage_events` has no FK so it is truncated explicitly. MinIO is empty until Week 4 (nothing to clear).
+
+### 12.2 Full nuke — destroy everything incl. Logto
+
+```bash
+make down                                    # stop containers
+docker compose -f deploy/compose/compose.yaml --profile core --profile dev down -v   # drop volumes
+make up                                      # fresh migrate + seed
+# then redo §5.3: create the Logto admin user, the M2M app, and the console web app.
+```
