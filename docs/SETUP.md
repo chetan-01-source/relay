@@ -27,17 +27,18 @@ macOS/Linux native; Windows via WSL2.
 > `http://localhost:5432` (Postgres) or `:6379` (Valkey) in a browser shows "this page isn't working";
 > that is expected. Use the CLI for those (§5.1/§5.2).
 >
-> | Open in a browser                              | Terminal only (not a web page)                 |
-> | ---------------------------------------------- | ---------------------------------------------- |
-> | Console `http://localhost:3100`                | Postgres `5432` → `psql`                       |
-> | Swagger UI `http://localhost:3000/docs`        | Valkey `6379` → `valkey-cli`                   |
-> | Logto admin `http://localhost:3002`            | mockllm `8080` → `curl` (API, no UI)           |
-> | MinIO console `http://localhost:9001`          | Gateway data `3000` / internal `9090` → `curl` |
-> | **DB browser (pgweb) `http://localhost:8081`** | —                                              |
+> | Open in a browser                                            | Terminal only (not a web page)                 |
+> | ------------------------------------------------------------ | ---------------------------------------------- |
+> | Console `http://localhost:3100`                              | Postgres `5432` → `psql` (or the pgweb UI)     |
+> | Swagger UI `http://localhost:3000/docs`                      | Valkey `6379` → `valkey-cli` (or the UI below) |
+> | Logto admin `http://localhost:3002`                          | mockllm `8080` → `curl` (API, no UI)           |
+> | MinIO console `http://localhost:9001`                        | Gateway data `3000` / internal `9090` → `curl` |
+> | **DB browser (pgweb) `http://localhost:8081`**               | —                                              |
+> | **Valkey browser (redis-commander) `http://localhost:8082`** | —                                              |
 >
-> **Want to see the database?** Open **`http://localhost:8081`** (pgweb) — it auto-connects to the
-> `relay` DB as the superuser (no login) so you can browse every table (§5.7). It comes up with
-> `make up` / `make dev`.
+> **Want to see the data?** Two web UIs come up with `make up` / `make dev`:
+> **`http://localhost:8081`** (pgweb) for the Postgres `relay` DB (§5.7), and
+> **`http://localhost:8082`** (redis-commander) for Valkey — cache + rate-limit + pub/sub keys (§5.8).
 
 ### Step 1 — install + infra
 
@@ -171,17 +172,18 @@ Console (`packages/console/.env.local`, gitignored — see `.env.example`):
 
 ## 4. Tools & services — ports, purpose, access
 
-| Service  | Port(s)     | Purpose                    | Access                                 |
-| -------- | ----------- | -------------------------- | -------------------------------------- |
-| Postgres | 5432        | tenant data (RLS)          | `psql` — §5.1                          |
-| Valkey   | 6379        | limits · cache · pub/sub   | `valkey-cli` / `redis-cli` — §5.2      |
-| Logto    | 3001 / 3002 | OIDC endpoint / admin UI   | browser `http://localhost:3002` — §5.3 |
-| MinIO    | 9000 / 9001 | S3 API / web console       | browser `http://localhost:9001` — §5.4 |
-| mockllm  | 8080        | mock upstream provider     | `curl` — §5.5                          |
-| Gateway  | 3000        | data plane `/v1/*`         | `curl` / SDK — §6                      |
-| Gateway  | 9090        | internal: health · metrics | `curl` — §7                            |
-| Console  | 3100        | dashboard + Logto sign-in  | browser `http://localhost:3100` — §5.6 |
-| pgweb    | 8081        | web DB browser (relay DB)  | browser `http://localhost:8081` — §5.7 |
+| Service         | Port(s)     | Purpose                    | Access                                 |
+| --------------- | ----------- | -------------------------- | -------------------------------------- |
+| Postgres        | 5432        | tenant data (RLS)          | `psql` — §5.1                          |
+| Valkey          | 6379        | limits · cache · pub/sub   | `valkey-cli` / `redis-cli` — §5.2      |
+| Logto           | 3001 / 3002 | OIDC endpoint / admin UI   | browser `http://localhost:3002` — §5.3 |
+| MinIO           | 9000 / 9001 | S3 API / web console       | browser `http://localhost:9001` — §5.4 |
+| mockllm         | 8080        | mock upstream provider     | `curl` — §5.5                          |
+| Gateway         | 3000        | data plane `/v1/*`         | `curl` / SDK — §6                      |
+| Gateway         | 9090        | internal: health · metrics | `curl` — §7                            |
+| Console         | 3100        | dashboard + Logto sign-in  | browser `http://localhost:3100` — §5.6 |
+| pgweb           | 8081        | web DB browser (relay DB)  | browser `http://localhost:8081` — §5.7 |
+| redis-commander | 8082        | web Valkey browser         | browser `http://localhost:8082` — §5.8 |
 
 Container status: `docker compose -f deploy/compose/compose.yaml ps`.
 Logs for one service: `docker compose -f deploy/compose/compose.yaml logs -f postgres`.
@@ -239,10 +241,14 @@ COMMIT;
 
 ### 5.2 Valkey
 
+Prefer the **web UI at `http://localhost:8082`** (redis-commander) to browse keys visually — see §5.8
+for what each key means. CLI access:
+
 ```bash
 docker exec -it relay-valkey-1 valkey-cli      # or: redis-cli -h localhost -p 6379
 > PING            # PONG
-> KEYS *          # inspect keys (rate-limit buckets / cache land Week 2-3)
+> KEYS *          # cache (c:*), rate-limit buckets (b:*), budgets (budget:*)
+> TTL c:...       # remaining cache TTL
 > INFO keyspace
 ```
 
@@ -316,6 +322,29 @@ gateway sees at runtime). It starts with `make up` / `make dev` (core profile) a
 To point it at the `logto` DB instead, use the connection form (top-left "Connect") with:
 `postgres` / `<POSTGRES_PASSWORD>` / host `postgres` / db `logto`. Prefer a desktop client
 (TablePlus/DBeaver) for heavier work — connection params in §5.1.
+
+### 5.8 redis-commander — visualize Valkey
+
+`http://localhost:8082` — a web browser for **Valkey** (Redis-compatible). Auto-connects (no login),
+starts with `make up` / `make dev`, bound to `127.0.0.1` only. Expand the `local` connection to see
+every key live; click a key to view its value/TTL.
+
+**What Relay stores in Valkey (so the keys make sense):**
+
+| Key pattern             | What it is                                                                        | Written by    |
+| ----------------------- | --------------------------------------------------------------------------------- | ------------- |
+| `c:{org}:{sha256}`      | exact-match **response cache** entry (org-partitioned; TTL = `RELAY_CACHE_TTL_S`) | cache module  |
+| `b:{org}:rpm:{keyId}`   | **requests-per-minute** token bucket for a virtual key                            | policy (Lua)  |
+| `b:{org}:tpm:{keyId}`   | **tokens-per-minute** bucket                                                      | policy (Lua)  |
+| `budget:{org}:{period}` | rolling **spend** counter (daily/monthly)                                         | policy settle |
+
+Plus two **pub/sub channels** (not keys — watch them under the "Pub/Sub" area or `SUBSCRIBE`):
+`key.invalidate` (a key was rotated/revoked) and `org.suspend` (a tenant was suspended) — the data
+plane subscribes so its in-process snapshots stay correct.
+
+> **See it live:** open redis-commander, then make a chat request (§6) twice — the second is a cache
+> hit and you'll see a `c:…` key appear; a rate-limited burst grows the `b:…` buckets. Empty at rest
+> (TTL 0 disables the cache). CLI equivalent: `docker exec -it relay-valkey-1 valkey-cli KEYS '*'`.
 
 ---
 

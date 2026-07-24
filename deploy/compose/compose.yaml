@@ -105,6 +105,21 @@ services:
       - '127.0.0.1:8081:8081'
     restart: unless-stopped
 
+  # Web browser for Valkey (Redis-compatible) — see the live rate-limit buckets, exact-response cache,
+  # and pub/sub keys. Auto-connects to the valkey service, no login. Bound to 127.0.0.1 only.
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    platform: linux/amd64 # no arm64 image published; runs under emulation on Apple Silicon
+    profiles: [core, dev]
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOSTS: local:valkey:6379
+    ports:
+      - '127.0.0.1:8082:8081'
+    restart: unless-stopped
+
 volumes:
   pgdata: {}
   minio: {}
