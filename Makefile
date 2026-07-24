@@ -21,9 +21,11 @@ up: ## compose core + migrate + seeds (full local stack)
 	$(COMPOSE) --profile core up -d --wait
 	$(MAKE) migrate seed-auth seed-demo
 
-dev: up ## inner loop: core + mockllm + watch all packages
+dev: up ## inner loop: core + mockllm container + watch server/console
 	$(COMPOSE) --profile dev up -d mockllm
-	$(LOADENV) pnpm turbo dev   # load .env so the gateway (turbo task) gets RELAY_* config at boot
+	# mockllm is served by its container (above), so exclude it from the turbo watch or both bind :8080.
+	# turbo runs in strict env mode; RELAY_*/LOGTO_* reach the tasks via globalPassThroughEnv (turbo.json).
+	$(LOADENV) pnpm turbo dev --filter=!@relay/mockllm
 
 down: ## stop everything and drop volumes
 	$(COMPOSE) --profile dev --profile core down
@@ -63,8 +65,9 @@ smoke: ## end-to-end smoke against a running stack (make dev first)
 load: ## local load smoke on the hot path (node fallback; use k6 for the gate)
 	node scripts/load-smoke.mjs
 
-e2e: ## conformance (real SDKs) + Playwright                 [sprint Day 13-14]
-	@echo "[make] e2e stub — lands sprint Day 13-14"
+e2e: ## Playwright console E2E (start the stack first: make dev)   [sprint Day 13]
+	pnpm --filter @relay/console exec playwright install --with-deps chromium
+	pnpm --filter @relay/console e2e
 
 bench: ## drive load -> gate gateway overhead p99 < 25ms (G3)  [sprint Day 5/14]
 	node scripts/bench.mjs

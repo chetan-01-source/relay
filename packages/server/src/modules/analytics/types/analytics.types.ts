@@ -52,6 +52,7 @@ export interface UsageSummary {
 /** Options passed down to the query builder. `byOrg` switches the group key to `org_id` for the
  * platform-admin cross-org summary; otherwise the requested `groupBy` column is used. */
 export interface SumUsageOptions {
+  orgId?: string; // explicit org filter for the tenant-scoped read (defense-in-depth with RLS)
   from?: string;
   to?: string;
   byOrg?: boolean;

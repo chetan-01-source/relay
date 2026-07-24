@@ -30,6 +30,13 @@ export function sumUsageQuery(groupBy: UsageGroupBy, opts: SumUsageOptions): Sql
 
   const values: unknown[] = [];
   const where: string[] = [];
+  // Org-scoped reads carry an EXPLICIT org_id filter (belt-and-suspenders with RLS), so the aggregate
+  // stays correct even on a connection where RLS is bypassed — mirrors metering's rebuild query. The
+  // cross-org admin variant (byOrg) intentionally omits it and relies on the platform-admin policy.
+  if (!opts.byOrg && opts.orgId) {
+    values.push(opts.orgId);
+    where.push(`org_id = $${values.length}`);
+  }
   if (opts.from) {
     values.push(opts.from);
     where.push(`hour >= $${values.length}::timestamptz`);

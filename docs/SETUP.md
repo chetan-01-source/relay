@@ -36,13 +36,27 @@ make bootstrap                         # checks tools, copies .env.example→.en
 make up                                # compose core up + relay migrate + seed-auth + seed-demo
 #     seed-demo writes the demo key to .relay/seed-demo.key (gitignored) + prints a curl.
 
-# 4 · run the gateway + mockllm (inner loop)
-make dev                               # core + mockllm + turbo dev (gateway on :3000, internal :9090)
+# 3b · console sign-in (one-time): create the Logto "Traditional web app" (§5.3), redirect URI
+#      http://localhost:3100/callback, then copy packages/console/.env.example → .env.local and fill
+#      LOGTO_APP_ID/SECRET/COOKIE_SECRET. RELAY_API_BASE_URL/RESOURCE are prefilled for local.
+
+# 4 · run the inner loop (gateway + console; mockllm as a container)
+make dev                               # core + mockllm container + turbo watch (server + console)
+#     gateway → :3000 (data) + :9090 (internal) · console → :3100 · mockllm → :8080
+#     open http://localhost:3100 and sign in with Logto → the console (dashboard/apps/keys/…)
 ```
 
-> **Port note (dev):** the **gateway** owns `:3000` (data plane, `/docs`, `/v1/*`, `/openapi.json`);
-> the **console** runs on `:3100` (`next dev -p 3100`). They no longer collide, so `make dev` starts
-> both. The console's Logto redirect URI must therefore be `http://localhost:3100/callback`.
+> **Port note (dev):** the **gateway** owns `:3000` (data plane, `/docs`, `/v1/*`, `/openapi.json`) +
+> `:9090` (internal health/metrics); the **console** runs on `:3100` (`next dev -p 3100`); **mockllm**
+> is served by its Docker container on `:8080`. `make dev` starts the mockllm container and then runs
+> `turbo dev` for **server + console only** (mockllm is excluded from the watch, or the container and
+> the tsx dev server would both bind `:8080`). The console's Logto redirect URI must be
+> `http://localhost:3100/callback`.
+>
+> **Env note (dev):** turbo 2.x runs tasks in **strict env mode** — `make dev` sources
+> `deploy/compose/.env` and turbo forwards `RELAY_*` / `LOGTO_*` to the tasks via
+> `globalPassThroughEnv` (`turbo.json`). If you run the gateway outside `make dev`, export those vars
+> yourself or `loadConfig` throws `Invalid configuration: RELAY_DATABASE_URL …`.
 
 ---
 
@@ -61,7 +75,15 @@ Server (`deploy/compose/.env`, validated by `platform/config.ts` at boot):
 | `RELAY_LOGTO_ENDPOINT` / `_M2M_APP_ID` / `_M2M_APP_SECRET` | Logto Management API (seed-auth)                               |
 
 Console (`packages/console/.env.local`, gitignored — see `.env.example`):
-`LOGTO_ENDPOINT`, `LOGTO_APP_ID`, `LOGTO_APP_SECRET`, `LOGTO_BASE_URL`, `LOGTO_COOKIE_SECRET`.
+
+| Var                                 | Purpose                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `LOGTO_ENDPOINT`                    | Logto OIDC endpoint (`http://localhost:3001`)                                                                                        |
+| `LOGTO_APP_ID` / `LOGTO_APP_SECRET` | the console's **Traditional web app** in Logto (§5.3)                                                                                |
+| `LOGTO_BASE_URL`                    | console origin (`http://localhost:3100`); redirect URI = `+/callback`                                                                |
+| `LOGTO_COOKIE_SECRET`               | session cookie secret (`openssl rand -base64 24`)                                                                                    |
+| `RELAY_API_BASE_URL`                | where the gateway control plane lives (`http://localhost:3000`)                                                                      |
+| `RELAY_API_RESOURCE`                | Relay API resource the access token is minted for — must equal the server's `RELAY_LOGTO_JWT_AUDIENCE` (`https://relay.gateway/api`) |
 
 > **Secrets policy:** only `*.env.example` is committed; `.env` / `.env.local` are gitignored. The DB
 > stores hashes (virtual keys) and envelope-encrypted ciphertext (provider credentials) only. Logs
@@ -187,7 +209,22 @@ curl -s -X POST localhost:8080/v1/chat/completions -H 'content-type: application
 
 ### 5.6 Console
 
-`http://localhost:3100` → "Sign in with Logto" → Logto sign-in page → back to `/callback` → signed in.
+`http://localhost:3100` → "Sign in with Logto" → Logto sign-in → `/callback` → landing. From there:
+
+- **Org members** land on **Open console → `/dashboard`**: spend/usage tiles + a setup checklist, plus
+  **Applications** (create), **Virtual keys** (create with one-time copy, rotate, revoke), **Providers**
+  (write-only secret forms), and **Audit** (the hash-chained trail). Every key surface has a
+  **cURL / SDK snippet drawer**. This is the whole onboarding → build → operate flow with no cURL.
+- **Platform admins** additionally get **Manage organizations → `/orgs`** (onboard + entitlements).
+
+All screens are server-rendered and **gated server-side** (`app/lib/auth.ts`): an unauthenticated or
+un-scoped visitor is redirected before any protected markup renders; the gateway still enforces scopes
+on every call. Data flows through the generated typed client (`app/lib/api-types.ts`, refreshed by
+`make generate`) — so the console never drifts from the server contract.
+
+> If a signed-in user sees "token could not be resolved by the gateway", their Logto token lacks the
+> Relay API audience/scope — check `RELAY_API_RESOURCE` (console) == `RELAY_LOGTO_JWT_AUDIENCE`
+> (server) and that `make seed-auth` granted the role.
 
 ---
 
@@ -246,6 +283,24 @@ curl -s localhost:3000/v1/models/nope                                           
 | POST   | `/v1/chat/completions` | mockllm  | none       | mock OpenAI upstream                |
 | POST   | `/v1/messages`         | mockllm  | none       | mock Anthropic upstream             |
 
+**Control plane (`/api/*`, on the gateway `:3000`)** — auth is a **Logto JWT** (not a `rk_` key), scoped
+to the Relay API resource. These are what the console consumes; browse them in `/docs` too.
+
+| Method   | Path                                      | Scope                  | Purpose                                     |
+| -------- | ----------------------------------------- | ---------------------- | ------------------------------------------- |
+| GET      | `/api/v1/me`                              | any                    | caller's org + scopes                       |
+| GET/POST | `/api/v1/apps`                            | `apps:read/write`      | list / create applications                  |
+| GET/POST | `/api/v1/apps/{appId}/keys`               | `apps:read/write`      | list / issue virtual keys (plaintext once)  |
+| POST     | `/api/v1/keys/{keyId}/rotate` · `/revoke` | `apps:write`           | rotate / revoke a key                       |
+| GET/POST | `/api/v1/providers`                       | `providers:read/write` | list (metadata) / store a sealed credential |
+| DELETE   | `/api/v1/providers/{id}`                  | `providers:write`      | delete a credential                         |
+| GET      | `/api/v1/analytics/usage`                 | `analytics:read`       | grouped spend (rollups)                     |
+| GET      | `/api/v1/audit`                           | `audit:read`           | hash-chained audit trail                    |
+| GET/POST | `/api/v1/platform/orgs` (+ `/{orgId}/…`)  | `platform:admin`       | org lifecycle + entitlements                |
+| GET      | `/api/v1/platform/analytics/usage`        | `platform:admin`       | cross-org spend summary                     |
+
+Verify the trail integrity any time: `relay audit verify` (re-walks every org's hash chain, exits 1 on a break).
+
 ---
 
 ## 8. Observability & metrics
@@ -286,21 +341,24 @@ Run the G3 bench any time: `make bench` (drives load, fails if overhead p99 > 25
 
 ## 10. Debugging playbook (symptom → cause → fix)
 
-| Symptom                                                  | Likely cause → fix                                                                             |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `401 invalid_api_key`                                    | Missing/malformed `Authorization: Bearer rk_live_…`. Get a key from `make seed-demo`.          |
-| `400 invalid_request`                                    | Body failed the route schema (needs `model` + `messages`). Check the request JSON.             |
-| `404 model_not_found`                                    | Model not in `model_catalog`. Seeded in migration `0009`; check `GET /v1/models`.              |
-| `404 not_found` (route)                                  | Wrong path/method. See §7 or `/docs`.                                                          |
-| `502 upstream_error/unreachable`                         | mockllm down or erroring. Check `curl localhost:8080/healthz`; unset `MOCKLLM_ERROR_RATE`.     |
-| psql as `relay_app` returns 0 rows                       | RLS — set `app.current_org` in the tx (§5.1) or use the superuser role.                        |
-| `migration … modified after applied (checksum mismatch)` | You edited an applied migration. Revert it and **add a new** migration instead.                |
-| `Database.get() before Database.init()`                  | Something used the DB singleton before `serve` called `initDb`. Boot via `relay serve`.        |
-| Console sign-in loops / redirect error                   | `LOGTO_BASE_URL` + the Logto app's redirect URI must both be `http://localhost:3100/callback`. |
-| `seed-demo needs RELAY_MASTER_KEY`                       | Set `RELAY_MASTER_KEY` (`openssl rand -base64 32`) in `.env`.                                  |
-| `seed-auth skipped`                                      | `RELAY_LOGTO_*` not set — do the one-time M2M setup (§5.3).                                    |
-| Port `3000` in use                                       | Console and gateway both want 3000 — run the gateway on another port (§2 note).                |
-| `/readyz` 503                                            | pg or valkey down. `docker compose … ps`; check the `pg`/`valkey` fields in the response.      |
+| Symptom                                                          | Likely cause → fix                                                                                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `401 invalid_api_key`                                            | Missing/malformed `Authorization: Bearer rk_live_…`. Get a key from `make seed-demo`.                                                                                          |
+| `400 invalid_request`                                            | Body failed the route schema (needs `model` + `messages`). Check the request JSON.                                                                                             |
+| `404 model_not_found`                                            | Model not in `model_catalog`. Seeded in migration `0009`; check `GET /v1/models`.                                                                                              |
+| `404 not_found` (route)                                          | Wrong path/method. See §7 or `/docs`.                                                                                                                                          |
+| `502 upstream_error/unreachable`                                 | mockllm down or erroring. Check `curl localhost:8080/healthz`; unset `MOCKLLM_ERROR_RATE`.                                                                                     |
+| psql as `relay_app` returns 0 rows                               | RLS — set `app.current_org` in the tx (§5.1) or use the superuser role.                                                                                                        |
+| `migration … modified after applied (checksum mismatch)`         | You edited an applied migration. Revert it and **add a new** migration instead.                                                                                                |
+| `Database.get() before Database.init()`                          | Something used the DB singleton before `serve` called `initDb`. Boot via `relay serve`.                                                                                        |
+| Console sign-in loops / redirect error                           | `LOGTO_BASE_URL` + the Logto app's redirect URI must both be `http://localhost:3100/callback`.                                                                                 |
+| Console "token could not be resolved by the gateway"             | `RELAY_API_RESOURCE` (console) ≠ `RELAY_LOGTO_JWT_AUDIENCE` (server), or the role wasn't granted — re-check §5.3 / `make seed-auth`.                                           |
+| `seed-demo needs RELAY_MASTER_KEY`                               | Set `RELAY_MASTER_KEY` (`openssl rand -base64 32`) in `.env`.                                                                                                                  |
+| `seed-auth skipped`                                              | `RELAY_LOGTO_*` not set — do the one-time M2M setup (§5.3).                                                                                                                    |
+| Gateway boots with `Invalid configuration: RELAY_DATABASE_URL …` | Env didn't reach the task. `make dev` forwards it via `globalPassThroughEnv` (turbo.json); running the gateway by hand needs the vars exported (`source deploy/compose/.env`). |
+| mockllm `EADDRINUSE :8080`                                       | Two mockllm instances. `make dev` runs the container only; kill a stale host mockllm (`lsof -ti :8080 \| xargs kill`) or a leftover container (`docker compose … stop`).       |
+| Port `3000` / `3100` / `8080` in use                             | A stale gateway/console/mockllm from a prior run. `docker compose … stop` (containers) and `lsof -ti :3000 :3100 :8080 \| xargs kill` (host processes).                        |
+| `/readyz` 503                                                    | pg or valkey down. `docker compose … ps`; check the `pg`/`valkey` fields in the response.                                                                                      |
 
 ---
 
@@ -309,16 +367,60 @@ Run the G3 bench any time: `make bench` (drives load, fails if overhead p99 > 25
 ```
 make bootstrap   # check tools, .env, install, build shared
 make up          # compose core + migrate + seed-auth + seed-demo
-make dev         # up + mockllm + watch all packages
+make dev         # up + mockllm container + turbo watch (server + console)
 make down        # stop everything, drop volumes
 make migrate     # apply SQL migrations (idempotent)
 make seed-auth   # idempotent Logto bootstrap
 make seed-demo   # seed a demo tenant, print a working curl + key
-make generate    # dump api/openapi/openapi.json from route schemas
+make generate    # dump api/openapi/openapi.json + regen the console's typed client
 make lint        # eslint + prettier + dep-cruiser + check-rls
 make test        # unit + integration (with a DB up)
 make coverage    # coverage thresholds (business logic ≥ 80%)
 make smoke       # end-to-end contract checks against a running stack
+make e2e         # Playwright console E2E (installs chromium; needs make dev up)
 make bench       # G3 gate — gateway overhead p99 < 25ms
 make load        # local hot-path load smoke (p50/p95/p99)
+```
+
+> **Console E2E:** `make e2e` runs the Playwright specs (`packages/console/test/e2e/`). The **gating**
+> specs (unauthenticated → redirected off every protected route) run against a live `make dev` with no
+> extra setup. The full **build-flow** spec self-skips unless you supply an authenticated Logto session
+> via `RELAY_E2E_STORAGE_STATE` (a saved `storageState` file). Unit tests (`pnpm --filter @relay/console
+test`) cover the pure logic (usage aggregation, checklist, snippet builder) and need no stack.
+
+---
+
+## 12. Reset to a clean slate
+
+Two levels of reset. **Data reset** (recommended) wipes all tenant data but keeps Logto (admin user,
+M2M app, console app) so sign-in still works. **Full nuke** also destroys Logto — only for a truly
+fresh machine; you must redo the one-time Logto setup (§5.3) afterward.
+
+### 12.1 Data reset — wipe tenant data, keep auth
+
+```bash
+source deploy/compose/.env
+
+# Valkey: rate-limit buckets + cache + pub/sub
+docker exec relay-valkey-1 valkey-cli FLUSHALL
+
+# Postgres: all tenant rows (keeps schema, migrations, global model_catalog + rate_cards)
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -U postgres -d relay -v ON_ERROR_STOP=1 -c \
+  "TRUNCATE organizations CASCADE; TRUNCATE usage_events;"
+
+# forget the old demo key, then re-seed a fresh demo tenant
+rm -f .relay/seed-demo.key
+make seed-demo
+```
+
+`TRUNCATE organizations CASCADE` removes every tenant table's rows via the `org_id` FK cascade;
+`usage_events` has no FK so it is truncated explicitly. MinIO is empty until Week 4 (nothing to clear).
+
+### 12.2 Full nuke — destroy everything incl. Logto
+
+```bash
+make down                                    # stop containers
+docker compose -f deploy/compose/compose.yaml --profile core --profile dev down -v   # drop volumes
+make up                                      # fresh migrate + seed
+# then redo §5.3: create the Logto admin user, the M2M app, and the console web app.
 ```
