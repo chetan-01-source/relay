@@ -5,7 +5,7 @@
  * generated from the gateway's OpenAPI spec by `pnpm gen:api` (wired into `make generate`) — so the
  * client cannot drift from the server contract.
  */
-import { getAccessToken } from '@logto/next/server-actions';
+import { getAccessTokenRSC } from '@logto/next/server-actions';
 import { logtoConfig } from './logto';
 import type { paths } from './api-types';
 
@@ -47,7 +47,10 @@ export type UsageSummary =
 type AuditList = paths['/api/v1/audit']['get']['responses']['200']['content']['application/json'];
 
 async function bearer(): Promise<string> {
-  return `Bearer ${await getAccessToken(logtoConfig, RELAY_API_RESOURCE)}`;
+  // RSC-safe: the console reads run inside React Server Components, where the SDK cannot write the
+  // session cookie. getAccessTokenRSC uses ignoreCookieChange, so refreshing/minting the resource
+  // token doesn't throw "Cookies can only be modified in a Server Action or Route Handler".
+  return `Bearer ${await getAccessTokenRSC(logtoConfig, RELAY_API_RESOURCE)}`;
 }
 
 /** GET a control-plane path with the caller's Logto token attached. Throws on a non-2xx response. */
