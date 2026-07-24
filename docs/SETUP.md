@@ -21,42 +21,115 @@ macOS/Linux native; Windows via WSL2.
 
 ---
 
-## 2. First-time setup (clean machine → working stack)
+## 2. First-time setup — zero → signed-in, step by step
+
+> **Which URLs open in a browser?** Only these. `psql`/`redis` ports are **NOT web pages** — opening
+> `http://localhost:5432` (Postgres) or `:6379` (Valkey) in a browser shows "this page isn't working";
+> that is expected. Use the CLI for those (§5.1/§5.2).
+>
+> | Open in a browser                       | Terminal only (not a web page)                 |
+> | --------------------------------------- | ---------------------------------------------- |
+> | Console `http://localhost:3100`         | Postgres `5432` → `psql`                       |
+> | Swagger UI `http://localhost:3000/docs` | Valkey `6379` → `valkey-cli`                   |
+> | Logto admin `http://localhost:3002`     | mockllm `8080` → `curl` (API, no UI)           |
+> | MinIO console `http://localhost:9001`   | Gateway data `3000` / internal `9090` → `curl` |
+
+### Step 1 — install + infra
 
 ```bash
-# 1 · install + build shared types
-make bootstrap                         # checks tools, copies .env.example→.env, installs, builds @relay/shared
-
-# 2 · fill secrets in deploy/compose/.env  (the file is gitignored — never commit it)
-#     POSTGRES_PASSWORD, RELAY_APP_PASSWORD, MINIO_ROOT_PASSWORD  → any strong local value
-#     RELAY_MASTER_KEY   → openssl rand -base64 32   (32-byte envelope KEK; required by crypto/seed)
-#     RELAY_LOGTO_*      → filled after the one-time Logto M2M step (§5.3), optional otherwise
-
-# 3 · bring up infra + migrate + seed
-make up                                # compose core up + relay migrate + seed-auth + seed-demo
-#     seed-demo writes the demo key to .relay/seed-demo.key (gitignored) + prints a curl.
-
-# 3b · console sign-in (one-time): create the Logto "Traditional web app" (§5.3), redirect URI
-#      http://localhost:3100/callback, then copy packages/console/.env.example → .env.local and fill
-#      LOGTO_APP_ID/SECRET/COOKIE_SECRET. RELAY_API_BASE_URL/RESOURCE are prefilled for local.
-
-# 4 · run the inner loop (gateway + console; mockllm as a container)
-make dev                               # core + mockllm container + turbo watch (server + console)
-#     gateway → :3000 (data) + :9090 (internal) · console → :3100 · mockllm → :8080
-#     open http://localhost:3100 and sign in with Logto → the console (dashboard/apps/keys/…)
+make bootstrap        # checks tools, copies deploy/compose/.env.example → .env, installs, builds shared types
 ```
 
-> **Port note (dev):** the **gateway** owns `:3000` (data plane, `/docs`, `/v1/*`, `/openapi.json`) +
-> `:9090` (internal health/metrics); the **console** runs on `:3100` (`next dev -p 3100`); **mockllm**
-> is served by its Docker container on `:8080`. `make dev` starts the mockllm container and then runs
-> `turbo dev` for **server + console only** (mockllm is excluded from the watch, or the container and
-> the tsx dev server would both bind `:8080`). The console's Logto redirect URI must be
+Fill **server secrets** in `deploy/compose/.env` (gitignored — never commit):
+
+```bash
+# strong local values for the datastores:
+#   POSTGRES_PASSWORD · RELAY_APP_PASSWORD · MINIO_ROOT_PASSWORD  → any strong string
+# the envelope key (REQUIRED — crypto/seed fail without it):
+openssl rand -base64 32        # paste as RELAY_MASTER_KEY
+```
+
+Bring up the datastores + schema + a demo tenant:
+
+```bash
+make up               # compose core (pg/valkey/logto/minio) + migrate + seed-auth + seed-demo
+#   → seed-demo writes a data-plane key to .relay/seed-demo.key (gitignored) and prints a ready curl.
+```
+
+At this point the **data plane works** (§6) but the **console needs Logto credentials** (Steps 2–3).
+
+### Step 2 — Logto: admin + the M2M app (for `seed-auth`)
+
+`seed-auth` needs a Machine-to-Machine app so the gateway can register its API resource + roles.
+
+1. Open the **Logto admin console → `http://localhost:3002`**. First run: create the admin account.
+2. **Applications → Create → Machine-to-Machine** (name it `relay-server`). Open it →
+   **Roles/API permissions → grant "Logto Management API access"**.
+3. Copy its **App ID** and **App Secret** into `deploy/compose/.env`:
+
+   ```
+   RELAY_LOGTO_ENDPOINT=http://localhost:3001
+   RELAY_LOGTO_M2M_APP_ID=<the m2m app id>
+   RELAY_LOGTO_M2M_APP_SECRET=<the m2m app secret>
+   ```
+
+4. Register the Relay API resource + roles (idempotent):
+
+   ```bash
+   make seed-auth      # → "logto bootstrap ok — apiResource …"; creates the https://relay.gateway/api resource
+   ```
+
+   > `RELAY_LOGTO_JWT_AUDIENCE` defaults to `https://relay.gateway/api` (the resource indicator
+   > `seed-auth` registers) — leave it unset unless you change the indicator.
+
+### Step 3 — Logto: the console sign-in app + `.env.local`
+
+The console signs users in with a **Traditional web app**.
+
+1. **Applications → Create → Traditional Web** (name it `relay-console`). In its settings set:
+   - **Redirect URI:** `http://localhost:3100/callback`
+   - **Post sign-out redirect URI:** `http://localhost:3100`
+2. Create the console env file and fill it from that app:
+
+   ```bash
+   cp packages/console/.env.example packages/console/.env.local
+   openssl rand -base64 24     # paste as LOGTO_COOKIE_SECRET
+   ```
+
+   ```ini
+   # packages/console/.env.local
+   LOGTO_ENDPOINT=http://localhost:3001
+   LOGTO_APP_ID=<the traditional web app id>
+   LOGTO_APP_SECRET=<the traditional web app secret>
+   LOGTO_BASE_URL=http://localhost:3100
+   LOGTO_COOKIE_SECRET=<openssl rand -base64 24>
+   RELAY_API_BASE_URL=http://localhost:3000       # gateway control plane
+   RELAY_API_RESOURCE=https://relay.gateway/api    # MUST equal the server's RELAY_LOGTO_JWT_AUDIENCE
+   ```
+
+### Step 4 — run it + sign in
+
+```bash
+make dev              # core + mockllm container + turbo watch (server + console)
+#   gateway → :3000 (data) + :9090 (internal) · console → :3100 · mockllm → :8080
+```
+
+Open **`http://localhost:3100`** → **Sign in with Logto** → authenticate → back to the console.
+
+- First sign-in gives you a **Logto user**. To act on an org you need to be a member of one. Grant your
+  user the **`relay_admin`** role in Logto (Users → your user → Roles), sign in again, then
+  **Manage organizations → onboard an org** — that maps your Logto org to a Relay tenant. Now
+  **Open console** shows the dashboard / apps / keys / providers / audit.
+
+> **Port note (dev):** `make dev` starts the mockllm **container** and runs `turbo dev` for
+> **server + console only** (mockllm is excluded from the watch, or the container and the tsx dev
+> server would both bind `:8080`). The console's Logto redirect URI must be
 > `http://localhost:3100/callback`.
 >
 > **Env note (dev):** turbo 2.x runs tasks in **strict env mode** — `make dev` sources
 > `deploy/compose/.env` and turbo forwards `RELAY_*` / `LOGTO_*` to the tasks via
-> `globalPassThroughEnv` (`turbo.json`). If you run the gateway outside `make dev`, export those vars
-> yourself or `loadConfig` throws `Invalid configuration: RELAY_DATABASE_URL …`.
+> `globalPassThroughEnv` (`turbo.json`). Running the gateway outside `make dev` needs those vars
+> exported (`source deploy/compose/.env`) or `loadConfig` throws `Invalid configuration: RELAY_DATABASE_URL …`.
 
 ---
 
