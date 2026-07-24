@@ -21,9 +21,11 @@ up: ## compose core + migrate + seeds (full local stack)
 	$(COMPOSE) --profile core up -d --wait
 	$(MAKE) migrate seed-auth seed-demo
 
-dev: up ## inner loop: core + mockllm + watch all packages
+dev: up ## inner loop: core + mockllm container + watch server/console
 	$(COMPOSE) --profile dev up -d mockllm
-	$(LOADENV) pnpm turbo dev   # load .env so the gateway (turbo task) gets RELAY_* config at boot
+	# mockllm is served by its container (above), so exclude it from the turbo watch or both bind :8080.
+	# turbo runs in strict env mode; RELAY_*/LOGTO_* reach the tasks via globalPassThroughEnv (turbo.json).
+	$(LOADENV) pnpm turbo dev --filter=!@relay/mockllm
 
 down: ## stop everything and drop volumes
 	$(COMPOSE) --profile dev --profile core down

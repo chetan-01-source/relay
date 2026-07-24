@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": ["RELAY_*", "LOGTO_*", "NODE_ENV"],
   "tasks": {
     "lint": { "dependsOn": ["^build"], "outputs": [] },
     "typecheck": { "dependsOn": ["^build"], "outputs": [] },
