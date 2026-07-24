@@ -23,6 +23,22 @@ export interface LogtoBootstrapResult {
 const MANAGEMENT_RESOURCE = 'https://default.logto.app/api';
 const RELAY_API_INDICATOR = 'https://relay.gateway/api';
 
+// The permission scopes the gateway's requireScope() checks. They must exist on the Relay API
+// resource and be granted to a role, or Logto issues no token carrying them (the console then gets
+// "token could not be resolved"). relay_admin gets all; relay_member gets everything but platform:admin.
+const RELAY_SCOPES = [
+  'relay:read',
+  'relay:write',
+  'apps:read',
+  'apps:write',
+  'providers:read',
+  'providers:write',
+  'analytics:read',
+  'audit:read',
+  'platform:admin',
+] as const;
+const MEMBER_SCOPES = RELAY_SCOPES.filter((s) => s !== 'platform:admin');
+
 interface Named {
   id: string;
   name: string;
@@ -104,6 +120,34 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
     roleIds[name] = r.id;
     if (r.created) created.push(`role:${name}`);
   }
+
+  // Scopes on the Relay API resource — create any missing, keyed by name.
+  const existingScopes = await api<Named[]>(cfg, token, 'GET', `/resources/${apiResourceId}/scopes`);
+  const scopeIdByName: Record<string, string> = {};
+  for (const s of existingScopes) scopeIdByName[s.name] = s.id;
+  for (const name of RELAY_SCOPES) {
+    if (!scopeIdByName[name]) {
+      const made = await api<Named>(cfg, token, 'POST', `/resources/${apiResourceId}/scopes`, {
+        name,
+        description: name,
+      });
+      scopeIdByName[name] = made.id;
+      created.push(`scope:${name}`);
+    }
+  }
+
+  // Grant scopes to roles (only the ones not already granted — keeps the run idempotent).
+  async function grantScopes(roleId: string, scopeNames: readonly string[]): Promise<void> {
+    const have = await api<Named[]>(cfg, token, 'GET', `/roles/${roleId}/scopes`);
+    const haveNames = new Set(have.map((s) => s.name));
+    const missing = scopeNames.filter((n) => !haveNames.has(n)).map((n) => scopeIdByName[n]);
+    if (missing.length > 0) {
+      await api(cfg, token, 'POST', `/roles/${roleId}/scopes`, { scopeIds: missing });
+      created.push(`grant:${roleId}(${missing.length})`);
+    }
+  }
+  await grantScopes(roleIds.relay_admin!, RELAY_SCOPES);
+  await grantScopes(roleIds.relay_member!, MEMBER_SCOPES);
 
   return { apiResourceId, roleIds, created };
 }
