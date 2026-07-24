@@ -6,8 +6,8 @@
  * the browser. The gateway enforces platform-admin scope — the UI is only a convenience.
  */
 import { revalidatePath } from 'next/cache';
-import { onboardOrg, updateEntitlements, type OnboardOrgInput } from '../lib/api';
-import { FEATURE_KEYS } from '../lib/features';
+import { onboardOrg, updateEntitlements, type OnboardOrgInput } from '../../lib/api';
+import { FEATURE_KEYS } from '../../lib/features';
 
 /** Read a form field as a trimmed string (form values are string | File; we only use text inputs). */
 function field(formData: FormData, name: string): string {
