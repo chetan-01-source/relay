@@ -40,6 +40,18 @@ for "active/success" badges and red for destructive). Corporate = restraint.
 - Transitions **150–300ms**, `transition-colors` only (never animate layout/size). Respect
   `prefers-reduced-motion`.
 
+### Dark mode (dual-mode, mandatory)
+
+- **Strategy:** Tailwind `darkMode: ['class']` + `next-themes` (`components/theme-provider.tsx`,
+  wrapped once in `app/layout.tsx`). Every color is a token that swaps under `.dark` — components
+  never hardcode a mode.
+- **Default:** follows the OS (`defaultTheme="system"`); the user's manual choice persists.
+- **Toggle:** `components/theme-toggle.tsx` (sun/moon) — in the console top bar and the landing page.
+  It renders a stable placeholder until mounted (no hydration flash) and `<html suppressHydrationWarning>`.
+- **Rules:** off-black surfaces (`zinc-950`-ish), never pure `#000`/`#fff`; the blue accent stays blue
+  in both modes (brighter blue-500 in dark for contrast); hierarchy + WCAG AA hold in both. **Test both
+  modes before shipping** (§4).
+
 ## 2. Components (`components/ui/*`)
 
 shadcn/ui primitives over Radix: `button`, `card`, `input`, `label`, `table`, `dialog`, `badge`, plus:
@@ -50,6 +62,10 @@ shadcn/ui primitives over Radix: `button`, `card`, `input`, `label`, `table`, `d
 - **`Button`** — `default` (blue) for primary actions, `outline` for secondary, `destructive` for
   revoke/delete, `ghost` for toolbar. Always has `cursor-pointer` + focus ring.
 - **`Badge`** — `success` (active), `secondary` (revoked/inactive), `outline` (neutral tags).
+- **`ThemeToggle` / `ThemeProvider`** — the dark-mode switch + provider (see Dark mode above).
+- **Icons:** `lucide-react` only, sized `size-4`/`h-4 w-4`. One family across the app.
+- **Stat tiles** (dashboard): `Card` with an accent icon chip (`bg-primary/10 text-primary`) + a
+  `tabular-nums` value; subtle `hover:border-primary/40`.
 
 ### App shell
 

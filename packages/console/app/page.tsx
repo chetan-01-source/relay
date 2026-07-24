@@ -5,13 +5,17 @@ import { signInAction, signOutAction } from './actions';
 import { getMe } from './lib/api';
 import { Button } from '../components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { ThemeToggle } from '../components/theme-toggle';
 
 // Auth state is per-request (reads cookies) — never statically prerender.
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+    <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-6">
+      <div className="fixed right-4 top-4">
+        <ThemeToggle />
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Relay Console</CardTitle>

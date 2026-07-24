@@ -1,4 +1,5 @@
-import { CheckCircle2, Circle } from 'lucide-react';
+import { Activity, CheckCircle2, Circle, Coins, DollarSign, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { requireOrg } from '../../lib/auth';
 import { listApps, listKeys, listProviders, getUsage } from '../../lib/api';
 import { summarizeUsage, formatUsd } from '../../lib/usage';
@@ -49,11 +50,15 @@ export default async function DashboardPage() {
   });
   const progress = Math.round(checklistProgress(steps) * 100);
 
-  const tiles = [
-    { label: 'Spend', value: formatUsd(totals.costUsd) },
-    { label: 'Requests', value: totals.requests.toLocaleString() },
-    { label: 'Tokens', value: (totals.inputTokens + totals.outputTokens).toLocaleString() },
-    { label: 'Top model', value: totals.topKey ?? '—' },
+  const tiles: { label: string; value: string; icon: LucideIcon }[] = [
+    { label: 'Spend', value: formatUsd(totals.costUsd), icon: DollarSign },
+    { label: 'Requests', value: totals.requests.toLocaleString(), icon: Activity },
+    {
+      label: 'Tokens',
+      value: (totals.inputTokens + totals.outputTokens).toLocaleString(),
+      icon: Coins,
+    },
+    { label: 'Top model', value: totals.topKey ?? '-', icon: Sparkles },
   ];
 
   return (
@@ -65,10 +70,15 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
-          <Card key={t.label}>
+          <Card key={t.label} className="transition-colors hover:border-primary/40">
             <CardHeader className="pb-2">
-              <CardDescription>{t.label}</CardDescription>
-              <CardTitle className="text-2xl">{t.value}</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardDescription>{t.label}</CardDescription>
+                <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <t.icon className="h-4 w-4" />
+                </span>
+              </div>
+              <CardTitle className="text-2xl tabular-nums">{t.value}</CardTitle>
             </CardHeader>
           </Card>
         ))}

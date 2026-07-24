@@ -4,6 +4,7 @@ import { requireUser } from '../lib/auth';
 import { signOutAction } from '../actions';
 import { NavLink } from '../../components/nav-link';
 import { Button } from '../../components/ui/button';
+import { ThemeToggle } from '../../components/theme-toggle';
 
 // Auth state is per-request (reads cookies) — never statically prerender.
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,12 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-card px-3 py-4 md:flex">
-        <div className="px-3 pb-4 text-lg font-semibold tracking-tight">Relay</div>
+        <div className="flex items-center gap-2 px-3 pb-5 pt-1">
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
+            R
+          </span>
+          <span className="text-lg font-semibold tracking-tight">Relay</span>
+        </div>
         <nav className="flex flex-1 flex-col gap-1">
           <NavLink href="/dashboard">
             <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
@@ -46,11 +52,14 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
           <div className="text-sm text-muted-foreground">
             {me.org_id ? `Org ${me.org_id.slice(0, 8)}…` : 'No organization'}
           </div>
-          <form action={signOutAction}>
-            <Button type="submit" variant="ghost" size="sm">
-              Sign out
-            </Button>
-          </form>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <form action={signOutAction}>
+              <Button type="submit" variant="ghost" size="sm">
+                Sign out
+              </Button>
+            </form>
+          </div>
         </header>
         <main className="min-w-0 flex-1 p-6">{children}</main>
       </div>
