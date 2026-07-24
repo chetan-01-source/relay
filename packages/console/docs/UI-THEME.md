@@ -10,9 +10,12 @@ skewed-perspective hero from reference #1 — too marketing for an admin tool).
 
 ### Typeface
 
-- **Inter** (single family), loaded via `next/font/google` in `app/layout.tsx` as `--font-sans`.
-  Neutral, Swiss, functional — the standard for dashboards/admin panels.
-- Weights: 400 body, 500 medium (labels/nav), 600 semibold (headings). No other families.
+- **Geist** (sans) + **Geist Mono**, self-hosted via the `geist` package in `app/layout.tsx`
+  (`--font-geist-sans` / `--font-geist-mono`, wired to Tailwind `font-sans` / `font-mono`). Geist is
+  Vercel's typeface — the modern developer-platform standard, more distinctive than Inter.
+- **Sans** for all UI. **Mono** for numbers, keys/`last4`, audit seq/hash, and code snippets
+  (`font-mono tabular-nums` on stat values). No other families.
+- Weights: 400 body, 500 medium (labels/nav), 600 semibold (headings).
 
 ### Color — one accent, neutral everything else
 

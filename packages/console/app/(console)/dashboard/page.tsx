@@ -78,7 +78,7 @@ export default async function DashboardPage() {
                   <t.icon className="h-4 w-4" />
                 </span>
               </div>
-              <CardTitle className="text-2xl tabular-nums">{t.value}</CardTitle>
+              <CardTitle className="font-mono text-2xl tabular-nums">{t.value}</CardTitle>
             </CardHeader>
           </Card>
         ))}
