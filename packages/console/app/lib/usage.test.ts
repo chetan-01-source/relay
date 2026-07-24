@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeUsage, formatUsd } from './usage';
+import { summarizeUsage, formatUsd, toDailySeries } from './usage';
 import type { UsageSummary } from './api';
 
 function summary(data: UsageSummary['data']): UsageSummary {
@@ -39,5 +39,24 @@ describe('formatUsd', () => {
   it('formats to 4 dp so sub-cent spend is visible', () => {
     expect(formatUsd(0.0123)).toBe('$0.0123');
     expect(formatUsd(0)).toBe('$0.0000');
+  });
+});
+
+describe('toDailySeries', () => {
+  it('sorts by date ascending and keeps the most recent N days', () => {
+    const series = toDailySeries(
+      summary([
+        { key: '2026-07-03', requests: 3, input_tokens: 0, output_tokens: 0, cost_usd: 0.3 },
+        { key: '2026-07-01', requests: 1, input_tokens: 0, output_tokens: 0, cost_usd: 0.1 },
+        { key: '2026-07-02', requests: 2, input_tokens: 0, output_tokens: 0, cost_usd: 0.2 },
+      ]),
+      2,
+    );
+    expect(series.map((p) => p.date)).toEqual(['2026-07-02', '2026-07-03']);
+    expect(series[0]).toEqual({ date: '2026-07-02', cost: 0.2, requests: 2 });
+  });
+
+  it('is empty for missing data', () => {
+    expect(toDailySeries(null)).toEqual([]);
   });
 });

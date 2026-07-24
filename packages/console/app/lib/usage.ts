@@ -41,3 +41,21 @@ export function summarizeUsage(summary: UsageSummary | null | undefined): UsageT
 export function formatUsd(value: number): string {
   return `$${value.toFixed(4)}`;
 }
+
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD (the group_by=day bucket key)
+  cost: number;
+  requests: number;
+}
+
+/** Shape `group_by=day` buckets into a date-ascending series for the spend chart, keeping the most
+ * recent `limit` days. Pure — unit-tested. */
+export function toDailySeries(summary: UsageSummary | null | undefined, limit = 30): DailyPoint[] {
+  const points = (summary?.data ?? []).map((b) => ({
+    date: b.key ?? '',
+    cost: b.cost_usd ?? 0,
+    requests: b.requests ?? 0,
+  }));
+  points.sort((a, b) => a.date.localeCompare(b.date)); // ISO dates sort lexicographically
+  return points.slice(-limit);
+}

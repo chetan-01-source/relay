@@ -2,7 +2,8 @@ import { Activity, CheckCircle2, Circle, Coins, DollarSign, Sparkles } from 'luc
 import type { LucideIcon } from 'lucide-react';
 import { requireOrg } from '../../lib/auth';
 import { listApps, listKeys, listProviders, getUsage } from '../../lib/api';
-import { summarizeUsage, formatUsd } from '../../lib/usage';
+import { summarizeUsage, formatUsd, toDailySeries } from '../../lib/usage';
+import { SpendChart } from '../../../components/spend-chart';
 import { buildChecklist, checklistProgress } from '../../lib/checklist';
 import {
   Card,
@@ -27,10 +28,11 @@ export default async function DashboardPage() {
 
   // Fetch everything the overview needs in parallel. Each call is independently tolerant so one empty
   // resource never blanks the whole page.
-  const [apps, providers, usage] = await Promise.all([
+  const [apps, providers, usage, daily] = await Promise.all([
     listApps().catch(() => ({ data: [] })),
     listProviders().catch(() => ({ data: [] })),
     getUsage({ group_by: 'model' }).catch(() => null),
+    getUsage({ group_by: 'day' }).catch(() => null),
   ]);
 
   const appList = apps.data ?? [];
@@ -49,6 +51,7 @@ export default async function DashboardPage() {
     requestCount: totals.requests,
   });
   const progress = Math.round(checklistProgress(steps) * 100);
+  const series = toDailySeries(daily);
 
   const tiles: { label: string; value: string; icon: LucideIcon }[] = [
     { label: 'Spend', value: formatUsd(totals.costUsd), icon: DollarSign },
@@ -83,6 +86,16 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Spend over time</CardTitle>
+          <CardDescription>Daily cost from the hourly usage rollups.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SpendChart series={series} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
