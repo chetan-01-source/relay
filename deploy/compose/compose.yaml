@@ -90,6 +90,21 @@ services:
     depends_on:
       - valkey
 
+  # Web DB browser for local dev. Auto-connects to the relay DB as the superuser (RLS bypassed, so you
+  # see every tenant's rows) — a read/write visualizer, no login. Bound to 127.0.0.1 ONLY: it exposes
+  # the DB with no auth, so it must never be reachable off this machine. Local dev convenience only.
+  pgweb:
+    image: sosedoff/pgweb:latest
+    profiles: [core, dev]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/relay?sslmode=disable
+    ports:
+      - '127.0.0.1:8081:8081'
+    restart: unless-stopped
+
 volumes:
   pgdata: {}
   minio: {}

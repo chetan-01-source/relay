@@ -27,12 +27,17 @@ macOS/Linux native; Windows via WSL2.
 > `http://localhost:5432` (Postgres) or `:6379` (Valkey) in a browser shows "this page isn't working";
 > that is expected. Use the CLI for those (§5.1/§5.2).
 >
-> | Open in a browser                       | Terminal only (not a web page)                 |
-> | --------------------------------------- | ---------------------------------------------- |
-> | Console `http://localhost:3100`         | Postgres `5432` → `psql`                       |
-> | Swagger UI `http://localhost:3000/docs` | Valkey `6379` → `valkey-cli`                   |
-> | Logto admin `http://localhost:3002`     | mockllm `8080` → `curl` (API, no UI)           |
-> | MinIO console `http://localhost:9001`   | Gateway data `3000` / internal `9090` → `curl` |
+> | Open in a browser                              | Terminal only (not a web page)                 |
+> | ---------------------------------------------- | ---------------------------------------------- |
+> | Console `http://localhost:3100`                | Postgres `5432` → `psql`                       |
+> | Swagger UI `http://localhost:3000/docs`        | Valkey `6379` → `valkey-cli`                   |
+> | Logto admin `http://localhost:3002`            | mockllm `8080` → `curl` (API, no UI)           |
+> | MinIO console `http://localhost:9001`          | Gateway data `3000` / internal `9090` → `curl` |
+> | **DB browser (pgweb) `http://localhost:8081`** | —                                              |
+>
+> **Want to see the database?** Open **`http://localhost:8081`** (pgweb) — it auto-connects to the
+> `relay` DB as the superuser (no login) so you can browse every table (§5.7). It comes up with
+> `make up` / `make dev`.
 
 ### Step 1 — install + infra
 
@@ -176,6 +181,7 @@ Console (`packages/console/.env.local`, gitignored — see `.env.example`):
 | Gateway  | 3000        | data plane `/v1/*`         | `curl` / SDK — §6                      |
 | Gateway  | 9090        | internal: health · metrics | `curl` — §7                            |
 | Console  | 3100        | dashboard + Logto sign-in  | browser `http://localhost:3100` — §5.6 |
+| pgweb    | 8081        | web DB browser (relay DB)  | browser `http://localhost:8081` — §5.7 |
 
 Container status: `docker compose -f deploy/compose/compose.yaml ps`.
 Logs for one service: `docker compose -f deploy/compose/compose.yaml logs -f postgres`.
@@ -298,6 +304,18 @@ on every call. Data flows through the generated typed client (`app/lib/api-types
 > If a signed-in user sees "token could not be resolved by the gateway", their Logto token lacks the
 > Relay API audience/scope — check `RELAY_API_RESOURCE` (console) == `RELAY_LOGTO_JWT_AUDIENCE`
 > (server) and that `make seed-auth` granted the role.
+
+### 5.7 pgweb — visualize the database
+
+`http://localhost:8081` — a web DB browser that **auto-connects to the `relay` DB as the superuser**
+(no login). Browse tables, run queries, inspect rows and relationships. Because it connects as
+`postgres`, **RLS is bypassed** — you see every tenant's rows (ideal for inspection; not what the
+gateway sees at runtime). It starts with `make up` / `make dev` (core profile) and is bound to
+`127.0.0.1` only — it exposes the DB with no auth, so never expose port 8081 off your machine.
+
+To point it at the `logto` DB instead, use the connection form (top-left "Connect") with:
+`postgres` / `<POSTGRES_PASSWORD>` / host `postgres` / db `logto`. Prefer a desktop client
+(TablePlus/DBeaver) for heavier work — connection params in §5.1.
 
 ---
 

@@ -11,7 +11,10 @@ the **expected result** so you can check it off.
 > 3. Console sign-in needs the Logto web app configured (`SETUP.md` §5.3) + `packages/console/.env.local`.
 >
 > Ports: gateway `:3000` (data) / `:9090` (internal) · console `:3100` · mockllm `:8080` · Postgres
-> `:5432` · Valkey `:6379` · Logto `:3001`/`:3002` · MinIO `:9000`/`:9001`.
+> `:5432` · Valkey `:6379` · Logto `:3001`/`:3002` · MinIO `:9000`/`:9001` · pgweb (DB browser) `:8081`.
+>
+> **Visualize the DB while testing:** open **`http://localhost:8081`** (pgweb) — auto-connects to the
+> `relay` DB (superuser, RLS bypassed) so you can watch rows appear as you exercise features.
 
 **Legend:** ✅ pass · ⬜ to test. Copy this file, tick as you go.
 
