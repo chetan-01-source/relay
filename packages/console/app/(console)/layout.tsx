@@ -8,6 +8,7 @@ import {
   BarChart3,
   Waypoints,
   Radio,
+  HeartPulse,
 } from 'lucide-react';
 import { requireUser } from '../lib/auth';
 import { signOutAction } from '../actions';
@@ -64,6 +65,9 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
               </NavLink>
               <NavLink href="/platform">
                 <BarChart3 className="mr-2 h-4 w-4" /> Platform usage
+              </NavLink>
+              <NavLink href="/status">
+                <HeartPulse className="mr-2 h-4 w-4" /> System status
               </NavLink>
             </>
           ) : null}

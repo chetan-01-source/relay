@@ -48,7 +48,8 @@
       "find-my-way": ">=9.7.0",
       "next@15.5.20": "15.5.21",
       "@fastify/static": ">=10.1.2",
-      "brace-expansion": ">=5.0.8"
+      "brace-expansion": ">=5.0.8",
+      "minimatch": ">=10.0.0"
     }
   }
 }

@@ -36,6 +36,9 @@ const schema = z.object({
   RELAY_METERING_QUEUE_MAX: z.coerce.number().int().positive().default(10_000),
   RELAY_METERING_FLUSH_INTERVAL_MS: z.coerce.number().int().positive().default(2_000),
   RELAY_ROLLUP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  // Hard ceiling on graceful shutdown: after this long draining in-flight requests, force exit so a
+  // stuck stream can never wedge a rolling deploy (the orchestrator respawns a fresh worker).
+  RELAY_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 
   // Logto — control-plane (/api/*) JWT verification (Week 2 Day 6 · ADR two-auth-planes).
   // Issuer is `${endpoint}/oidc`; JWKS is fetched + cached from its discovery document. Audience is

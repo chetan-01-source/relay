@@ -56,6 +56,10 @@ jobs:
         run: echo "RELAY_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - name: migrate
         run: node packages/server/dist/index.js migrate
+      - name: seed a demo tenant + virtual key
+        # the data plane authenticates every request, so the bench needs a REAL key — without this the
+        # load was 100% 401s and the "overhead" number was meaningless.
+        run: node packages/server/dist/index.js seed-demo
       - name: start mockllm + gateway
         run: |
           node packages/mockllm/dist/index.js &
@@ -70,6 +74,7 @@ jobs:
         run: |
           mkdir -p bench/results
           WARMUP=300 REQUESTS=2000 CONCURRENCY=20 OVERHEAD_P99_MAX_MS=40 \
+            RELAY_LOAD_KEY="$(cat .relay/seed-demo.key)" \
             node scripts/bench.mjs | tee "bench/results/${GITHUB_SHA}.txt"
       - uses: actions/upload-artifact@v4
         if: always()

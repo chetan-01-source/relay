@@ -13,6 +13,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import rateLimit from '@fastify/rate-limit';
 import { RelayError, toErrorEnvelope } from '@relay/shared';
+import { RELAY_VERSION } from './version.js';
 import type { Config } from './platform/config.js';
 import type { Database } from './platform/db.js';
 import type { EventBus } from './platform/eventbus.js';
@@ -38,9 +39,18 @@ export interface AppDeps {
   bus: EventBus;
 }
 
+/** Liveness of a booting/draining worker. `warm` flips true once every module is wired and both
+ * ports are listening, and false the instant shutdown begins — so /readyz fails first and the load
+ * balancer drains this worker before we start closing connections. Mutable by design: the CLI owns
+ * the flag's lifecycle, the /readyz handler only reads it. */
+export interface Readiness {
+  warm: boolean;
+}
+
 export interface Servers {
   publicApp: FastifyInstance;
   internalApp: FastifyInstance;
+  readiness: Readiness;
 }
 
 export interface PublicAppDeps {
@@ -234,24 +244,34 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
     ...(logtoM2m ? { logtoM2m } : {}),
   });
 
+  // The CLI flips `warm` true after both ports listen, and false when a signal arrives — so a
+  // draining worker reports not-ready (and the LB stops routing) before any connection is closed.
+  const readiness: Readiness = { warm: false };
+
   const internalApp = Fastify({ logger: false });
   // Rate-limit the internal app (its /readyz probe touches the DB). The ceiling is generous so
   // orchestrator health probes and Prometheus scrapes are never throttled in practice.
   const internalRateLimit = { max: 6000, timeWindow: '1 minute' };
   await internalApp.register(rateLimit, internalRateLimit);
+  // Liveness: the process is up. Never touches a dependency, so a slow DB never triggers a restart.
   internalApp.get('/healthz', () => ({ status: 'ok' }));
-  // The readiness probe pings Postgres + Valkey, so it carries an explicit per-route rate limit.
+  // Readiness: safe to route traffic here. Gated on Postgres + Valkey reachable AND the worker being
+  // warm (fully wired, not draining). The probe touches dependencies, so it carries a rate limit.
   internalApp.get('/readyz', { config: { rateLimit: internalRateLimit } }, async (_req, reply) => {
     const [pg, valkey] = await Promise.all([deps.db.ping(), deps.bus.ping()]);
-    const ready = pg && valkey;
-    return reply
-      .code(ready ? 200 : 503)
-      .send({ status: ready ? 'ready' : 'not-ready', pg, valkey });
+    const ready = pg && valkey && readiness.warm;
+    return reply.code(ready ? 200 : 503).send({
+      status: ready ? 'ready' : 'not-ready',
+      pg,
+      valkey,
+      warm: readiness.warm,
+      version: RELAY_VERSION,
+    });
   });
   internalApp.get('/metrics', async (_req, reply) => {
     reply.header('content-type', registry.contentType);
     return registry.metrics();
   });
 
-  return { publicApp, internalApp };
+  return { publicApp, internalApp, readiness };
 }

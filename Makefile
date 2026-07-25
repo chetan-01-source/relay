@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/compose/compose.yaml
 ENV_FILE := deploy/compose/.env
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench release-dry
+.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench backup restore release-dry
 
 help: ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -71,6 +71,12 @@ e2e: ## Playwright console E2E (start the stack first: make dev)   [sprint Day 1
 
 bench: ## drive load -> gate gateway overhead p99 < 25ms (G3)  [sprint Day 5/14]
 	node scripts/bench.mjs
+
+backup: ## pg_dump + MinIO mirror -> ./backups (stack must be up)   [sprint Day 14]
+	scripts/backup.sh
+
+restore: ## restore a dump: make restore DUMP=backups/relay-<ts>.dump  [sprint Day 14]
+	scripts/restore.sh "$(DUMP)"
 
 release-dry: ## local multi-arch build == CI                 [sprint Day 15]
 	@echo "[make] release-dry stub — lands sprint Day 15"
