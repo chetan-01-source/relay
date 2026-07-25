@@ -28,6 +28,10 @@ RUN pnpm --filter=@relay/server --prod deploy /out
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# The runtime runs `node dist/index.js` only — it never uses npm/npx. Drop the base image's bundled
+# npm: it vendors its own (occasionally CVE-flagged, e.g. its tar) node_modules that would otherwise
+# fail the release Trivy image gate, and a production image has no business shipping a package manager.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # The container runs as an unprivileged user; the migrations dir is read-only to it.
 RUN addgroup -S relay && adduser -S relay -G relay
 COPY --from=build /out/node_modules ./node_modules

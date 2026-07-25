@@ -19,6 +19,9 @@ RUN pnpm --filter=@relay/console build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# Standalone runs `node server.js` — no npm at runtime. Drop the base image's bundled npm (its
+# vendored node_modules can carry CVE-flagged deps that fail the release Trivy image gate).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 RUN addgroup -S relay && adduser -S relay -G relay
 # Standalone bundle (server + traced node_modules) + the static assets it serves.
 COPY --from=build /repo/packages/console/.next/standalone ./
