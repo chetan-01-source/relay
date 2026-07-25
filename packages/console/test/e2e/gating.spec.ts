@@ -5,7 +5,19 @@ import { test, expect } from '@playwright/test';
  * An unauthenticated visitor is redirected off every console page back to the landing page — the
  * protected content is never served. Needs only the console running (no Logto session).
  */
-const PROTECTED = ['/dashboard', '/apps', '/providers', '/audit'];
+const PROTECTED = [
+  '/dashboard',
+  '/apps',
+  '/providers',
+  '/audit',
+  '/orgs',
+  '/orgs/00000000-0000-0000-0000-000000000000',
+  '/platform',
+  '/routes',
+  '/routes/00000000-0000-0000-0000-000000000000',
+  '/traffic',
+  '/traffic/trace-1',
+];
 
 test('landing page renders the console entry point', async ({ page }) => {
   await page.goto('/');

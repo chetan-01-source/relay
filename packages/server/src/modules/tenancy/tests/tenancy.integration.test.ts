@@ -19,6 +19,9 @@ const fakeLogto: LogtoOrgSync = {
   createOrganization: () => Promise.resolve(`logto-it-${randomBytes(6).toString('hex')}`),
   deleteOrganization: () => Promise.resolve(),
   inviteAdmin: () => Promise.resolve('inv-it'),
+  inviteMember: () => Promise.resolve('inv-it'),
+  listMembers: () => Promise.resolve([]),
+  removeMember: () => Promise.resolve(),
 };
 
 describe.skipIf(!url)('tenancy service (integration)', () => {

@@ -15,6 +15,10 @@ import type {
 interface OrgParams {
   orgId: string;
 }
+interface MemberParams {
+  orgId: string;
+  userId: string;
+}
 
 export interface TenancyController {
   onboard(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
@@ -25,6 +29,9 @@ export interface TenancyController {
   getEntitlements(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   updateEntitlements(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   advanceOnboarding(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  listMembers(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  inviteMember(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  removeMember(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
 }
 
 export function createTenancyController(service: TenancyService): TenancyController {
@@ -95,6 +102,24 @@ export function createTenancyController(service: TenancyService): TenancyControl
       const { orgId } = request.params as OrgParams;
       const body = request.body as { state: OnboardingState };
       return reply.send(await service.advanceOnboarding(actorOf(request), orgId, body.state));
+    },
+
+    async listMembers(request, reply) {
+      const { orgId } = request.params as OrgParams;
+      return reply.send({ object: 'list', data: await service.listMembers(orgId) });
+    },
+
+    async inviteMember(request, reply) {
+      const { orgId } = request.params as OrgParams;
+      const body = request.body as { email: string };
+      const result = await service.inviteMember(actorOf(request), orgId, body.email);
+      return reply.code(201).send({ object: 'organization.invitation', ...result });
+    },
+
+    async removeMember(request, reply) {
+      const { orgId, userId } = request.params as MemberParams;
+      await service.removeMember(actorOf(request), orgId, userId);
+      return reply.code(204).send();
     },
   };
 }

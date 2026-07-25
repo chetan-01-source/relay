@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react';
-import { LayoutDashboard, Boxes, KeyRound, ScrollText } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Boxes,
+  KeyRound,
+  ScrollText,
+  Building2,
+  BarChart3,
+  Waypoints,
+  Radio,
+} from 'lucide-react';
 import { requireUser } from '../lib/auth';
 import { signOutAction } from '../actions';
 import { NavLink } from '../../components/nav-link';
@@ -36,13 +45,27 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
           <NavLink href="/providers">
             <KeyRound className="mr-2 h-4 w-4" /> Providers
           </NavLink>
+          <NavLink href="/routes">
+            <Waypoints className="mr-2 h-4 w-4" /> Routes
+          </NavLink>
+          <NavLink href="/traffic">
+            <Radio className="mr-2 h-4 w-4" /> Live traffic
+          </NavLink>
           <NavLink href="/audit">
             <ScrollText className="mr-2 h-4 w-4" /> Audit
           </NavLink>
           {me.is_platform_admin ? (
-            <NavLink href="/orgs">
-              <Boxes className="mr-2 h-4 w-4" /> Organizations
-            </NavLink>
+            <>
+              <div className="mt-4 px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Platform
+              </div>
+              <NavLink href="/orgs">
+                <Building2 className="mr-2 h-4 w-4" /> Organizations
+              </NavLink>
+              <NavLink href="/platform">
+                <BarChart3 className="mr-2 h-4 w-4" /> Platform usage
+              </NavLink>
+            </>
           ) : null}
         </nav>
       </aside>

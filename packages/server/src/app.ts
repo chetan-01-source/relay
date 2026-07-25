@@ -26,6 +26,8 @@ import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
 import { registerAnalytics } from './modules/analytics/index.js';
 import { registerAudit } from './modules/audit/index.js';
+import { registerRoutes } from './modules/routes/index.js';
+import { registerTraffic } from './modules/traffic/index.js';
 import { createRoutingService } from './modules/routing/index.js';
 import { createPolicyService } from './modules/policy/index.js';
 import { createCacheService } from './modules/cache/index.js';
@@ -72,6 +74,11 @@ const OPENAPI_DOC = {
     { name: 'providers', description: 'Encrypted upstream provider credentials' },
     { name: 'analytics', description: 'Usage/spend reporting over hourly rollups' },
     { name: 'audit', description: 'Append-only, hash-chained audit trail (read/verify)' },
+    {
+      name: 'routes',
+      description: 'Route editor: versions, targets, activate/rollback, cache toggle',
+    },
+    { name: 'traffic', description: 'Recent request feed + trace detail (live SSE)' },
   ],
 };
 
@@ -151,6 +158,16 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   registerAnalytics(app, { db: deps.db, guards });
   registerAudit(app, { db: deps.db, guards });
 
+  // Day-13 org control plane: the routes editor (CRUD over the routing tables) and the request-feed
+  // read surface (recent usage events + trace detail + live SSE). No new tables — routes reuses 0005
+  // + 0012; traffic reads usage_events (0007). Both guarded by the identity preHandlers.
+  registerRoutes(app, { db: deps.db, guards });
+  registerTraffic(app, {
+    db: deps.db,
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    guards,
+  });
+
   const routing = createRoutingService({
     db: deps.db,
     masterKey: deps.masterKey,
@@ -166,6 +183,7 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   });
   const metering = createMeteringService({
     db: deps.db,
+    ...(deps.bus ? { bus: deps.bus } : {}),
     queueMax: deps.meteringQueueMax ?? 10_000,
     flushIntervalMs: deps.meteringFlushIntervalMs ?? 2_000,
     rollupIntervalMs: deps.rollupIntervalMs ?? 60_000,

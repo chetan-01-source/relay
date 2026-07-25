@@ -33,6 +33,8 @@ const RELAY_SCOPES = [
   'apps:write',
   'providers:read',
   'providers:write',
+  'routes:read',
+  'routes:write',
   'analytics:read',
   'audit:read',
   'platform:admin',
@@ -122,7 +124,12 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
   }
 
   // Scopes on the Relay API resource — create any missing, keyed by name.
-  const existingScopes = await api<Named[]>(cfg, token, 'GET', `/resources/${apiResourceId}/scopes`);
+  const existingScopes = await api<Named[]>(
+    cfg,
+    token,
+    'GET',
+    `/resources/${apiResourceId}/scopes`,
+  );
   const scopeIdByName: Record<string, string> = {};
   for (const s of existingScopes) scopeIdByName[s.name] = s.id;
   for (const name of RELAY_SCOPES) {
@@ -160,6 +167,13 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/** A member of a Logto organization, projected to the fields the console renders. */
+export interface OrgMember {
+  id: string;
+  name: string | null;
+  email: string | null;
+}
+
 export interface LogtoOrgSync {
   /** Create a Logto organization; returns its id. */
   createOrganization(name: string): Promise<string>;
@@ -167,6 +181,13 @@ export interface LogtoOrgSync {
   deleteOrganization(orgId: string): Promise<void>;
   /** Invite a user (by email) into the organization. Returns the invitation id. */
   inviteAdmin(orgId: string, email: string): Promise<string>;
+  /** List the users currently in the organization. */
+  listMembers(orgId: string): Promise<OrgMember[]>;
+  /** Invite a user (by email) into the organization — same mechanism as inviteAdmin, named for the
+   * members surface. Returns the invitation id. */
+  inviteMember(orgId: string, email: string): Promise<string>;
+  /** Remove a user from the organization (does not delete the Logto account). */
+  removeMember(orgId: string, userId: string): Promise<void>;
 }
 
 export function createLogtoOrgSync(cfg: LogtoConfig): LogtoOrgSync {
@@ -181,19 +202,39 @@ export function createLogtoOrgSync(cfg: LogtoConfig): LogtoOrgSync {
       await api<null>(cfg, token, 'DELETE', `/organizations/${orgId}`);
     },
     async inviteAdmin(orgId, email) {
+      return inviteToOrg(cfg, orgId, email);
+    },
+    async inviteMember(orgId, email) {
+      return inviteToOrg(cfg, orgId, email);
+    },
+    async listMembers(orgId) {
       const token = await getToken(cfg);
-      const invitation = await api<{ id: string }>(
+      const users = await api<{ id: string; name?: string | null; primaryEmail?: string | null }[]>(
         cfg,
         token,
-        'POST',
-        '/organization-invitations',
-        {
-          organizationId: orgId,
-          invitee: email,
-          expiresAt: Date.now() + INVITE_TTL_MS,
-        },
+        'GET',
+        `/organizations/${orgId}/users`,
       );
-      return invitation.id;
+      return users.map((u) => ({
+        id: u.id,
+        name: u.name ?? null,
+        email: u.primaryEmail ?? null,
+      }));
+    },
+    async removeMember(orgId, userId) {
+      const token = await getToken(cfg);
+      await api<null>(cfg, token, 'DELETE', `/organizations/${orgId}/users/${userId}`);
     },
   };
+}
+
+/** Create an organization invitation for an email. Shared by inviteAdmin + inviteMember. */
+async function inviteToOrg(cfg: LogtoConfig, orgId: string, email: string): Promise<string> {
+  const token = await getToken(cfg);
+  const invitation = await api<{ id: string }>(cfg, token, 'POST', '/organization-invitations', {
+    organizationId: orgId,
+    invitee: email,
+    expiresAt: Date.now() + INVITE_TTL_MS,
+  });
+  return invitation.id;
 }

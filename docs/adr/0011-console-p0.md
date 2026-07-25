@@ -16,9 +16,19 @@ Week-2 platform-admin org slice: no design system, no auth-gate helper, no tests
 App shell + nav, **Applications** (list/create), **Virtual keys** (create with one-time copy, rotate,
 revoke), **Providers** (write-only secret forms + delete), **Dashboard** (spend/requests/tokens +
 top-model, from `/analytics/usage`), a self-completing **setup checklist**, an **Audit** viewer, and a
-**cURL/SDK snippet drawer** on the key surfaces. Deferred (no backend to consume, and Day-13's rule is
-"no new backend"): routes editor, live-traffic SSE table, trace detail. Platform-admin org detail /
-cross-org dashboard are out of this PR's scope.
+**cURL/SDK snippet drawer** on the key surfaces.
+
+### Scope (this PR, cont.): the Platform-Admin vertical
+
+**Organizations** (list → onboard wizard), **org detail** (`/orgs/[orgId]`: entitlement matrix,
+onboarding state-machine advance, suspend/unsuspend — all on the tenancy endpoints), and a **cross-org
+dashboard** (`/platform`: total spend/requests/tenants + spend-by-org, from
+`/api/v1/platform/analytics/usage` joined to org names). Every screen consumes existing endpoints —
+still **no new backend**.
+
+Deferred (would need new control-plane endpoints, so out of Day-13's "no new backend" rule): routes
+editor, live-traffic SSE table, trace detail, and a **members** editor (org membership is
+Logto-managed and not exposed by a gateway endpoint).
 
 ### Server-side authorization, not hidden UI
 
@@ -64,5 +74,8 @@ Logto session (`RELAY_E2E_STORAGE_STATE`) is provided.
   lucide-react, tailwindcss-animate, @playwright/test.
 - New scopes exercised by the UI: existing `apps:*`, `providers:*`, `analytics:read`, `audit:read`.
 - `make e2e` now runs Playwright (was a stub); it needs the full stack (`make dev`).
-- Routes editor + live traffic remain backlog — they require new control-plane endpoints (a `routes`
-  API and a control-plane SSE feed) that a later day must add before the console can surface them.
+- Routes editor + live traffic + members remain backlog — they require new control-plane endpoints (a
+  `routes` API, a control-plane SSE feed, a membership API) that a later day must add before the
+  console can surface them.
+- `lib/usage.ts` gained `labelOrgUsage` (pure, unit-tested) to name + sort the cross-org buckets; the
+  platform analytics endpoint keys by `org_id`, so the console joins ids → names via `listOrgs`.

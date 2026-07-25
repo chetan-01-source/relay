@@ -3,10 +3,10 @@
  * entitlement matrix. Lives inside the (console) shell; gated server-side by requireAdmin (the gateway
  * is still the real authority). Uses the Enterprise Gateway design system (docs/UI-THEME.md).
  */
+import Link from 'next/link';
 import { requireAdmin } from '../../lib/auth';
-import { listOrgs, getEntitlements } from '../../lib/api';
-import { FEATURE_KEYS } from '../../lib/features';
-import { onboardOrgAction, updateEntitlementsAction } from './actions';
+import { listOrgs } from '../../lib/api';
+import { onboardOrgAction } from './actions';
 import { FeatureCard } from '../../../components/ui/feature-card';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
 import {
@@ -32,14 +32,6 @@ export default async function OrgsPage() {
 
   const list = await listOrgs().catch(() => ({ data: [] }));
   const orgs = (list.data ?? []).filter((o): o is typeof o & { id: string } => Boolean(o.id));
-
-  const flagsByOrg = new Map<string, Record<string, unknown>>();
-  await Promise.all(
-    orgs.map(async (org) => {
-      const res = await getEntitlements(org.id).catch(() => null);
-      flagsByOrg.set(org.id, res?.features ?? {});
-    }),
-  );
 
   return (
     <div className="space-y-6">
@@ -93,51 +85,32 @@ export default async function OrgsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Onboarding</TableHead>
-                  <TableHead>Entitlements</TableHead>
+                  <TableHead className="text-right">Manage</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orgs.map((org) => {
-                  const flags = flagsByOrg.get(org.id) ?? {};
-                  return (
-                    <TableRow key={org.id}>
-                      <TableCell className="font-medium">{org.name}</TableCell>
-                      <TableCell>
-                        <Badge variant={org.status === 'active' ? 'success' : 'secondary'}>
-                          {org.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {org.onboarding_state}
-                      </TableCell>
-                      <TableCell>
-                        <form
-                          action={updateEntitlementsAction}
-                          className="flex flex-wrap items-center gap-4"
-                        >
-                          <input type="hidden" name="orgId" value={org.id} />
-                          {FEATURE_KEYS.map((key) => (
-                            <label
-                              key={key}
-                              className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                            >
-                              <input
-                                type="checkbox"
-                                name={`feature:${key}`}
-                                defaultChecked={flags[key] === true}
-                                className="size-4 accent-primary"
-                              />
-                              {key}
-                            </label>
-                          ))}
-                          <Button type="submit" variant="outline" size="sm">
-                            Save
-                          </Button>
-                        </form>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {orgs.map((org) => (
+                  <TableRow key={org.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/orgs/${org.id}`} className="hover:underline">
+                        {org.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={org.status === 'active' ? 'success' : 'secondary'}>
+                        {org.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {org.onboarding_state}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/orgs/${org.id}`}>Manage</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeUsage, formatUsd, toDailySeries } from './usage';
+import { summarizeUsage, formatUsd, toDailySeries, labelOrgUsage } from './usage';
 import type { UsageSummary } from './api';
 
 function summary(data: UsageSummary['data']): UsageSummary {
@@ -39,6 +39,29 @@ describe('formatUsd', () => {
   it('formats to 4 dp so sub-cent spend is visible', () => {
     expect(formatUsd(0.0123)).toBe('$0.0123');
     expect(formatUsd(0)).toBe('$0.0000');
+  });
+});
+
+describe('labelOrgUsage', () => {
+  const byOrg = (data: UsageSummary['data']): UsageSummary =>
+    ({ object: 'analytics.usage', group_by: 'org', data }) as UsageSummary;
+
+  it('resolves org names, sorts by cost descending, and falls back to the id when unknown', () => {
+    const rows = labelOrgUsage(
+      byOrg([
+        { key: 'org-a', requests: 5, input_tokens: 0, output_tokens: 0, cost_usd: 0.1 },
+        { key: 'org-b', requests: 9, input_tokens: 0, output_tokens: 0, cost_usd: 0.5 },
+      ]),
+      new Map([['org-a', 'Acme']]),
+    );
+    expect(rows).toEqual([
+      { orgId: 'org-b', name: 'org-b', requests: 9, costUsd: 0.5 },
+      { orgId: 'org-a', name: 'Acme', requests: 5, costUsd: 0.1 },
+    ]);
+  });
+
+  it('is empty for missing data', () => {
+    expect(labelOrgUsage(null, new Map())).toEqual([]);
   });
 });
 

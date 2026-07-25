@@ -48,6 +48,33 @@ export interface DailyPoint {
   requests: number;
 }
 
+export interface OrgUsageRow {
+  orgId: string;
+  name: string; // resolved org name, or the raw id when unknown
+  requests: number;
+  costUsd: number;
+}
+
+/** Turn the platform cross-org usage summary (buckets keyed by org_id) into named, cost-descending
+ * rows for the admin table. `names` maps org_id → display name; unknown ids fall back to the id.
+ * Pure — unit-tested. */
+export function labelOrgUsage(
+  summary: UsageSummary | null | undefined,
+  names: Map<string, string>,
+): OrgUsageRow[] {
+  return (summary?.data ?? [])
+    .map((b) => {
+      const orgId = b.key ?? '(none)';
+      return {
+        orgId,
+        name: names.get(orgId) ?? orgId,
+        requests: b.requests ?? 0,
+        costUsd: b.cost_usd ?? 0,
+      };
+    })
+    .sort((a, b) => b.costUsd - a.costUsd);
+}
+
 /** Shape `group_by=day` buckets into a date-ascending series for the spend chart, keeping the most
  * recent `limit` days. Pure — unit-tested. */
 export function toDailySeries(summary: UsageSummary | null | undefined, limit = 30): DailyPoint[] {

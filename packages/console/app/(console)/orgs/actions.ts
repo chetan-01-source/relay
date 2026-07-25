@@ -6,7 +6,14 @@
  * the browser. The gateway enforces platform-admin scope — the UI is only a convenience.
  */
 import { revalidatePath } from 'next/cache';
-import { onboardOrg, updateEntitlements, type OnboardOrgInput } from '../../lib/api';
+import {
+  onboardOrg,
+  updateEntitlements,
+  suspendOrg,
+  unsuspendOrg,
+  advanceOnboarding,
+  type OnboardOrgInput,
+} from '../../lib/api';
 import { FEATURE_KEYS } from '../../lib/features';
 
 /** Read a form field as a trimmed string (form values are string | File; we only use text inputs). */
@@ -41,4 +48,32 @@ export async function updateEntitlementsAction(formData: FormData): Promise<void
   }
   await updateEntitlements(orgId, features);
   revalidatePath('/orgs');
+  revalidatePath(`/orgs/${orgId}`);
+}
+
+/** Suspend an org (platform-admin). The data plane rejects its keys ≤1s later. */
+export async function suspendOrgAction(formData: FormData): Promise<void> {
+  const orgId = field(formData, 'orgId');
+  if (!orgId) return;
+  await suspendOrg(orgId);
+  revalidatePath('/orgs');
+  revalidatePath(`/orgs/${orgId}`);
+}
+
+/** Reactivate a suspended org (platform-admin). */
+export async function unsuspendOrgAction(formData: FormData): Promise<void> {
+  const orgId = field(formData, 'orgId');
+  if (!orgId) return;
+  await unsuspendOrg(orgId);
+  revalidatePath('/orgs');
+  revalidatePath(`/orgs/${orgId}`);
+}
+
+/** Advance the org's onboarding state machine one step (platform-admin). */
+export async function advanceOnboardingAction(formData: FormData): Promise<void> {
+  const orgId = field(formData, 'orgId');
+  if (!orgId) return;
+  await advanceOnboarding(orgId);
+  revalidatePath('/orgs');
+  revalidatePath(`/orgs/${orgId}`);
 }

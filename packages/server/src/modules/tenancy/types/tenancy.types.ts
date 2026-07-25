@@ -52,6 +52,14 @@ export interface UpdateEntitlementsInput {
   features: Record<string, unknown>;
 }
 
+/** A member of an org (projected from Logto), returned to the console members panel. */
+export interface Member {
+  object: 'organization.member';
+  id: string;
+  name: string | null;
+  email: string | null;
+}
+
 /** Data-access boundary. The ONLY layer that touches the database. Methods take the caller's
  * transaction (a Queryable) so a whole onboarding/suspend flow commits atomically. */
 export interface TenancyRepository {
@@ -78,4 +86,10 @@ export interface TenancyService {
     input: UpdateEntitlementsInput,
   ): Promise<Record<string, unknown>>;
   advanceOnboarding(actor: string, orgId: string, to: OnboardingState): Promise<Organization>;
+  /** List the org's members (via Logto). Throws service_unavailable when Logto is not configured. */
+  listMembers(orgId: string): Promise<Member[]>;
+  /** Invite a member by email; returns the invitation id. */
+  inviteMember(actor: string, orgId: string, email: string): Promise<{ invitation_id: string }>;
+  /** Remove a member from the org. */
+  removeMember(actor: string, orgId: string, userId: string): Promise<void>;
 }

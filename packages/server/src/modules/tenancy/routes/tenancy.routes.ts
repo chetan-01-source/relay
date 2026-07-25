@@ -215,4 +215,98 @@ export function registerTenancyRoutes(
     },
     (request, reply) => controller.advanceOnboarding(request, reply),
   );
+
+  // ── Members (via Logto) — platform-admin manages who belongs to an org ──────────────────────────
+  const memberObject = {
+    type: 'object',
+    properties: {
+      object: { type: 'string' },
+      id: { type: 'string' },
+      name: { type: ['string', 'null'] },
+      email: { type: ['string', 'null'] },
+    },
+  };
+  const memberParams = {
+    type: 'object',
+    required: ['orgId', 'userId'],
+    properties: {
+      orgId: { type: 'string', format: 'uuid' },
+      userId: { type: 'string' },
+    },
+  };
+
+  app.get(
+    '/api/v1/platform/orgs/:orgId/members',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'List an organization’s members',
+        params: orgParams,
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              object: { type: 'string' },
+              data: { type: 'array', items: memberObject },
+            },
+          },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.listMembers(request, reply),
+  );
+
+  app.post(
+    '/api/v1/platform/orgs/:orgId/members',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Invite a member (by email) into the organization',
+        params: orgParams,
+        body: {
+          type: 'object',
+          required: ['email'],
+          properties: { email: { type: 'string', pattern: EMAIL_PATTERN } },
+        },
+        response: {
+          201: {
+            type: 'object',
+            properties: { object: { type: 'string' }, invitation_id: { type: 'string' } },
+          },
+          400: errorObject,
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.inviteMember(request, reply),
+  );
+
+  app.delete(
+    '/api/v1/platform/orgs/:orgId/members/:userId',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Remove a member from the organization',
+        params: memberParams,
+        response: {
+          204: { type: 'null' },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.removeMember(request, reply),
+  );
 }
