@@ -20,6 +20,9 @@ echo "smoke: $BASE (internal $INTERNAL)"
 [ -n "$KEY" ] || fail "no virtual key — run 'make seed-demo' or set RELAY_SMOKE_KEY"
 
 curl -fsS "$INTERNAL/healthz" | grep -q '"status":"ok"' || fail "healthz"; pass "healthz"
+# readiness gates pg + valkey + warm (Day 14); a serving worker must report ready + warm.
+curl -fsS "$INTERNAL/readyz" | grep -q '"status":"ready"' || fail "readyz not ready"
+curl -fsS "$INTERNAL/readyz" | grep -q '"warm":true' || fail "readyz not warm"; pass "readyz ready+warm"
 
 curl -fsS "$BASE/v1/models" | grep -q '"object":"list"' || fail "GET /v1/models"; pass "models list"
 curl -fsS "$BASE/v1/models/gpt-4o" | grep -q '"owned_by":"openai"' || fail "GET /v1/models/:id"; pass "model by id"

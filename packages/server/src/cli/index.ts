@@ -7,6 +7,7 @@ import { createEventBus } from '../platform/eventbus.js';
 import { buildServers, buildPublicApp } from '../app.js';
 import { runMigrations } from '../platform/migrate.js';
 import { bootstrapLogto } from '../platform/logto.js';
+import { RELAY_VERSION } from '../version.js';
 import { seedDemo } from '../seed/demo.js';
 import { createAuditService, createAuditRepository } from '../modules/audit/index.js';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -23,7 +24,7 @@ function repoRoot(): string {
 }
 
 const program = new Command();
-program.name('relay').description('Relay Gateway CLI').version('0.2.0');
+program.name('relay').description('Relay Gateway CLI').version(RELAY_VERSION);
 
 program
   .command('serve')
@@ -37,22 +38,67 @@ program
 
     const db = initDb(config.RELAY_DATABASE_URL);
     const bus = createEventBus(config.RELAY_VALKEY_URL);
-    const { publicApp, internalApp } = await buildServers(config, { db, bus });
+    const { publicApp, internalApp, readiness, drain } = await buildServers(config, { db, bus });
 
     await internalApp.listen({ port: config.RELAY_INTERNAL_PORT, host: '0.0.0.0' });
     await publicApp.listen({ port: config.RELAY_PORT, host: '0.0.0.0' });
+    // Only now is the worker safe to route to: both ports listen and every module is wired.
+    readiness.warm = true;
     log.info(
       { data: config.RELAY_PORT, internal: config.RELAY_INTERNAL_PORT },
       'relay listening — data plane + internal (health/metrics)',
     );
 
+    // Graceful shutdown, ordered so no in-flight work is lost and no new work is admitted:
+    //   1. flip /readyz to not-ready → the load balancer drains this worker;
+    //   2. close the public app → stops accepting, waits for in-flight requests/SSE to finish, and
+    //      runs onClose hooks (the metering queue flushes, budgets settle) — bounded by a hard timeout
+    //      so a wedged stream can never block a rolling deploy;
+    //   3. close the internal app and the shared Postgres/Valkey handles last.
+    // Idempotent: a second signal during drain is ignored rather than racing a double-close.
+    let shuttingDown = false;
     const shutdown = async (sig: string) => {
-      log.info({ sig }, 'graceful shutdown');
-      await Promise.allSettled([publicApp.close(), internalApp.close(), db.close(), bus.close()]);
-      process.exit(0);
+      if (shuttingDown) return;
+      shuttingDown = true;
+      readiness.warm = false;
+      log.info({ sig, timeoutMs: config.RELAY_SHUTDOWN_TIMEOUT_MS }, 'graceful shutdown');
+
+      const forced = setTimeout(() => {
+        log.error('shutdown timed out — forcing exit');
+        process.exit(1);
+      }, config.RELAY_SHUTDOWN_TIMEOUT_MS);
+      forced.unref(); // don't keep the loop alive solely for the timer
+
+      try {
+        // Let open SSE streams / in-flight requests finish before closing the server (bounded by the
+        // same timeout). Only then close the public app, which runs onClose hooks (metering flush,
+        // budget settle), and finally the internal app + shared handles.
+        const remaining = await drain(config.RELAY_SHUTDOWN_TIMEOUT_MS);
+        if (remaining > 0) log.warn({ remaining }, 'closing with requests still in flight');
+        await publicApp.close();
+        await Promise.allSettled([internalApp.close(), db.close(), bus.close()]);
+        clearTimeout(forced);
+        log.info('shutdown complete');
+        process.exit(0);
+      } catch (err) {
+        log.error({ err }, 'error during shutdown');
+        process.exit(1);
+      }
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));
+
+    // Fail-fast on programmer errors: an unhandled rejection or uncaught exception leaves the process
+    // in an unknown state, so we log loudly and exit non-zero for the orchestrator to respawn a clean
+    // worker — never limp along serving requests from a corrupted state.
+    process.on('unhandledRejection', (reason) => {
+      log.fatal({ reason }, 'unhandled rejection — exiting');
+      process.exit(1);
+    });
+    process.on('uncaughtException', (err) => {
+      log.fatal({ err }, 'uncaught exception — exiting');
+      process.exit(1);
+    });
   });
 
 program

@@ -17,6 +17,7 @@ const PROTECTED = [
   '/routes/00000000-0000-0000-0000-000000000000',
   '/traffic',
   '/traffic/trace-1',
+  '/status',
 ];
 
 test('landing page renders the console entry point', async ({ page }) => {

@@ -1,20 +1,105 @@
 name: conformance
 
-# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 14.
-# Real job: compose core up -> official OpenAI Py/TS SDKs + LangChain + Vercel AI SDK
-# vs gateway->mockllm -> isolation suite (G4).
-# Manual-only: the full suite is expensive, so it is triggered on demand (no cron).
+# Day 14 (PRD §11) — the drop-in promise, proven end-to-end against a live stack:
+#   1. official OpenAI SDK vs gateway → mockllm (stream / tools / error envelope), and
+#   2. the cross-tenant isolation suite (G4) with a REAL non-superuser relay_app role so RLS actually
+#      applies (the main ci.yml `test` job runs as superuser, which bypasses RLS — so G4 lives here).
+#
+# Expensive, so it does NOT run on every push: nightly cron + on demand + when a PR is labelled
+# `conformance`. Follow-on SDKs (Python, LangChain, Vercel AI SDK) are tracked in the Weeks-4+ backlog
+# — the OpenAI wire format is the canonical surface and is covered first.
 on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC nightly
   workflow_dispatch:
+  pull_request:
+    types: [labeled]
 
 permissions:
   contents: read
 
 jobs:
   conformance:
+    # Skip the label trigger unless it is specifically the `conformance` label (other labels no-op).
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.label.name == 'conformance'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relay
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relay"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+      valkey:
+        image: valkey/valkey:8
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      RELAY_MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+      RELAY_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+      RELAY_VALKEY_URL: redis://localhost:6379
+      RELAY_UPSTREAM_URL: http://localhost:8080
+      RELAY_PORT: '3000'
+      RELAY_INTERNAL_PORT: '9090'
+      RELAY_LOG_LEVEL: error
+      PORT: '8080'
+      MOCKLLM_LATENCY_MS: '0'
+      # non-superuser role the isolation suite connects as, so RLS is enforced (not bypassed)
+      RELAY_APP_PASSWORD: relay_app_ci
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          echo "conformance suite lands sprint Day 14 (PRD §11)"
-          exit 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build --filter=@relay/server --filter=@relay/mockllm
+
+      - name: generate master key
+        run: echo "RELAY_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      # Provision the non-superuser relay_app role BEFORE migrating, then set default privileges so
+      # every migration-created table is readable/writable by it — mirrors deploy/compose/initdb.
+      - name: provision relay_app role (RLS applies to it)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d relay -v ON_ERROR_STOP=1 <<SQL
+            CREATE ROLE relay_app LOGIN PASSWORD '${RELAY_APP_PASSWORD}' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+            GRANT CONNECT ON DATABASE relay TO relay_app;
+            GRANT USAGE ON SCHEMA public TO relay_app;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO relay_app;
+          SQL
+
+      - name: migrate (schema + seed)
+        run: node packages/server/dist/index.js migrate
+
+      - name: seed a demo tenant + virtual key
+        run: node packages/server/dist/index.js seed-demo
+
+      - name: start mockllm + gateway
+        run: |
+          node packages/mockllm/dist/index.js &
+          node packages/server/dist/index.js serve &
+          for i in $(seq 1 30); do curl -sf http://localhost:9090/readyz && break; sleep 1; done
+
+      - name: OpenAI SDK conformance (→ gateway → mockllm)
+        env:
+          RELAY_CONFORMANCE_BASE_URL: http://localhost:3000
+        run: |
+          RELAY_CONFORMANCE_KEY="$(cat .relay/seed-demo.key)" \
+            pnpm --filter @relay/conformance test
+
+      - name: cross-tenant isolation suite (G4, real relay_app role → RLS enforced)
+        env:
+          RELAY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+          RELAY_ISOLATION_APP_URL: postgres://relay_app:relay_app_ci@localhost:5432/relay
+        run: pnpm --filter @relay/server test
