@@ -1,0 +1,93 @@
+name: relay-selfhost
+
+# Self-host bundle (PRD §Day-15). Boots the published, signed GHCR images — NOT a local build — so a
+# self-hoster reaches a first proxied call without a toolchain. `docker compose up -d`, then follow
+# README.md. Image refs + secrets come from .env (copy .env.example → .env and fill it in).
+#
+# Startup order: postgres (+ role init) → relay-migrate (one-shot, applies SQL) → relay (serve) →
+# console. Postgres runs the initdb script that creates the non-superuser relay_app role RLS binds to.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: relay
+      RELAY_APP_PASSWORD: ${RELAY_APP_PASSWORD:?set RELAY_APP_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d relay']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8
+    command: ['valkey-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: apply migrations as the superuser, then exit. `relay` waits for this to succeed so the
+  # schema is always at head before the gateway serves a single request.
+  relay-migrate:
+    image: ${RELAY_SERVER_IMAGE:?set RELAY_SERVER_IMAGE in .env}
+    command: ['migrate']
+    environment:
+      RELAY_MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/relay
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  relay:
+    image: ${RELAY_SERVER_IMAGE}
+    command: ['serve']
+    environment:
+      # Runtime connects as the non-superuser role, so RLS applies to every query.
+      RELAY_DATABASE_URL: postgres://relay_app:${RELAY_APP_PASSWORD}@postgres:5432/relay
+      RELAY_VALKEY_URL: redis://valkey:6379
+      RELAY_MASTER_KEY: ${RELAY_MASTER_KEY:?set RELAY_MASTER_KEY (openssl rand -base64 32) in .env}
+      RELAY_UPSTREAM_URL: ${RELAY_UPSTREAM_URL:-https://api.openai.com}
+      RELAY_CACHE_TTL_S: ${RELAY_CACHE_TTL_S:-0}
+      RELAY_PORT: '3000'
+      RELAY_INTERNAL_PORT: '9090'
+    depends_on:
+      relay-migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    ports:
+      - '3000:3000' # data plane (/v1/*)
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:9090/readyz || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  console:
+    image: ${RELAY_CONSOLE_IMAGE:?set RELAY_CONSOLE_IMAGE in .env}
+    environment:
+      RELAY_API_BASE_URL: http://relay:3000 # server-side calls to the gateway (container network)
+      RELAY_INTERNAL_URL: http://relay:9090 # System Status page reads the internal probe
+      RELAY_API_RESOURCE: ${RELAY_API_RESOURCE:-https://relay.gateway/api}
+      # Logto (console sign-in). Configure per the self-hosting guide; the data plane works without it.
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
+      LOGTO_APP_ID: ${LOGTO_APP_ID:-}
+      LOGTO_APP_SECRET: ${LOGTO_APP_SECRET:-}
+      LOGTO_COOKIE_SECRET: ${LOGTO_COOKIE_SECRET:-}
+      LOGTO_BASE_URL: ${LOGTO_BASE_URL:-http://localhost:3100}
+    depends_on:
+      relay:
+        condition: service_healthy
+    ports:
+      - '3100:3100'
+
+volumes:
+  pgdata: {}

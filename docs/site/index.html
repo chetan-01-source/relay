@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Relay Gateway — Docs</title>
+    <meta
+      name="description"
+      content="Relay Gateway — a multi-tenant, OpenAI-compatible LLM gateway. Quickstart, self-hosting, and security docs."
+    />
+    <style>
+      /* Enterprise Gateway theme (packages/console/docs/UI-THEME.md): one blue accent, neutral
+         surfaces, square corner-bracket cards as the signature motif, dual light/dark. */
+      :root {
+        --bg: #ffffff;
+        --fg: #0a0a0b;
+        --muted: #64748b;
+        --border: #e4e4e7;
+        --card: #ffffff;
+        --primary: #2563eb; /* blue-600 */
+        --mono: ui-monospace, 'SFMono-Regular', 'Geist Mono', Menlo, monospace;
+        --sans: ui-sans-serif, system-ui, 'Geist', 'Inter', sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #09090b;
+          --fg: #fafafa;
+          --muted: #94a3b8;
+          --border: #27272a;
+          --card: #0c0c0f;
+          --primary: #3b82f6; /* blue-500, brighter in dark */
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 6rem;
+      }
+      header p.kicker {
+        color: var(--primary);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        margin: 0 0 0.5rem;
+        font-size: 0.85rem;
+      }
+      h1 {
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.75rem;
+      }
+      header p.lede {
+        color: var(--muted);
+        font-size: 1.1rem;
+        max-width: 60ch;
+        margin: 0 0 2rem;
+      }
+      /* The signature square card with primary corner brackets. */
+      .feature {
+        position: relative;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 1.5rem;
+        margin: 0 0 2.5rem;
+      }
+      .feature::before,
+      .feature::after {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--primary);
+      }
+      .feature::before {
+        top: -1px;
+        left: -1px;
+        border-right: 0;
+        border-bottom: 0;
+      }
+      .feature::after {
+        bottom: -1px;
+        right: -1px;
+        border-left: 0;
+        border-top: 0;
+      }
+      pre {
+        margin: 0;
+        overflow-x: auto;
+        background: transparent;
+        font-family: var(--mono);
+        font-size: 0.9rem;
+        color: var(--fg);
+      }
+      code {
+        font-family: var(--mono);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      @media (min-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      a.card {
+        display: block;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 1.1rem 1.25rem;
+        text-decoration: none;
+        color: inherit;
+        border-radius: 0.5rem;
+        transition: border-color 200ms;
+      }
+      a.card:hover,
+      a.card:focus-visible {
+        border-color: var(--primary);
+        outline: none;
+      }
+      a.card:focus-visible {
+        box-shadow: 0 0 0 2px var(--primary);
+      }
+      a.card strong {
+        display: block;
+        margin-bottom: 0.15rem;
+      }
+      a.card span {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      h2 {
+        font-size: 1.35rem;
+        letter-spacing: -0.01em;
+        margin: 2.5rem 0 1rem;
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      footer a {
+        color: var(--primary);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <p class="kicker">RELAY GATEWAY · v0.2.0</p>
+        <h1>A multi-tenant, OpenAI-compatible LLM gateway.</h1>
+        <p class="lede">
+          Virtual-key auth, per-app routing &amp; failover, rate limits &amp; budgets,
+          exact-response cache, priced usage metering, and a hash-chained audit trail — every tenant
+          isolated by Postgres row-level security. Point the OpenAI SDK at it and it just works.
+        </p>
+      </header>
+
+      <section class="feature" aria-label="Quickstart">
+        <pre><code># from source
+git clone https://github.com/chetan-01-source/relay &amp;&amp; cd relay
+make bootstrap &amp;&amp; make dev
+
+curl -N http://localhost:3000/v1/chat/completions \
+  -H "authorization: Bearer $(cat .relay/seed-demo.key)" \
+  -H 'content-type: application/json' \
+  -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hello"}]}'</code></pre>
+      </section>
+
+      <h2>Documentation</h2>
+      <nav class="grid">
+        <a
+          class="card"
+          href="https://github.com/chetan-01-source/relay/blob/main/docs/quickstart.md"
+        >
+          <strong>Quickstart</strong><span>Clone to a proxied call in under 15 minutes.</span>
+        </a>
+        <a
+          class="card"
+          href="https://github.com/chetan-01-source/relay/blob/main/docs/self-hosting.md"
+        >
+          <strong>Self-hosting</strong><span>Run the signed GHCR images with Docker Compose.</span>
+        </a>
+        <a
+          class="card"
+          href="https://github.com/chetan-01-source/relay/blob/main/docs/threat-model.md"
+        >
+          <strong>Threat model</strong><span>STRIDE analysis + the mitigations in place.</span>
+        </a>
+        <a class="card" href="https://github.com/chetan-01-source/relay/blob/main/docs/errors.md">
+          <strong>Error catalog</strong><span>One OpenAI-compatible envelope, every code.</span>
+        </a>
+        <a
+          class="card"
+          href="https://github.com/chetan-01-source/relay/blob/main/docs/runbooks/backup-restore.md"
+        >
+          <strong>Backup &amp; restore</strong><span>pg_dump + MinIO mirror runbook.</span>
+        </a>
+        <a class="card" href="https://github.com/chetan-01-source/relay/releases">
+          <strong>Releases</strong><span>Signed multi-arch images, SBOMs, self-host bundle.</span>
+        </a>
+      </nav>
+
+      <footer>
+        Signed with Sigstore (keyless) · SBOMs attached to every release · Apache-scale isolation
+        proven by the G4 suite. Source on
+        <a href="https://github.com/chetan-01-source/relay">GitHub</a>.
+      </footer>
+    </main>
+  </body>
+</html>

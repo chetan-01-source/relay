@@ -1,0 +1,16 @@
+# Keep the build context small and reproducible: never ship host node_modules, build output, local
+# env, or VCS/CI cruft into an image. Dependencies are installed fresh inside the build stage.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+.git
+.github
+.relay
+backups
+*.log
+**/.env
+**/.env.*
+!**/.env.example
+deploy/compose/.env

@@ -1,0 +1,34 @@
+name: pages
+
+# Publish the docs landing (docs/site) to GitHub Pages (PRD §Day-15 "docs site to GitHub Pages").
+# Self-contained static HTML — no generator — so the deploy is a plain artifact upload.
+on:
+  push:
+    branches: [main]
+    paths: ['docs/site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One live deploy at a time; don't cancel an in-flight publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+      - id: deploy
+        uses: actions/deploy-pages@v4
