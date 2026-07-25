@@ -35,3 +35,4 @@ llm/docs/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+relay-selfhost.tar.gz

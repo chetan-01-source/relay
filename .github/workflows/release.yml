@@ -1,25 +1,175 @@
 name: release
 
-# Week-0 stub — triggers + permission scope locked now; job body lands sprint Day 15.
-# Real job: tests -> semantic-release changelog -> buildx multi-arch (amd64+arm64) ->
-# GHCR push -> Syft SBOM -> Cosign keyless sign (OIDC) -> Trivy image gate -> GitHub Release.
+# Day 15 (PRD §9) — cut a signed, reproducible v0.2.0 on a `v*` tag:
+#   tests -> multi-arch images (amd64+arm64) -> GHCR push -> Syft SBOM (SPDX + CycloneDX) ->
+#   Cosign keyless sign (GitHub OIDC, no stored keys) -> Trivy image gate on criticals ->
+#   GitHub Release (auto notes + SBOMs + self-host bundle + verify instructions).
+# Dry-run before the real tag: `make release-dry` builds both images locally the same way.
 on:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write # GitHub Release + changelog commit
+  contents: write # GitHub Release + notes
   packages: write # GHCR push
   id-token: write # Cosign keyless signing (OIDC) — no stored keys
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_SERVER: ghcr.io/${{ github.repository_owner }}/relay
+  IMAGE_CONSOLE: ghcr.io/${{ github.repository_owner }}/relay-console
+
 jobs:
+  # Gate the release on the same test suite CI runs — never publish an image that isn't green.
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relay
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relay"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      RELAY_MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+      RELAY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build --filter=@relay/server
+      - run: node packages/server/dist/index.js migrate
+      - run: pnpm turbo test
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: guard — release pipeline not built yet
+          fetch-depth: 0 # full history so release notes can diff from the previous tag
+
+      - uses: docker/setup-qemu-action@v3 # arm64 emulation for the multi-arch build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Derive tags/labels from the git tag: the semver (e.g. 0.2.0) + `latest`.
+      - id: meta-server
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_SERVER }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - id: meta-console
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_CONSOLE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      # Build + push both images for amd64 + arm64. `provenance`/`sbom` attach BuildKit attestations;
+      # we ALSO emit standalone SPDX + CycloneDX files below for the release artifacts.
+      - id: build-server
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-server.outputs.tags }}
+          labels: ${{ steps.meta-server.outputs.labels }}
+          provenance: true
+          sbom: true
+      - id: build-console
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/console/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-console.outputs.tags }}
+          labels: ${{ steps.meta-console.outputs.labels }}
+          provenance: true
+          sbom: true
+
+      # Pin the exact content digests — sign and scan by digest, never by a mutable tag.
+      - name: resolve image refs (by digest)
+        id: refs
         run: |
-          echo "::error::release pipeline lands sprint Day 15 (PRD §9). Tagging before then is intentionally blocked."
-          exit 1
+          echo "server=${IMAGE_SERVER}@${{ steps.build-server.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "console=${IMAGE_CONSOLE}@${{ steps.build-console.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+      # SBOMs — SPDX + CycloneDX for each image, attached to the GitHub Release.
+      - uses: anchore/sbom-action/download-syft@v0
+      - name: generate SBOMs
+        run: |
+          mkdir -p sbom
+          syft "${{ steps.refs.outputs.server }}"  -o spdx-json=sbom/relay.spdx.json        -o cyclonedx-json=sbom/relay.cdx.json
+          syft "${{ steps.refs.outputs.console }}" -o spdx-json=sbom/relay-console.spdx.json -o cyclonedx-json=sbom/relay-console.cdx.json
+
+      # Keyless signatures via GitHub OIDC — no private keys stored anywhere.
+      - uses: sigstore/cosign-installer@v3
+      - name: cosign sign (keyless)
+        run: |
+          cosign sign --yes "${{ steps.refs.outputs.server }}"
+          cosign sign --yes "${{ steps.refs.outputs.console }}"
+
+      # Fail the release on any CRITICAL in the published images (the image half of PRD §Day-14 Trivy).
+      - name: trivy image gate (criticals)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ steps.refs.outputs.server }}
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: trivy image gate — console
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ steps.refs.outputs.console }}
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      # Self-host bundle (compose + env + README pinned to these GHCR images).
+      - name: build self-host bundle
+        run: make selfhost-bundle VERSION=${{ github.ref_name }}
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > NOTES.md <<'EOF'
+          Signed, multi-arch (amd64+arm64) Phase-1 release. Images on GHCR:
+
+          - `${{ env.IMAGE_SERVER }}:${{ github.ref_name }}`
+          - `${{ env.IMAGE_CONSOLE }}:${{ github.ref_name }}`
+
+          ## Verify the signature (keyless / Sigstore)
+          ```
+          cosign verify ${{ steps.refs.outputs.server }} \
+            --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.github/workflows/release.yml@.*' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          ```
+
+          ## Self-host
+          Download `relay-selfhost.tar.gz`, then `docker compose up -d` (see the bundle README).
+          SBOMs (SPDX + CycloneDX) for both images are attached.
+          EOF
+          gh release create "${{ github.ref_name }}" \
+            --title "Relay ${{ github.ref_name }}" \
+            --notes-file NOTES.md \
+            --generate-notes \
+            sbom/* relay-selfhost.tar.gz

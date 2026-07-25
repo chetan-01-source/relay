@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/compose/compose.yaml
 ENV_FILE := deploy/compose/.env
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench backup restore release-dry
+.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench backup restore audit-verify selfhost-bundle release-dry
 
 help: ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -78,5 +78,13 @@ backup: ## pg_dump + MinIO mirror -> ./backups (stack must be up)   [sprint Day 
 restore: ## restore a dump: make restore DUMP=backups/relay-<ts>.dump  [sprint Day 14]
 	scripts/restore.sh "$(DUMP)"
 
-release-dry: ## local multi-arch build == CI                 [sprint Day 15]
-	@echo "[make] release-dry stub — lands sprint Day 15"
+audit-verify: ## re-walk every org's audit hash chain, fail on a break  [sprint Day 12/15]
+	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts audit verify
+
+selfhost-bundle: ## assemble relay-selfhost.tar.gz (GHCR images)  [sprint Day 15]
+	VERSION="$(VERSION)" scripts/selfhost-bundle.sh
+
+release-dry: ## local build of both release images == CI (no push)  [sprint Day 15]
+	docker build -f packages/server/Dockerfile -t relay:dry .
+	docker build -f packages/console/Dockerfile -t relay-console:dry .
+	@echo "[make] release-dry ok — both images built locally (multi-arch push happens in release.yml on a tag)"
