@@ -51,6 +51,8 @@ export interface Servers {
   publicApp: FastifyInstance;
   internalApp: FastifyInstance;
   readiness: Readiness;
+  /** Block until in-flight requests drain (or the timeout elapses); returns the count still running. */
+  drain: (timeoutMs: number) => Promise<number>;
 }
 
 export interface PublicAppDeps {
@@ -98,7 +100,31 @@ const OPENAPI_DOC = {
  * `await app.register(...)` forces that ordering; otherwise the generated spec has empty paths.
  */
 export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false, bodyLimit: 5 * 1024 * 1024 });
+  // forceCloseConnections: 'idle' — on graceful shutdown, close() drops idle keep-alive sockets
+  // immediately but lets IN-FLIGHT requests (including open SSE streams) finish draining. Fastify v5
+  // otherwise force-closes every socket, which would abruptly cut an in-flight completion. The hard
+  // RELAY_SHUTDOWN_TIMEOUT_MS in the CLI is the backstop if a stream never ends.
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 5 * 1024 * 1024,
+    forceCloseConnections: 'idle',
+  });
+
+  // In-flight request tracker for graceful shutdown. Fastify's own socket accounting does not reliably
+  // hold a request that is still awaiting upstream (no bytes sent yet), so we count requests
+  // explicitly: onResponse fires only once the response is fully sent — for an SSE stream, at stream
+  // end — so this brackets the entire request lifetime. The CLI drains to zero (bounded) before
+  // close(), which is what actually lets an in-flight completion finish instead of being cut.
+  let inflight = 0;
+  app.addHook('onRequest', (_req, _reply, done) => {
+    inflight += 1;
+    done();
+  });
+  app.addHook('onResponse', (_req, _reply, done) => {
+    inflight -= 1;
+    done();
+  });
+  (app as unknown as { inflight: () => number }).inflight = () => inflight;
 
   await app.register(swagger, { openapi: OPENAPI_DOC });
   await app.register(swaggerUi, { routePrefix: '/docs' });
@@ -273,5 +299,16 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
     return registry.metrics();
   });
 
-  return { publicApp, internalApp, readiness };
+  // Wait until in-flight requests finish (or the timeout elapses), so shutdown can let open SSE
+  // streams complete before closing the server. Returns however many were still in flight at the cap.
+  const getInflight = (publicApp as unknown as { inflight: () => number }).inflight;
+  async function drain(timeoutMs: number): Promise<number> {
+    const deadline = Date.now() + timeoutMs;
+    while (getInflight() > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return getInflight();
+  }
+
+  return { publicApp, internalApp, readiness, drain };
 }

@@ -38,7 +38,7 @@ program
 
     const db = initDb(config.RELAY_DATABASE_URL);
     const bus = createEventBus(config.RELAY_VALKEY_URL);
-    const { publicApp, internalApp, readiness } = await buildServers(config, { db, bus });
+    const { publicApp, internalApp, readiness, drain } = await buildServers(config, { db, bus });
 
     await internalApp.listen({ port: config.RELAY_INTERNAL_PORT, host: '0.0.0.0' });
     await publicApp.listen({ port: config.RELAY_PORT, host: '0.0.0.0' });
@@ -70,7 +70,12 @@ program
       forced.unref(); // don't keep the loop alive solely for the timer
 
       try {
-        await publicApp.close(); // drains in-flight + flushes metering/settles via onClose hooks
+        // Let open SSE streams / in-flight requests finish before closing the server (bounded by the
+        // same timeout). Only then close the public app, which runs onClose hooks (metering flush,
+        // budget settle), and finally the internal app + shared handles.
+        const remaining = await drain(config.RELAY_SHUTDOWN_TIMEOUT_MS);
+        if (remaining > 0) log.warn({ remaining }, 'closing with requests still in flight');
+        await publicApp.close();
         await Promise.allSettled([internalApp.close(), db.close(), bus.close()]);
         clearTimeout(forced);
         log.info('shutdown complete');
