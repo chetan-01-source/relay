@@ -45,4 +45,16 @@ describe('sumUsageQuery', () => {
     expect(q.text).toContain('org_id::text AS group_key');
     expect(q.text).not.toContain('model AS group_key');
   });
+
+  it('org-scoped read adds an explicit org_id filter bound first (correct even if RLS is bypassed)', () => {
+    const q = sumUsageQuery('model', { orgId: 'org-1', from: '2026-07-01T00:00:00Z' });
+    expect(q.text).toContain('org_id = $1');
+    expect(q.text).toContain('hour >= $2::timestamptz');
+    expect(q.values).toEqual(['org-1', '2026-07-01T00:00:00Z']);
+  });
+
+  it('the cross-org admin variant does NOT filter by a single org', () => {
+    const q = sumUsageQuery('model', { byOrg: true, orgId: 'org-1' });
+    expect(q.text).not.toContain('org_id = $');
+  });
 });

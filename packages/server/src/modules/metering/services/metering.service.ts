@@ -9,6 +9,7 @@
  * worker or back-pressuring requests.
  */
 import type { Database } from '../../../platform/db.js';
+import type { EventBus } from '../../../platform/eventbus.js';
 import {
   meteringDropped,
   meteringFlushFailures,
@@ -22,6 +23,7 @@ import type { MeteringRepository, MeteringService, UsageEvent } from '../types/m
 export interface MeteringServiceDeps {
   db: Database;
   repo?: MeteringRepository; // injectable for tests; defaults to the real repository
+  bus?: EventBus; // when present, each recorded event is published to the org's live-traffic channel
   queueMax: number;
   flushIntervalMs: number;
   rollupIntervalMs: number;
@@ -50,6 +52,30 @@ export function createMeteringService(deps: MeteringServiceDeps): MeteringServic
     const accepted = queue.enqueue(event);
     if (!accepted) meteringDropped.inc();
     meteringQueueDepth.set(queue.size);
+    // Fire-and-forget publish to the org's live-traffic channel (consumed by modules/traffic's SSE).
+    // Never awaited: this is the hot path, and the feed is best-effort. Channel string is duplicated
+    // in modules/traffic (trafficChannel) deliberately, to avoid a cross-module import.
+    if (deps.bus) {
+      const payload = {
+        object: 'traffic.event',
+        id: event.requestId,
+        app_id: event.appId,
+        key_id: event.keyId,
+        route_id: event.routeId,
+        request_id: event.requestId,
+        provider: event.provider,
+        model: event.model,
+        input_tokens: event.inputTokens,
+        output_tokens: event.outputTokens,
+        cost_usd: event.costUsd,
+        status: event.status,
+        latency_ms: event.latencyMs,
+        created_at: new Date().toISOString(),
+      };
+      void deps.bus
+        .publish(`relay:traffic:${event.orgId}`, JSON.stringify(payload))
+        .catch(() => {});
+    }
   }
 
   async function flush(): Promise<void> {

@@ -1,0 +1,88 @@
+/**
+ * Dashboard aggregation (Day 13) — PURE, so it is unit-testable without a running gateway. Turns the
+ * analytics `usage` buckets (already grouped + summed server-side) into the headline totals the
+ * overview tiles render. Only derives what the analytics endpoint actually exposes (spend, requests,
+ * tokens) — cache-savings / error-rate would need data the rollups don't carry, so they are not faked.
+ */
+import type { UsageSummary } from './api';
+
+export interface UsageTotals {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  topKey: string | null; // the highest-spend bucket key (model/app/day), or null when empty
+}
+
+export function summarizeUsage(summary: UsageSummary | null | undefined): UsageTotals {
+  const data = summary?.data ?? [];
+  const totals: UsageTotals = {
+    requests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    topKey: null,
+  };
+  let topCost = -1;
+  for (const bucket of data) {
+    totals.requests += bucket.requests ?? 0;
+    totals.inputTokens += bucket.input_tokens ?? 0;
+    totals.outputTokens += bucket.output_tokens ?? 0;
+    totals.costUsd += bucket.cost_usd ?? 0;
+    if ((bucket.cost_usd ?? 0) > topCost) {
+      topCost = bucket.cost_usd ?? 0;
+      totals.topKey = bucket.key ?? null;
+    }
+  }
+  return totals;
+}
+
+/** Format a USD amount for a tile (always 4 dp so sub-cent spend is visible). */
+export function formatUsd(value: number): string {
+  return `$${value.toFixed(4)}`;
+}
+
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD (the group_by=day bucket key)
+  cost: number;
+  requests: number;
+}
+
+export interface OrgUsageRow {
+  orgId: string;
+  name: string; // resolved org name, or the raw id when unknown
+  requests: number;
+  costUsd: number;
+}
+
+/** Turn the platform cross-org usage summary (buckets keyed by org_id) into named, cost-descending
+ * rows for the admin table. `names` maps org_id → display name; unknown ids fall back to the id.
+ * Pure — unit-tested. */
+export function labelOrgUsage(
+  summary: UsageSummary | null | undefined,
+  names: Map<string, string>,
+): OrgUsageRow[] {
+  return (summary?.data ?? [])
+    .map((b) => {
+      const orgId = b.key ?? '(none)';
+      return {
+        orgId,
+        name: names.get(orgId) ?? orgId,
+        requests: b.requests ?? 0,
+        costUsd: b.cost_usd ?? 0,
+      };
+    })
+    .sort((a, b) => b.costUsd - a.costUsd);
+}
+
+/** Shape `group_by=day` buckets into a date-ascending series for the spend chart, keeping the most
+ * recent `limit` days. Pure — unit-tested. */
+export function toDailySeries(summary: UsageSummary | null | undefined, limit = 30): DailyPoint[] {
+  const points = (summary?.data ?? []).map((b) => ({
+    date: b.key ?? '',
+    cost: b.cost_usd ?? 0,
+    requests: b.requests ?? 0,
+  }));
+  points.sort((a, b) => a.date.localeCompare(b.date)); // ISO dates sort lexicographically
+  return points.slice(-limit);
+}

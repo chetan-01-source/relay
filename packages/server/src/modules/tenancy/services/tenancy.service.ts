@@ -19,6 +19,7 @@ import { publishOrgSuspend, publishOrgFeaturesUpdated } from '../../identity/ind
 import { resolveTemplate, DEFAULT_TEMPLATE } from '../lib/entitlements.js';
 import { canAdvance } from '../lib/onboarding.js';
 import type {
+  Member,
   OnboardingState,
   OnboardOrgInput,
   Organization,
@@ -191,6 +192,60 @@ export function createTenancyService(deps: TenancyServiceDeps): TenancyService {
     return org;
   }
 
+  /** Resolve our org row → its logto_org_id, or throw. Members live in Logto, keyed by that id. */
+  async function requireLogtoOrgId(orgId: string): Promise<string> {
+    if (!logto) {
+      throw new RelayError('service_unavailable', {
+        message: 'Member management requires Logto to be configured.',
+      });
+    }
+    const org = await getOrg(orgId);
+    if (!org) throw new RelayError('not_found', { message: `Organization '${orgId}' not found.` });
+    return org.logto_org_id;
+  }
+
+  async function listMembers(orgId: string): Promise<Member[]> {
+    const logtoOrgId = await requireLogtoOrgId(orgId);
+    const members = await logto!.listMembers(logtoOrgId);
+    return members.map((m) => ({
+      object: 'organization.member',
+      id: m.id,
+      name: m.name,
+      email: m.email,
+    }));
+  }
+
+  async function inviteMember(
+    actor: string,
+    orgId: string,
+    email: string,
+  ): Promise<{ invitation_id: string }> {
+    const logtoOrgId = await requireLogtoOrgId(orgId);
+    const invitationId = await logto!.inviteMember(logtoOrgId, email);
+    await db.withTenant(orgId, { isPlatformAdmin: true }, (tx) =>
+      audit.appendWithTx(tx, orgId, {
+        actor,
+        action: 'org.member.invited',
+        target: orgId,
+        data: { email },
+      }),
+    );
+    return { invitation_id: invitationId };
+  }
+
+  async function removeMember(actor: string, orgId: string, userId: string): Promise<void> {
+    const logtoOrgId = await requireLogtoOrgId(orgId);
+    await logto!.removeMember(logtoOrgId, userId);
+    await db.withTenant(orgId, { isPlatformAdmin: true }, (tx) =>
+      audit.appendWithTx(tx, orgId, {
+        actor,
+        action: 'org.member.removed',
+        target: orgId,
+        data: { userId },
+      }),
+    );
+  }
+
   return {
     onboardOrg,
     listOrgs,
@@ -200,6 +255,9 @@ export function createTenancyService(deps: TenancyServiceDeps): TenancyService {
     getEntitlements,
     updateEntitlements,
     advanceOnboarding,
+    listMembers,
+    inviteMember,
+    removeMember,
   };
 }
 

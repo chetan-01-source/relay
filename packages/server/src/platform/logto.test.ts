@@ -3,6 +3,23 @@ import { bootstrapLogto } from './logto.js';
 
 const cfg = { endpoint: 'http://logto', m2mAppId: 'id', m2mAppSecret: 'secret' };
 
+// The scopes bootstrap ensures on the Relay API resource (must mirror RELAY_SCOPES in logto.ts).
+const RELAY_SCOPES = [
+  'relay:read',
+  'relay:write',
+  'apps:read',
+  'apps:write',
+  'providers:read',
+  'providers:write',
+  'routes:read',
+  'routes:write',
+  'analytics:read',
+  'audit:read',
+  'platform:admin',
+];
+const MEMBER_SCOPES = RELAY_SCOPES.filter((s) => s !== 'platform:admin');
+const asScopes = (names: string[]) => names.map((name) => ({ id: `sc-${name}`, name }));
+
 /** Route a fake fetch by URL+method so we can simulate Logto's list-then-create flow. */
 function fakeFetch(handlers: Record<string, () => unknown>) {
   return vi.fn((url: string, init?: { method?: string }) => {
@@ -26,6 +43,11 @@ describe('bootstrapLogto', () => {
         'POST http://logto/api/resources': () => ({ id: 'res1', name: 'Relay Gateway API' }),
         'GET http://logto/api/roles': () => [],
         'POST http://logto/api/roles': () => ({ id: 'role1', name: 'x' }),
+        // No scopes on the fresh resource/roles yet → bootstrap creates + grants them all.
+        'GET http://logto/api/resources/res1/scopes': () => [],
+        'POST http://logto/api/resources/res1/scopes': () => ({ id: 'sc-new', name: 'x' }),
+        'GET http://logto/api/roles/role1/scopes': () => [],
+        'POST http://logto/api/roles/role1/scopes': () => ({}),
       }),
     );
     const result = await bootstrapLogto(cfg);
@@ -47,6 +69,10 @@ describe('bootstrapLogto', () => {
           { id: 'r-admin', name: 'relay_admin' },
           { id: 'r-member', name: 'relay_member' },
         ],
+        // Every scope already exists on the resource and is already granted to each role → no writes.
+        'GET http://logto/api/resources/res1/scopes': () => asScopes(RELAY_SCOPES),
+        'GET http://logto/api/roles/r-admin/scopes': () => asScopes(RELAY_SCOPES),
+        'GET http://logto/api/roles/r-member/scopes': () => asScopes(MEMBER_SCOPES),
       }),
     );
     const result = await bootstrapLogto(cfg);

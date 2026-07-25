@@ -1,0 +1,169 @@
+/**
+ * Routes editor — detail (Day 13 · FE-1). One route's versions + targets, with activate/rollback, a
+ * cache toggle, delete, and an add-version form. Capability-lint: a target whose (provider, model) is
+ * absent from the model catalog gets a warning badge. Gated server-side by requireOrg.
+ */
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { ChevronLeft, AlertTriangle } from 'lucide-react';
+import { requireOrg } from '../../../lib/auth';
+import { getRoute, listProviders } from '../../../lib/api';
+import {
+  addVersionAction,
+  activateVersionAction,
+  toggleCacheAction,
+  deleteRouteAction,
+} from '../actions';
+import { AddVersionForm, type CredentialOption } from '../../../../components/add-version-form';
+import { Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui/card';
+import { FeatureCard } from '../../../../components/ui/feature-card';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '../../../../components/ui/table';
+import { Button } from '../../../../components/ui/button';
+import { Badge } from '../../../../components/ui/badge';
+
+export const dynamic = 'force-dynamic';
+
+export default async function RouteDetailPage({
+  params,
+}: {
+  params: Promise<{ routeId: string }>;
+}) {
+  await requireOrg();
+  const { routeId } = await params;
+
+  const route = await getRoute(routeId).catch(() => null);
+  if (!route?.id) notFound();
+  const providers = await listProviders().catch(() => ({ data: [] }));
+  const credentials: CredentialOption[] = (providers.data ?? [])
+    .filter((p): p is typeof p & { id: string } => Boolean(p.id))
+    .map((p) => ({ id: p.id, provider: p.provider ?? 'openai_compat', label: p.name ?? p.id }));
+
+  const versions = route.versions ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/routes"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" /> Routes
+        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{route.model_name}</h1>
+          <Badge variant={route.cache_enabled ? 'success' : 'secondary'}>
+            cache {route.cache_enabled ? 'on' : 'off'}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={toggleCacheAction}>
+          <input type="hidden" name="routeId" value={route.id} />
+          <input type="hidden" name="enabled" value={route.cache_enabled ? 'false' : 'true'} />
+          <Button type="submit" variant="outline" size="sm">
+            {route.cache_enabled ? 'Disable cache' : 'Enable cache'}
+          </Button>
+        </form>
+        <form action={deleteRouteAction}>
+          <input type="hidden" name="routeId" value={route.id} />
+          <Button type="submit" variant="destructive" size="sm">
+            Delete route
+          </Button>
+        </form>
+      </div>
+
+      <div className="space-y-4">
+        {versions.map((v) => (
+          <Card key={v.id}>
+            <CardHeader className="pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  Version {v.version}
+                  <span className="text-xs font-normal text-muted-foreground">({v.strategy})</span>
+                  {v.is_active ? <Badge variant="success">active</Badge> : null}
+                </CardTitle>
+                {!v.is_active ? (
+                  <form action={activateVersionAction}>
+                    <input type="hidden" name="routeId" value={route.id} />
+                    <input type="hidden" name="versionId" value={v.id} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Activate
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(v.targets ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No targets.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead className="text-right">Priority</TableHead>
+                      <TableHead className="text-right">Weight</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(v.targets ?? []).map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell>{t.provider}</TableCell>
+                        <TableCell className="flex items-center gap-2 font-medium">
+                          {t.model}
+                          {!t.known_model ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-xs text-amber-600"
+                              title="Not in the model catalog — capabilities can't be verified"
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" /> unverified
+                            </span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="text-right">{t.priority}</TableCell>
+                        <TableCell className="text-right">{t.weight}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+        {versions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No versions yet — add one below to make this route resolvable.
+          </p>
+        ) : null}
+      </div>
+
+      <FeatureCard>
+        <CardHeader>
+          <CardTitle>Add version</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {credentials.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Add a provider credential first — a version needs at least one target.
+            </p>
+          ) : (
+            <AddVersionForm
+              action={addVersionAction}
+              routeId={route.id}
+              credentials={credentials}
+            />
+          )}
+        </CardContent>
+      </FeatureCard>
+    </div>
+  );
+}

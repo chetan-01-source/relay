@@ -44,6 +44,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
       const rows = await deps.db.withTenant(orgId, { isPlatformAdmin: false }, (tx) =>
         deps.repo.sumUsage(tx, opts.groupBy, {
           byOrg: false,
+          orgId,
           ...(opts.from ? { from: opts.from } : {}),
           ...(opts.to ? { to: opts.to } : {}),
         }),

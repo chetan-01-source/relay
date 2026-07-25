@@ -109,6 +109,12 @@ function fakeLogto(overrides: Partial<LogtoOrgSync> = {}) {
       calls.invited.push(email);
       return Promise.resolve('inv-1');
     },
+    inviteMember: (_id, email) => {
+      calls.invited.push(email);
+      return Promise.resolve('inv-1');
+    },
+    listMembers: () => Promise.resolve([]),
+    removeMember: () => Promise.resolve(),
     ...overrides,
   };
   return { logto, calls };
