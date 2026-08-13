@@ -1,0 +1,2978 @@
+{
+  "info": {
+    "name": "Relay Gateway API v1.0.0",
+    "description": "OpenAI-compatible, multi-tenant LLM gateway. Data-plane (/v1/*) surface.\n\nGenerated from api/openapi/openapi.json by scripts/gen-postman.mjs — do not edit by hand;\nrun `make generate` (or `node scripts/gen-postman.mjs`) after changing a route schema.\n\nAuth: the collection default is a Logto bearer ({{access_token}}) for the control plane\n(/api/v1/*). Chat completions carry a virtual key ({{virtual_key}}); model discovery is\nunauthenticated. Issuing a key (POST /api/v1/apps/{appId}/keys) captures {{virtual_key}}\nautomatically, so a Runner pass over the folders works end to end.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "chat",
+      "description": "Chat completions (OpenAI-compatible hot path)",
+      "item": [
+        {
+          "name": "POST /v1/chat/completions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            },
+            "description": "Create a chat completion (streaming or non-streaming)",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{virtual_key}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Say hello from Relay in five words.\"\n    }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 64,\n  \"temperature\": 0.2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "models",
+      "description": "Model discovery",
+      "item": [
+        {
+          "name": "GET /v1/models",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "models"]
+            },
+            "description": "List available models",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v1/models/{model}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/models/:model",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "models", ":model"],
+              "variable": [
+                {
+                  "key": "model",
+                  "value": "{{model}}",
+                  "description": "Path parameter · bound to the {{model}} collection variable"
+                }
+              ]
+            },
+            "description": "Retrieve a model by id",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "identity",
+      "description": "Control-plane identity (Logto JWT + scopes)",
+      "item": [
+        {
+          "name": "GET /api/v1/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "me"]
+            },
+            "description": "Return the authenticated caller (control plane)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "tenancy",
+      "description": "Platform control plane: org lifecycle + entitlements",
+      "item": [
+        {
+          "name": "GET /api/v1/platform/orgs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs"]
+            },
+            "description": "List organizations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data?.[0]?.id) pm.collectionVariables.set('org_id', json.data?.[0]?.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs"]
+            },
+            "description": "Onboard a new organization (Logto org + entitlements + admin invite)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My application\",\n  \"adminEmail\": \"admin@example.com\",\n  \"template\": \"default\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('org_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/orgs/{orgId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Retrieve an organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs/{orgId}/suspend",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/suspend",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "suspend"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Suspend an organization (data plane rejects its keys ≤1s later)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs/{orgId}/unsuspend",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/unsuspend",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "unsuspend"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Reactivate a suspended organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/orgs/{orgId}/entitlements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/entitlements",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "entitlements"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Read an organization's entitlement flags"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/platform/orgs/{orgId}/entitlements",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/entitlements",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "entitlements"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Replace/merge an organization's entitlement flags (hot-reloaded ≤1s)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"features\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs/{orgId}/onboarding/advance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/onboarding/advance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "onboarding", "advance"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Advance the onboarding state machine one step",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"state\": \"admin_invited\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/orgs/{orgId}/members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "members"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "List an organization’s members"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/platform/orgs/{orgId}/members/{userId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/members/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "members", ":userId"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{user_id}}",
+                  "description": "Path parameter · bound to the {{user_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Remove a member from the organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/platform/orgs/{orgId}/members/{userId}/role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/members/:userId/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "members", ":userId", "role"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{user_id}}",
+                  "description": "Path parameter · bound to the {{user_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Set what a member may do in the organization (admin or member)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/orgs/{orgId}/invitations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/invitations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "invitations"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "List the organization’s invitations (newest first)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs/{orgId}/invitations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/invitations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "invitations"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Invite an email address into the organization (sends the invitation mail)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"role\": \"member\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/platform/orgs/{orgId}/invitations/{invitationId}/resend",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/invitations/:invitationId/resend",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "orgs",
+                ":orgId",
+                "invitations",
+                ":invitationId",
+                "resend"
+              ],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                },
+                {
+                  "key": "invitationId",
+                  "value": "{{invitationId}}",
+                  "description": "Path parameter · bound to the {{invitationId}} collection variable"
+                }
+              ]
+            },
+            "description": "Send the invitation mail again (pending invitations only)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/platform/orgs/{orgId}/invitations/{invitationId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/invitations/:invitationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "invitations", ":invitationId"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                },
+                {
+                  "key": "invitationId",
+                  "value": "{{invitationId}}",
+                  "description": "Path parameter · bound to the {{invitationId}} collection variable"
+                }
+              ]
+            },
+            "description": "Revoke a pending invitation (frees the address to be invited again)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/invitations/{invitationId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/:invitationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invitations", ":invitationId"],
+              "variable": [
+                {
+                  "key": "invitationId",
+                  "value": "{{invitationId}}",
+                  "description": "Path parameter · bound to the {{invitationId}} collection variable"
+                }
+              ]
+            },
+            "description": "Read the invitation addressed to the signed-in caller"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/invitations/{invitationId}/accept",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/:invitationId/accept",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invitations", ":invitationId", "accept"],
+              "variable": [
+                {
+                  "key": "invitationId",
+                  "value": "{{invitationId}}",
+                  "description": "Path parameter · bound to the {{invitationId}} collection variable"
+                }
+              ]
+            },
+            "description": "Accept an invitation — joins the signed-in caller to the organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "apps",
+      "description": "Applications + virtual-key lifecycle (issue/rotate/revoke)",
+      "item": [
+        {
+          "name": "GET /api/v1/apps",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps"]
+            },
+            "description": "List applications"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data?.[0]?.id) pm.collectionVariables.set('app_id', json.data?.[0]?.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/apps",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps"]
+            },
+            "description": "Create an application",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My application\",\n  \"description\": \"Created from the Postman collection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('app_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/apps/{appId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Retrieve an application"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/apps/{appId}/keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId", "keys"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                }
+              ]
+            },
+            "description": "List an application’s virtual keys (never returns secrets)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/apps/{appId}/keys",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId", "keys"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Issue a virtual key (plaintext returned once)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My application\",\n  \"environment\": \"live\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('key_id', json.id);",
+                  "  if (json.key) pm.collectionVariables.set('virtual_key', json.key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/keys/{keyId}/rotate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/keys/:keyId/rotate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "keys", ":keyId", "rotate"],
+              "variable": [
+                {
+                  "key": "keyId",
+                  "value": "{{key_id}}",
+                  "description": "Path parameter · bound to the {{key_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Rotate a key: issue a successor, grace the predecessor"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('key_id', json.id);",
+                  "  if (json.key) pm.collectionVariables.set('virtual_key', json.key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/keys/{keyId}/revoke",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/keys/:keyId/revoke",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "keys", ":keyId", "revoke"],
+              "variable": [
+                {
+                  "key": "keyId",
+                  "value": "{{key_id}}",
+                  "description": "Path parameter · bound to the {{key_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Revoke a key immediately (data plane rejects it ≤1s later)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "providers",
+      "description": "Encrypted upstream provider credentials",
+      "item": [
+        {
+          "name": "GET /api/v1/providers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/providers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "providers"]
+            },
+            "description": "List provider credentials (metadata only)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data?.[0]?.id) pm.collectionVariables.set('provider_id', json.data?.[0]?.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/providers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/providers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "providers"]
+            },
+            "description": "Store a provider credential (sealed on write, never returned)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My application\",\n  \"provider\": \"openai\",\n  \"apiKey\": \"{{provider_api_key}}\",\n  \"baseUrl\": \"https://api.openai.com/v1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('provider_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/providers/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/providers/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "providers", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{provider_id}}",
+                  "description": "Path parameter · bound to the {{provider_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Retrieve a provider credential (metadata only)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/providers/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/providers/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "providers", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{provider_id}}",
+                  "description": "Path parameter · bound to the {{provider_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Delete a provider credential"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "analytics",
+      "description": "Usage/spend reporting over hourly rollups",
+      "item": [
+        {
+          "name": "GET /api/v1/analytics/usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/usage?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "usage"],
+              "query": [
+                {
+                  "key": "group_by",
+                  "value": "app",
+                  "disabled": true,
+                  "description": "one of: app, route, model, day"
+                },
+                {
+                  "key": "format",
+                  "value": "json",
+                  "disabled": true,
+                  "description": "one of: json, csv"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Grouped usage/spend for the caller’s organization (reads hourly rollups)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/analytics/usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/analytics/usage?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "analytics", "usage"],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "json",
+                  "disabled": true,
+                  "description": "one of: json, csv"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Cross-org spend summary grouped by org (platform-admin only)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "budgets",
+      "description": "Per-org spend ceilings the data plane enforces (reserve/settle)",
+      "item": [
+        {
+          "name": "GET /api/v1/budgets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets"]
+            },
+            "description": "List the organization’s spend budgets (at most one per period)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/budgets/{period}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets/:period",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets", ":period"],
+              "variable": [
+                {
+                  "key": "period",
+                  "value": "{{period}}",
+                  "description": "Path parameter · bound to the {{period}} collection variable"
+                }
+              ]
+            },
+            "description": "Set (create or replace) the budget for a period — takes effect within ~1s",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit_usd\": 1,\n  \"hard_cutoff\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/budgets/{period}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets/:period",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets", ":period"],
+              "variable": [
+                {
+                  "key": "period",
+                  "value": "{{period}}",
+                  "description": "Path parameter · bound to the {{period}} collection variable"
+                }
+              ]
+            },
+            "description": "Remove the budget for a period (stops enforcing any ceiling)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/apps/{appId}/budgets/{period}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId/budgets/:period",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId", "budgets", ":period"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                },
+                {
+                  "key": "period",
+                  "value": "{{period}}",
+                  "description": "Path parameter · bound to the {{period}} collection variable"
+                }
+              ]
+            },
+            "description": "Set the budget for one application (applies in ADDITION to any org-wide ceiling)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit_usd\": 1,\n  \"hard_cutoff\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/apps/{appId}/budgets/{period}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId/budgets/:period",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId", "budgets", ":period"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                },
+                {
+                  "key": "period",
+                  "value": "{{period}}",
+                  "description": "Path parameter · bound to the {{period}} collection variable"
+                }
+              ]
+            },
+            "description": "Remove one application’s budget (the org-wide ceiling still applies)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "description": "Per-tenant delivery channel, event preferences, and the delivery log",
+      "item": [
+        {
+          "name": "GET /api/v1/notifications/channels",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/channels",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "channels"]
+            },
+            "description": "List every delivery channel this organization has configured"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/notifications/channels/{type}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/channels/:type",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "channels", ":type"],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "Path parameter · bound to the {{type}} collection variable"
+                }
+              ]
+            },
+            "description": "Read one delivery channel (never returns the secret)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/notifications/channels/{type}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/channels/:type",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "channels", ":type"],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "Path parameter · bound to the {{type}} collection variable"
+                }
+              ]
+            },
+            "description": "Configure a delivery channel. SMTP takes host/port/from_address; Slack and Teams take webhook_url. Omit the secret to keep the stored one.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_address\": \"from_address\",\n  \"host\": \"host\",\n  \"port\": 1,\n  \"secure\": true,\n  \"user\": \"user\",\n  \"password\": \"password\",\n  \"webhook_url\": \"webhook_url\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/notifications/channels/{type}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/channels/:type",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "channels", ":type"],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "Path parameter · bound to the {{type}} collection variable"
+                }
+              ]
+            },
+            "description": "Remove a delivery channel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/notifications/channels/{type}/test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/channels/:type/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "channels", ":type", "test"],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "Path parameter · bound to the {{type}} collection variable"
+                }
+              ]
+            },
+            "description": "Send a test message through this channel and report what the provider said"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/notifications/preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "preferences"]
+            },
+            "description": "List every notification event with this organization’s setting"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/notifications/preferences/{event}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/preferences/:event",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "preferences", ":event"],
+              "variable": [
+                {
+                  "key": "event",
+                  "value": "{{event}}",
+                  "description": "Path parameter · bound to the {{event}} collection variable"
+                }
+              ]
+            },
+            "description": "Enable/disable one event and set extra recipients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"recipients\": [\n    \"recipients\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delivery log — every notification and what happened to it"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "audit",
+      "description": "Append-only, hash-chained audit trail (read/verify)",
+      "item": [
+        {
+          "name": "GET /api/v1/audit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "audit"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "before",
+                  "value": "1",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "List the organization’s audit trail (newest first)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "routes",
+      "description": "Route editor: versions, targets, activate/rollback, cache toggle",
+      "item": [
+        {
+          "name": "GET /api/v1/routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes"]
+            },
+            "description": "List routes with their active-version summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/routes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes"]
+            },
+            "description": "Create a route (optionally with an initial active version)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model_name\": \"{{model}}\",\n  \"app_id\": \"{{app_id}}\",\n  \"strategy\": \"priority\",\n  \"cache_enabled\": true,\n  \"targets\": [\n    {\n      \"credential_id\": \"{{provider_id}}\",\n      \"provider\": \"openai\",\n      \"model\": \"{{model}}\",\n      \"priority\": 0,\n      \"weight\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('route_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/routes/{routeId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes/:routeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes", ":routeId"],
+              "variable": [
+                {
+                  "key": "routeId",
+                  "value": "{{route_id}}",
+                  "description": "Path parameter · bound to the {{route_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Retrieve a route with all versions and targets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.versions?.[0]?.id) pm.collectionVariables.set('route_version_id', json.versions?.[0]?.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/routes/{routeId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes/:routeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes", ":routeId"],
+              "variable": [
+                {
+                  "key": "routeId",
+                  "value": "{{route_id}}",
+                  "description": "Path parameter · bound to the {{route_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Delete a route and all its versions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/routes/{routeId}/versions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes/:routeId/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes", ":routeId", "versions"],
+              "variable": [
+                {
+                  "key": "routeId",
+                  "value": "{{route_id}}",
+                  "description": "Path parameter · bound to the {{route_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Add a new version to a route (not activated automatically)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"strategy\": \"priority\",\n  \"targets\": [\n    {\n      \"credential_id\": \"{{provider_id}}\",\n      \"provider\": \"openai\",\n      \"model\": \"{{model}}\",\n      \"priority\": 0,\n      \"weight\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/routes/{routeId}/activate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes/:routeId/activate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes", ":routeId", "activate"],
+              "variable": [
+                {
+                  "key": "routeId",
+                  "value": "{{route_id}}",
+                  "description": "Path parameter · bound to the {{route_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Activate a version (rollback = activate an older one)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"{{version_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/routes/{routeId}/cache",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/routes/:routeId/cache",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "routes", ":routeId", "cache"],
+              "variable": [
+                {
+                  "key": "routeId",
+                  "value": "{{route_id}}",
+                  "description": "Path parameter · bound to the {{route_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Toggle exact-cache for a route",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cache_enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "traffic",
+      "description": "Recent request feed + trace detail (live SSE)",
+      "item": [
+        {
+          "name": "GET /api/v1/traffic",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/traffic?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "traffic"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "ok",
+                  "disabled": true,
+                  "description": "one of: ok, error, rate_limited, budget_exceeded"
+                }
+              ]
+            },
+            "description": "List recent requests (most recent first)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data?.[0]?.request_id) pm.collectionVariables.set('request_id', json.data?.[0]?.request_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/traffic/stream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/traffic/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "traffic", "stream"]
+            },
+            "description": "Live request feed (Server-Sent Events)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/traffic/{requestId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/traffic/:requestId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "traffic", ":requestId"],
+              "variable": [
+                {
+                  "key": "requestId",
+                  "value": "{{request_id}}",
+                  "description": "Path parameter · bound to the {{request_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Trace detail: all events for a request/trace id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "plans",
+      "description": "Plan catalog, effective entitlements and quotas. Empty/unlimited in the self-hosted edition.",
+      "item": [
+        {
+          "name": "GET /api/v1/plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "plans"]
+            },
+            "description": "The purchasable plan catalog (public; empty in the self-hosted edition)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/plan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/plan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "plan"]
+            },
+            "description": "This organization’s effective limits, with provenance and current usage"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/plan/change",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/plan/change",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "plan", "change"]
+            },
+            "description": "Move this organization to another public plan — takes effect within ~1s",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_code\": \"plan_code\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/platform/orgs/{orgId}/subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/subscription",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "subscription"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Read any organization’s subscription"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/platform/orgs/{orgId}/subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/orgs/:orgId/subscription",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "platform", "orgs", ":orgId", "subscription"],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{org_id}}",
+                  "description": "Path parameter · bound to the {{org_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Assign a plan, set per-contract overrides, or extend a trial",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_code\": \"plan_code\",\n  \"status\": \"trialing\",\n  \"trial_ends_at\": \"trial_ends_at\",\n  \"grace_until\": \"grace_until\",\n  \"current_period_end\": \"current_period_end\",\n  \"overrides\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "internal",
+      "description": "Ops listener (RELAY_INTERNAL_PORT, default 9090). Never exposed publicly — probes and scrapes only.",
+      "item": [
+        {
+          "name": "GET /healthz",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "*/*"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{internalUrl}}/healthz",
+              "host": ["{{internalUrl}}"],
+              "path": ["healthz"]
+            },
+            "description": "Liveness. Touches no dependency, so a slow DB never restarts the process."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /readyz",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "*/*"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{internalUrl}}/readyz",
+              "host": ["{{internalUrl}}"],
+              "path": ["readyz"]
+            },
+            "description": "Readiness: Postgres + Valkey reachable AND the worker is warm. 503 when draining."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "*/*"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{internalUrl}}/metrics",
+              "host": ["{{internalUrl}}"],
+              "path": ["metrics"]
+            },
+            "description": "Prometheus exposition for the gateway registry."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "internalUrl",
+      "value": "http://localhost:9090",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "virtual_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_api_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "model",
+      "value": "gpt-4o-mini",
+      "type": "string"
+    },
+    {
+      "key": "org_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "app_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "key_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "route_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "route_version_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "request_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
