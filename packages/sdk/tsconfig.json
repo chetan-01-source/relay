@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // The SDK targets browsers, Workers and Deno as well as Node, so it may only use what the
+    // platform guarantees: fetch, AbortController, ReadableStream, TextDecoder. Adding DOM here is
+    // what keeps those typed WITHOUT pulling in @types/node — importing a Node built-in would then
+    // fail to compile, which is exactly the guard we want.
+    "lib": ["ES2023", "DOM"],
+    "types": []
+  },
+  "include": ["src"]
+}
