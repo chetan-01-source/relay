@@ -1,0 +1,146 @@
+# Fully self-hosted overlay — everything on ONE 12 GB box, with a hard memory budget.
+#
+#   docker compose -f compose.yaml -f compose.selfhosted.yaml --profile local-db up -d
+#
+# or set both in .env and just run `docker compose up -d`:
+#   COMPOSE_FILE=compose.yaml:compose.selfhosted.yaml
+#   COMPOSE_PROFILES=local-db
+#
+# WHY THIS FILE EXISTS
+#
+# The base compose sizes services for a box whose database lives elsewhere. Bring Postgres back on
+# and the totals no longer leave a safe margin, so every limit is retuned here rather than edited in
+# place — the base file stays correct for the managed-database deployment.
+#
+# THE GUARANTEE, AND HOW IT IS ACTUALLY MADE
+#
+# `deploy.resources.limits.memory` becomes a cgroup limit on the container (verified: it sets
+# HostConfig.Memory, and `docker stats` reports usage against it). A container that exceeds its limit
+# is OOM-killed BY THE KERNEL and restarted — the host is never driven into swap-death by one leaking
+# service. That is what makes "never exceeds 12 GB" a property of the system rather than a hope.
+#
+# A cgroup limit alone is blunt, though: it kills, it does not restrain. So each runtime is ALSO told
+# its own budget from the inside — Postgres via shared_buffers/max_connections, Valkey via maxmemory,
+# the Node services via --max-old-space-size — so they stay inside the limit instead of repeatedly
+# hitting it. The cgroup is the backstop; the internal setting is the intent.
+#
+# THE BUDGET (12 GB box)
+#
+#   postgres     2.5 GB │ shared_buffers 768 MB · max_connections 50
+#   logto        1.5 GB │ heap 1024 MB
+#   relay        1.0 GB │ heap 768 MB
+#   console      1.0 GB │ heap 768 MB
+#   valkey       512 MB │ maxmemory 384 MB
+#   cloudflared  256 MB │
+#   ─────────────────────
+#   committed    6.75 GB
+#   host OS + dockerd    ~0.8 GB
+#   ─────────────────────
+#   worst case   ~7.6 GB of 12 GB — leaving ~4.4 GB for the OS page cache, which is
+#                where Postgres gets most of its real read performance.
+#
+# Every number is a ceiling, not a reservation: typical steady-state use is far lower (§6.4 of
+# docs/release-v1-selfhosted.md).
+
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 2500m
+    # Replaces the base command entirely (Compose does not merge `command`).
+    #
+    # shared_buffers 768 MB: Postgres's own cache, allocated up front and counted inside the cgroup.
+    # The conventional "25% of RAM" would be 3 GB here, which is wrong for a SHARED box — the other
+    # five services need that memory, and Postgres benefits nearly as much from the OS page cache,
+    # which costs us nothing from this budget.
+    #
+    # max_connections 50: each backend is a process costing ~5–10 MB, so this line is worth ~500 MB
+    # of the limit above. Relay's pool is max 10 per worker and Logto's is smaller — 50 is ample, and
+    # the default 100 would double the worst case for connections nobody opens.
+    command:
+      - postgres
+      - -c
+      - max_connections=50
+      - -c
+      - shared_buffers=768MB
+      - -c
+      - effective_cache_size=2GB
+      # Per-sort/hash, per-operation — multiplied by concurrent operations, so it stays small.
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      # Autovacuum matters here: usage_events is append-heavy, and a table that never vacuums grows
+      # until the disk, not the memory, is the problem.
+      - -c
+      - autovacuum_max_workers=2
+      - -c
+      - autovacuum_naptime=30s
+
+  valkey:
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    # maxmemory 384 MB sits deliberately below the 512 MB cgroup limit: Valkey needs headroom above
+    # its dataset for client buffers and copy-on-write, and `allkeys-lru` means a full cache evicts
+    # rather than refusing writes — a refused SET on the hot path would fail live requests.
+    command:
+      [
+        'valkey-server',
+        '--save',
+        '',
+        '--appendonly',
+        'no',
+        '--maxmemory',
+        '384mb',
+        '--maxmemory-policy',
+        'allkeys-lru',
+      ]
+
+  # One-shot, and it exits before `relay` starts — so it never overlaps the steady-state total. A
+  # limit is set anyway so the ledger above accounts for every container that can exist.
+  relay-migrate:
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  logto:
+    deploy:
+      resources:
+        limits:
+          memory: 1500m
+    environment:
+      # V8 will not grow its old space past this, so GC runs instead of the cgroup killing the
+      # process. Set below the cgroup limit because the heap is not the whole story — native
+      # allocations, buffers and the binary itself live outside it.
+      NODE_OPTIONS: --max-old-space-size=1024
+
+  relay:
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    environment:
+      NODE_OPTIONS: --max-old-space-size=768
+      # On-box Postgres over the compose network has no cold start and no per-hour billing, so the
+      # background workers can stay responsive. These restore the defaults the managed-database
+      # .env raises to 15 minutes purely to let a scale-to-zero database sleep.
+      RELAY_ROLLUP_INTERVAL_MS: '60000'
+      RELAY_NOTIFY_INTERVAL_MS: '15000'
+
+  console:
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    environment:
+      NODE_OPTIONS: --max-old-space-size=768
+
+  cloudflared:
+    deploy:
+      resources:
+        limits:
+          memory: 256m

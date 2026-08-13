@@ -4,19 +4,20 @@ Every response from `POST /v1/chat/completions` carries the headers below — on
 the streaming path, and cache hits. The console and SDKs may depend on them. Frozen in Week 3 Day 12
 (ADR 0010); asserted in `scripts/smoke.sh`.
 
-| Header                           | Always?                   | Meaning                                                                     |
-| -------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
-| `x-relay-trace-id`               | yes                       | Correlation id; also the `request_id` on the usage event and log lines.     |
-| `x-relay-provider`               | yes                       | Upstream provider actually used (`openai`/`anthropic`/…), or `cache`.       |
-| `x-relay-cache`                  | yes                       | `miss` or `hit-exact`.                                                      |
-| `x-relay-failover`               | yes                       | `true` if the request failed over to a lower-priority target, else `false`. |
-| `x-relay-cost-usd`               | yes                       | Settled cost = `usage × rate card`, 6 dp. See streaming caveat below.       |
-| `x-relay-modalities`             | yes                       | Comma list: `text` always; `image` when a message carries an image part.    |
-| `x-ratelimit-limit-requests`     | when a rate limit applies | Per-window request ceiling (from the policy decision).                      |
-| `x-ratelimit-remaining-requests` | when a rate limit applies | Requests left in the window.                                                |
-| `x-ratelimit-limit-tokens`       | when a rate limit applies | Per-window token ceiling.                                                   |
-| `x-ratelimit-remaining-tokens`   | when a rate limit applies | Tokens left in the window.                                                  |
-| `retry-after`                    | on `429`                  | Seconds to wait before retrying.                                            |
+| Header                           | Always?                    | Meaning                                                                     |
+| -------------------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `x-relay-trace-id`               | yes                        | Correlation id; also the `request_id` on the usage event and log lines.     |
+| `x-relay-provider`               | yes                        | Upstream provider actually used (`openai`/`anthropic`/…), or `cache`.       |
+| `x-relay-cache`                  | yes                        | `miss` or `hit-exact`.                                                      |
+| `x-relay-failover`               | yes                        | `true` if the request failed over to a lower-priority target, else `false`. |
+| `x-relay-cost-usd`               | yes                        | Settled cost = `usage × rate card`, 6 dp. See streaming caveat below.       |
+| `x-relay-modalities`             | yes                        | Comma list: `text` always; `image` when a message carries an image part.    |
+| `x-relay-plan`                   | when a plan layer is wired | Plan code the ceilings came from (`free`/`pro`/…, `self_hosted` in OSS).    |
+| `x-ratelimit-limit-requests`     | when a rate limit applies  | Per-window request ceiling (from the policy decision).                      |
+| `x-ratelimit-remaining-requests` | when a rate limit applies  | Requests left in the window.                                                |
+| `x-ratelimit-limit-tokens`       | when a rate limit applies  | Per-window token ceiling.                                                   |
+| `x-ratelimit-remaining-tokens`   | when a rate limit applies  | Tokens left in the window.                                                  |
+| `retry-after`                    | on `429`                   | Seconds to wait before retrying.                                            |
 
 ## Cost on streaming responses
 

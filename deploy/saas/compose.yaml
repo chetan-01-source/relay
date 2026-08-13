@@ -1,0 +1,245 @@
+name: relay-saas
+
+# Production stack for the hosted Relay service on a single box (docs/launch-playbook.md).
+#
+# How this differs from deploy/selfhost — and why:
+#
+#  • **Nothing is published to the host.** No `ports:` on the gateway or the console. Ingress arrives
+#    only through the Cloudflare tunnel, over the compose network. A self-hoster wants localhost:3000;
+#    a public service wants no listening socket an attacker can find by scanning the IP.
+#  • **Logto is self-hosted.** Relay maps each tenant to a Logto *organization*, and organizations are
+#    not in Logto Cloud's free tier. Self-hosting is one container and a database.
+#  • **Postgres is optional.** It sits behind the `local-db` profile, so the default stack expects a
+#    managed database (Neon, Supabase, Aiven) via RELAY_DATABASE_URL. Add `--profile local-db` to run
+#    it on the box instead — which is free, unmetered, and has no compute-hour ceiling.
+#  • **Every service has a memory limit.** On a 12 GB box one leaking container must not take the
+#    others with it. The numbers below total ~5.5 GB, leaving comfortable headroom for the page cache
+#    that Postgres actually wants.
+#  • **`restart: unless-stopped` everywhere.** The box will reboot; the service should come back
+#    without you.
+#
+# Startup order: postgres → relay-migrate (one-shot) → relay → console, with logto in parallel.
+
+x-logging: &logging
+  # Without this, container logs grow until the 200 GB boot volume is full — which presents as
+  # Postgres refusing writes, not as a disk-space error, and costs an hour to diagnose.
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  # OPTIONAL — only starts with `docker compose --profile local-db up -d`.
+  # Omit the profile when RELAY_DATABASE_URL points at a managed Postgres.
+  postgres:
+    profiles: ['local-db']
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: relay
+      RELAY_APP_PASSWORD: ${RELAY_APP_PASSWORD:?set RELAY_APP_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      # 12 GB box: give Postgres a real buffer cache instead of the 128 MB default.
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d relay']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  valkey:
+    image: valkey/valkey:8
+    restart: unless-stopped
+    logging: *logging
+    # `--save ''` + no AOF: everything here is a counter or a cache. Budget counters reseed from
+    # durable spend on the next cold read, so persistence would buy nothing and cost fsyncs.
+    # maxmemory-policy allkeys-lru so a full cache evicts rather than refusing writes — a refused
+    # SET on the hot path would fail requests.
+    command:
+      [
+        'valkey-server',
+        '--save',
+        '',
+        '--appendonly',
+        'no',
+        '--maxmemory',
+        '400mb',
+        '--maxmemory-policy',
+        'allkeys-lru',
+      ]
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  logto:
+    image: svhd/logto:latest
+    restart: unless-stopped
+    logging: *logging
+    # No depends_on: `postgres` exists only under the `local-db` profile, and Compose cannot express
+    # a conditional dependency — naming it here makes the managed-database stack invalid. For the
+    # local case `restart: unless-stopped` is sufficient: Logto exits while the database is still
+    # starting and is restarted until it connects.
+    environment:
+      # Defaults to the local-db service. With a managed Postgres, set LOGTO_DB_URL to its own
+      # database — Logto owns its schema and must not share Relay's.
+      DB_URL: ${LOGTO_DB_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/logto}
+      TRUST_PROXY_HEADER: '1'
+      # Must be the PUBLIC https origins — Logto mints issuer/redirect URLs from these, and a
+      # localhost value here produces tokens the console cannot validate.
+      ENDPOINT: ${LOGTO_ENDPOINT:?set LOGTO_ENDPOINT to https://auth.<your-domain> in .env}
+      ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:?set LOGTO_ADMIN_ENDPOINT in .env}
+    entrypoint: ['sh', '-c', 'npm run cli db seed -- --swe && npm start']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3001 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1500m
+
+  relay-migrate:
+    image: ${RELAY_SERVER_IMAGE:?set RELAY_SERVER_IMAGE in .env}
+    command: ['migrate']
+    logging: *logging
+    environment:
+      # MUST be a DIRECT (unpooled) connection. Migrations take a session-level pg_advisory_lock,
+      # which a transaction-pooled endpoint silently drops — two concurrent deploys would then race
+      # the schema. On Neon this is the endpoint WITHOUT `-pooler` in the host.
+      RELAY_MIGRATION_DATABASE_URL: ${RELAY_MIGRATION_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/relay}
+    restart: 'no'
+
+  relay:
+    image: ${RELAY_SERVER_IMAGE}
+    command: ['serve']
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      # Connect as the RLS-bound role, never as the owner. A pooled endpoint is fine and preferred
+      # here: every tenant query runs inside a transaction with set_config(..., local=true), which is
+      # transaction-scoped and therefore safe under transaction pooling.
+      RELAY_DATABASE_URL: ${RELAY_DATABASE_URL:-postgres://relay_app:${RELAY_APP_PASSWORD}@postgres:5432/relay}
+      RELAY_VALKEY_URL: redis://valkey:6379
+      RELAY_MASTER_KEY: ${RELAY_MASTER_KEY:?set RELAY_MASTER_KEY (openssl rand -base64 32) in .env}
+      RELAY_UPSTREAM_URL: ${RELAY_UPSTREAM_URL:-https://api.openai.com}
+      RELAY_CACHE_TTL_S: ${RELAY_CACHE_TTL_S:-60}
+      # `oss` while v1 is free for everyone (docs/plans.md). Flip to `cloud` — here AND on the
+      # console — on the day quotas should start biting.
+      RELAY_EDITION: ${RELAY_EDITION:-oss}
+      RELAY_PORT: '3000'
+      RELAY_INTERNAL_PORT: '9090'
+      # Two workers poll Postgres on a timer regardless of traffic: the rollup rebuild and the
+      # notification outbox. On a scale-to-zero database (Neon) these are what keep compute awake and
+      # burn the monthly compute allowance — see docs/release-v1.md §4.3. The defaults (60s / 15s)
+      # guarantee it never sleeps; 15 minutes leaves gaps longer than Neon's 5-minute idle timeout.
+      RELAY_ROLLUP_INTERVAL_MS: ${RELAY_ROLLUP_INTERVAL_MS:-60000}
+      RELAY_NOTIFY_INTERVAL_MS: ${RELAY_NOTIFY_INTERVAL_MS:-15000}
+      RELAY_METERING_FLUSH_INTERVAL_MS: ${RELAY_METERING_FLUSH_INTERVAL_MS:-2000}
+      # Control-plane JWT verification. Without it every /api/* call is rejected and the console
+      # cannot function; the data plane (virtual keys) would still work.
+      RELAY_LOGTO_ENDPOINT: ${LOGTO_ENDPOINT}
+      RELAY_LOGTO_JWT_AUDIENCE: ${RELAY_API_RESOURCE:-https://relay.gateway/api}
+      # M2M creds for org sync. Without both, onboarding a tenant returns 503 — which on a
+      # multi-tenant service means you cannot take a customer.
+      RELAY_LOGTO_M2M_APP_ID: ${RELAY_LOGTO_M2M_APP_ID:-}
+      RELAY_LOGTO_M2M_APP_SECRET: ${RELAY_LOGTO_M2M_APP_SECRET:-}
+      # Used to build links in invitation and alert emails.
+      RELAY_CONSOLE_URL: ${RELAY_CONSOLE_URL:?set RELAY_CONSOLE_URL to https://app.<your-domain>}
+      # No SMTP host ⇒ the console sender: it records what it WOULD send and delivers nothing. That
+      # means invitations never arrive, so set this before inviting a real tenant.
+      RELAY_SMTP_HOST: ${RELAY_SMTP_HOST:-}
+      RELAY_SMTP_PORT: ${RELAY_SMTP_PORT:-587}
+      RELAY_SMTP_SECURE: ${RELAY_SMTP_SECURE:-false}
+      RELAY_SMTP_USER: ${RELAY_SMTP_USER:-}
+      RELAY_SMTP_PASSWORD: ${RELAY_SMTP_PASSWORD:-}
+      RELAY_SMTP_FROM: ${RELAY_SMTP_FROM:-relay@localhost}
+    depends_on:
+      relay-migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:9090/readyz || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  console:
+    image: ${RELAY_CONSOLE_IMAGE:?set RELAY_CONSOLE_IMAGE in .env}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      RELAY_API_BASE_URL: http://relay:3000
+      RELAY_INTERNAL_URL: http://relay:9090
+      RELAY_API_RESOURCE: ${RELAY_API_RESOURCE:-https://relay.gateway/api}
+      RELAY_EDITION: ${RELAY_EDITION:-oss}
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT}
+      LOGTO_APP_ID: ${LOGTO_APP_ID:?set LOGTO_APP_ID in .env}
+      LOGTO_APP_SECRET: ${LOGTO_APP_SECRET:?set LOGTO_APP_SECRET in .env}
+      LOGTO_COOKIE_SECRET: ${LOGTO_COOKIE_SECRET:?set LOGTO_COOKIE_SECRET in .env}
+      # The console's own public origin. Logto redirects back here after sign-in, so a wrong value
+      # is an infinite redirect loop rather than an error.
+      LOGTO_BASE_URL: ${RELAY_CONSOLE_URL}
+    depends_on:
+      relay:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # Ingress. The tunnel dials OUT to Cloudflare, so the box needs no inbound port, no public IP and
+  # no certificate management — and an attacker scanning the address finds nothing listening.
+  # Routes are configured in the Cloudflare dashboard, pointing at http://relay:3000,
+  # http://console:3100 and http://logto:3001 over this network.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    logging: *logging
+    command:
+      [
+        'tunnel',
+        '--no-autoupdate',
+        'run',
+        '--token',
+        '${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}',
+      ]
+    depends_on:
+      - relay
+      - console
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+volumes:
+  pgdata: {}
