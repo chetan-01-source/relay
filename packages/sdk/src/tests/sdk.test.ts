@@ -295,3 +295,33 @@ describe('parseMetadata', () => {
     expect(parseMetadata(new Headers({ 'x-relay-cost-usd': 'n/a' })).costUsd).toBeNull();
   });
 });
+
+describe('base URL normalization', () => {
+  it('strips trailing slashes without quadratic backtracking', () => {
+    const calls: string[] = [];
+    const relay = new Relay({
+      baseUrl: 'http://x.test///',
+      apiKey: 'rk_live_a.b',
+      fetch: ((url: string) => {
+        calls.push(String(url));
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      }) as unknown as typeof fetch,
+    });
+    void relay.models();
+    expect(calls[0]).toBe('http://x.test/v1/models');
+  });
+
+  it('is linear in the number of trailing slashes', () => {
+    // The old `replace(/\/+$/, '')` was polynomial (js/polynomial-redos): a long run of slashes
+    // made the engine retry from each one. 200k slashes finish instantly when the scan is linear
+    // and take seconds when it is not, so the timeout IS the assertion.
+    const started = Date.now();
+    const relay = new Relay({
+      baseUrl: 'http://x.test' + '/'.repeat(200_000),
+      apiKey: 'rk_live_a.b',
+      fetch: () => Promise.resolve(new Response('{}', { status: 200 })),
+    });
+    expect(relay).toBeInstanceOf(Relay);
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+});

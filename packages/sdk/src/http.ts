@@ -40,8 +40,23 @@ export interface RequestOptions {
 }
 
 /** Identifies the client to the gateway, so a deployment can see its client-version spread. */
-const SDK_VERSION = '0.2.0';
+const SDK_VERSION = '1.0.0';
 const USER_AGENT = `relay-sdk-ts/${SDK_VERSION}`;
+
+/**
+ * Drop trailing slashes from a base URL.
+ *
+ * Deliberately not `replace(/\/+$/, '')`. That regex is anchored with a `+` quantifier, so on a
+ * string with many slashes the engine retries the match from each one and the work becomes
+ * quadratic in the input length — the polynomial-ReDoS shape CodeQL flags (js/polynomial-redos).
+ * `baseUrl` is caller-supplied, and in a server that builds it from a request this would be
+ * reachable from outside. Scanning backwards is linear and obviously correct.
+ */
+function stripTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end -= 1;
+  return url.slice(0, end);
+}
 
 export class Http {
   private readonly baseUrl: string;
@@ -54,7 +69,7 @@ export class Http {
   private readonly doFetch: typeof fetch;
 
   constructor(options: HttpOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.token = options.token;
     this.extraHeaders = options.headers ?? {};
     this.timeoutMs = options.timeoutMs ?? 120_000;
