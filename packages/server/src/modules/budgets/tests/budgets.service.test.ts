@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { createBudgetsService } from '../services/budgets.service.js';
 import type { BudgetRow, BudgetsRepository } from '../types/budgets.types.js';
 import type { Database, Queryable } from '../../../platform/db.js';

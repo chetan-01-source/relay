@@ -24,6 +24,7 @@ const errorObject = {
 
 const applicationObject = {
   type: 'object',
+  required: ['object', 'id', 'name', 'description', 'created_at'],
   properties: {
     object: { type: 'string' },
     id: { type: 'string' },
@@ -47,10 +48,15 @@ const KEY_PROPS = {
   created_at: { type: 'string' },
   revoked_at: { type: ['string', 'null'] },
 };
-const virtualKeyObject = { type: 'object', properties: KEY_PROPS };
+// Every property is emitted unconditionally by toKey() — the nullable ones as null — so listing
+// them as required describes the existing guarantee. Without it openapi-typescript marks the whole
+// object optional and every SDK caller has to non-null-assert `key.id`.
+const KEY_REQUIRED = Object.keys(KEY_PROPS);
+const virtualKeyObject = { type: 'object', required: KEY_REQUIRED, properties: KEY_PROPS };
 // The issue/rotate response additionally carries the one-time plaintext `key`.
 const issuedKeyObject = {
   type: 'object',
+  required: [...KEY_REQUIRED, 'key'],
   properties: { ...KEY_PROPS, key: { type: 'string' } },
 };
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { isRelayError } from '@relay/shared';
+import { isRelayError } from '@relay-ai/shared';
 import { openCredential } from '../../../platform/crypto.js';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { AuditEventInput, AuditRepository } from '../../audit/index.js';

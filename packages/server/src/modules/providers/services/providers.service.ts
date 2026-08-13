@@ -3,7 +3,7 @@
  * crypto on write and returns only metadata; the plaintext and ciphertext never leave here. No SQL,
  * no HTTP. Every mutation is audited.
  */
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { sealCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';

@@ -88,11 +88,11 @@ The console is at `http://localhost:3100`, with public documentation at `/docs`.
 
 ## Use it from code
 
-Any OpenAI SDK works against Relay unchanged. [`@relay/sdk`](packages/sdk/README.md) adds what a stock
+Any OpenAI SDK works against Relay unchanged. [`@relay-ai/sdk`](packages/sdk/README.md) adds what a stock
 client structurally cannot reach — the per-request metadata as typed fields, plus the control plane:
 
 ```ts
-import { Relay } from '@relay/sdk';
+import { Relay } from '@relay-ai/sdk';
 
 const relay = new Relay({ baseUrl, apiKey: 'rk_live_…' });
 const res = await relay.chat.completions.create({ model: 'fast', messages });
@@ -108,7 +108,7 @@ Provisioning is code too — an isolated, budgeted tenant in four calls:
 ```ts
 const admin = relay.admin(token);
 const app = await admin.apps.create({ name: 'acme-prod' });
-await admin.budgets.setForApp(app.id, 'monthly', { limitUsd: 200, hardCutoff: true });
+await admin.budgets.setForApp(app.id, 'monthly', { limit_usd: 200, hard_cutoff: true });
 const { key } = await admin.apps.keys.issue(app.id, { environment: 'live' });
 ```
 
@@ -135,16 +135,16 @@ Two auth planes that never cross: virtual keys for `/v1/*`, Logto JWTs for `/api
 resolves to an immutable in-process snapshot invalidated over Valkey pub/sub, so the steady-state hot
 path never touches Postgres — and a revocation still lands within ~1s.
 
-| Concern        | Tool                                      |
-| -------------- | ----------------------------------------- |
-| Runtime        | Node.js 22 LTS + TypeScript 5 (strict)    |
-| HTTP           | Fastify 5                                 |
-| Datastore      | PostgreSQL 16, forced RLS                 |
-| Cache / limits | Valkey 8                                  |
-| Auth           | Logto (OIDC + organizations + RBAC)       |
-| Console        | Next.js 15 (admin + public `/docs`)       |
-| SDK            | `@relay/sdk` — zero-dependency TypeScript |
-| Monorepo       | pnpm workspaces + Turborepo               |
+| Concern        | Tool                                         |
+| -------------- | -------------------------------------------- |
+| Runtime        | Node.js 22 LTS + TypeScript 5 (strict)       |
+| HTTP           | Fastify 5                                    |
+| Datastore      | PostgreSQL 16, forced RLS                    |
+| Cache / limits | Valkey 8                                     |
+| Auth           | Logto (OIDC + organizations + RBAC)          |
+| Console        | Next.js 15 (admin + public `/docs`)          |
+| SDK            | `@relay-ai/sdk` — zero-dependency TypeScript |
+| Monorepo       | pnpm workspaces + Turborepo                  |
 
 ## Self-hosting
 
@@ -185,7 +185,7 @@ limit and its enforcement point.
 |                                                                         |                                                |
 | ----------------------------------------------------------------------- | ---------------------------------------------- |
 | [Quickstart](docs/quickstart.md)                                        | Empty org → first proxied call                 |
-| [SDK](docs/sdk.md) · [testing it](docs/sdk-e2e-testing.md)              | `@relay/sdk` design and its live test suite    |
+| [SDK](docs/sdk.md) · [testing it](docs/sdk-e2e-testing.md)              | `@relay-ai/sdk` design and its live test suite |
 | [Self-hosting](docs/self-hosting.md)                                    | Running your own                               |
 | [Plans](docs/plans.md) · [Editions](docs/editions.md)                   | Limits, entitlements, the OSS/cloud seam       |
 | [Errors](docs/errors.md) · [Response headers](docs/response-headers.md) | The wire contract                              |

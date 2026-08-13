@@ -4,7 +4,7 @@ All notable changes to Relay are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Relay adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The gateway and `@relay/sdk` share a minor version: a `1.0.x` SDK is known to speak to a `1.0.x`
+The gateway and `@relay-ai/sdk` share a minor version: a `1.0.x` SDK is known to speak to a `1.0.x`
 gateway.
 
 ## [1.0.0] — 2026-08-14
@@ -14,7 +14,7 @@ but switched off (`RELAY_EDITION=oss`).
 
 ### Added
 
-- **`@relay/sdk`** — a zero-dependency TypeScript client, published to npm. Chat completions
+- **`@relay-ai/sdk`** — a zero-dependency TypeScript client, published to npm. Chat completions
   (streaming included) with Relay's per-request metadata surfaced as typed fields
   (`res.relay.provider`, `.costUsd`, `.cached`, `.traceId`), plus a typed control-plane client for
   applications, keys, providers, routes, budgets, analytics, traffic, audit and plan. Types are
@@ -58,7 +58,7 @@ but switched off (`RELAY_EDITION=oss`).
 - **The console image never copied `public/`.** Next's standalone output does not trace it, so every
   file it holds 404'd in the container while working in development — currently the documentation
   screenshots, and silently anything added there later.
-- **`@relay/sdk` type resolution failed for CommonJS consumers.** The exports map carried a single
+- **`@relay-ai/sdk` type resolution failed for CommonJS consumers.** The exports map carried a single
   top-level `types` entry pointing at the ESM declarations, so under `moduleResolution: node16` a
   CJS consumer resolved ESM types and failed with `TS1479` — even though `require()` worked at
   runtime. Each condition now carries its own `types`.

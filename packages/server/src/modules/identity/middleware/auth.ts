@@ -10,7 +10,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { enterContext } from '../../../platform/als.js';
 import type { JwtVerifier } from '../services/jwt.js';
 import type { OrgResolver } from '../services/org-resolver.js';

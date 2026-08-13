@@ -3,7 +3,7 @@
  * Generate a Postman collection (v2.1) + environment from the gateway's OpenAPI spec.
  *
  * The spec (api/openapi/openapi.json) is itself generated from the Fastify route schemas by
- * `pnpm --filter @relay/server exec tsx src/cli/index.ts openapi`, so this script is the second hop
+ * `pnpm --filter @relay-ai/server exec tsx src/cli/index.ts openapi`, so this script is the second hop
  * of a single pipeline: route schema -> OpenAPI -> Postman. Nothing here is hand-maintained, which is
  * why the collection cannot drift from the server contract.
  *

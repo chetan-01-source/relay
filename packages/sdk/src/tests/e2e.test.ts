@@ -14,7 +14,7 @@
  *   RELAY_E2E_BASE_URL=http://localhost:3000 \
  *   RELAY_E2E_API_KEY=rk_live_… \
  *   RELAY_E2E_MODEL=gpt-4o-mini \
- *   pnpm --filter @relay/sdk test
+ *   pnpm --filter @relay-ai/sdk test
  *
  * `RELAY_E2E_ADMIN_TOKEN` (a Logto access token) additionally enables the control-plane block.
  *

@@ -30,7 +30,7 @@ feature/* ──PR──▶ dev ──PR──▶ main
 ## Conventions
 
 - **Module boundaries** are enforced by `dependency-cruiser`: only `modules/*/index.ts` is cross-importable; `platform/` never imports `modules/`.
-- **Contracts first**: Zod schemas in `@relay/shared` are the single source of truth (types + runtime validation + generated OpenAPI).
+- **Contracts first**: Zod schemas in `@relay-ai/shared` are the single source of truth (types + runtime validation + generated OpenAPI).
 - **No `TODO`** without a linked issue.
 - **Feature flags** for risky merges (config-driven, not env forks).
 - **No secrets in commits** — push protection + gitleaks will block them.

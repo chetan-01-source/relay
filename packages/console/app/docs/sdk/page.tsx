@@ -13,7 +13,7 @@ import { CodeBlock, Callout } from '../../../components/docs/code-block';
 export const metadata: Metadata = {
   title: 'TypeScript SDK — Relay Gateway docs',
   description:
-    '@relay/sdk: chat completions with typed Relay metadata, plus a typed control-plane client.',
+    '@relay-ai/sdk: chat completions with typed Relay metadata, plus a typed control-plane client.',
 };
 
 export default function SdkDocsPage() {
@@ -22,7 +22,7 @@ export default function SdkDocsPage() {
       <DocHeader
         eyebrow="Integrate"
         title="TypeScript SDK"
-        lede="@relay/sdk is a zero-dependency client for Node 18+, Bun, Deno, Cloudflare Workers and browsers. It exists for the two things a stock OpenAI client cannot do."
+        lede="@relay-ai/sdk is a zero-dependency client for Node 18+, Bun, Deno, Cloudflare Workers and browsers. It exists for the two things a stock OpenAI client cannot do."
       />
 
       <DocBody>
@@ -48,13 +48,13 @@ export default function SdkDocsPage() {
         </DocSection>
 
         <DocSection id="install" title="Install">
-          <CodeBlock label="shell" code={`npm i @relay/sdk`} />
+          <CodeBlock label="shell" code={`npm i @relay-ai/sdk`} />
         </DocSection>
 
         <DocSection id="chat" title="Chat">
           <CodeBlock
             label="typescript"
-            code={`import { Relay } from '@relay/sdk';
+            code={`import { Relay } from '@relay-ai/sdk';
 
 const relay = new Relay({
   baseUrl: 'https://relay.acme.internal',
@@ -121,7 +121,7 @@ const text = await stream.text();`}
           </p>
           <CodeBlock
             label="typescript"
-            code={`import { RelayApiError } from '@relay/sdk';
+            code={`import { RelayApiError } from '@relay-ai/sdk';
 
 try {
   await relay.chat.completions.create({ model: 'fast', messages });

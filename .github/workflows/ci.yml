@@ -101,8 +101,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # build first so @relay/shared/dist exists (the CLI imports it) and migrate runs from dist
-      - run: pnpm turbo build --filter=@relay/server
+      # build first so @relay-ai/shared/dist exists (the CLI imports it) and migrate runs from dist
+      - run: pnpm turbo build --filter=@relay-ai/server
       - name: apply migrations (schema + seed)
         run: node packages/server/dist/index.js migrate
       - run: pnpm turbo test

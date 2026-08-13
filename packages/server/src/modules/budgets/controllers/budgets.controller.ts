@@ -4,7 +4,7 @@
  * the caller, so one tenant can't address another's budget by guessing an id.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { BudgetPeriod, BudgetsService } from '../types/budgets.types.js';
 
 interface PeriodParams {

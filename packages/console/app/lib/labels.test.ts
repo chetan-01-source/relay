@@ -64,7 +64,11 @@ describe('name maps', () => {
   });
 
   it('skips entries missing either half instead of mapping to undefined', () => {
-    expect(appNames([{ id: APP_ID }, { name: 'no id' }] as Application[]).size).toBe(0);
+    // Double cast on purpose. `Application` now declares every field required (the API always sends
+    // them), so this input is unconstructible in the type system — which is exactly what makes the
+    // test worth keeping: a malformed payload from a proxy or an older gateway still reaches this
+    // code at runtime, and it must skip rather than map an id to undefined.
+    expect(appNames([{ id: APP_ID }, { name: 'no id' }] as unknown as Application[]).size).toBe(0);
     expect(keyNames([{ id: 'k3' }]).size).toBe(0);
     expect(providerNames([{ id: 'p1', name: 'prod-openai' }]).get('p1')).toBe('prod-openai');
   });

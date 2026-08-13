@@ -12,7 +12,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import rateLimit from '@fastify/rate-limit';
-import { RelayError, toErrorEnvelope } from '@relay/shared';
+import { RelayError, toErrorEnvelope } from '@relay-ai/shared';
 import { RELAY_VERSION } from './version.js';
 import type { Config } from './platform/config.js';
 import type { Database } from './platform/db.js';

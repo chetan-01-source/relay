@@ -1,5 +1,5 @@
 {
-  "name": "@relay/mockllm",
+  "name": "@relay-ai/mockllm",
   "version": "1.0.0",
   "private": true,
   "type": "module",
