@@ -1,17 +1,24 @@
 /**
  * Cache-key derivation (Week 3 Day 11) — PURE, so it is exhaustively unit-testable. The key must be:
  *   1. tenant-isolated  — the org id is the first segment, so org A can never read org B's entry;
- *   2. semantic         — identical meaning ⇒ identical key; only fields that change the answer count;
- *   3. format-agnostic  — `stream` is excluded so a stream and non-stream ask share one entry.
+ *   2. app-isolated     — see below;
+ *   3. semantic         — identical meaning ⇒ identical key; only fields that change the answer count;
+ *   4. format-agnostic  — `stream` is excluded so a stream and non-stream ask share one entry.
+ *
+ * The application segment is not about privacy — both apps belong to one tenant and the org segment
+ * already contains them. It is about CORRECTNESS: since routes can be scoped per application, the
+ * same model name may resolve to a different provider and model for each app. A key of (org, prompt)
+ * would let app A's completion answer app B's identical prompt, silently returning output from a
+ * model B never routes to. Partitioning per app costs hit rate and buys a cache that cannot lie.
  */
 import { createHash } from 'node:crypto';
 import type { CanonicalRequest } from '../../proxy/index.js';
 import type { ContentPart } from '../../proxy/index.js';
 
-/** `c:{org}:{sha256}` — org first so the key space is partitioned per tenant. */
-export function cacheKeyFor(orgId: string, req: CanonicalRequest): string {
+/** `c:{org}:{app}:{sha256}` — org first so the key space is partitioned per tenant, then per app. */
+export function cacheKeyFor(orgId: string, appId: string | null, req: CanonicalRequest): string {
   const hash = createHash('sha256').update(canonicalRequest(req)).digest('hex');
-  return `c:${orgId}:${hash}`;
+  return `c:${orgId}:${appId ?? '-'}:${hash}`;
 }
 
 /**

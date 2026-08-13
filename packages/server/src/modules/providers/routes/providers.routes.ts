@@ -47,6 +47,7 @@ const idParams = {
 export interface ProvidersRouteGuards {
   authJwt: AuthPreHandler;
   requireScope: (...scopes: string[]) => AuthPreHandler;
+  requireOrgAdmin: () => AuthPreHandler;
 }
 
 export function registerProvidersRoutes(
@@ -55,7 +56,10 @@ export function registerProvidersRoutes(
   guards: ProvidersRouteGuards,
 ): void {
   const read = [guards.authJwt, guards.requireScope('providers:read')];
-  const write = [guards.authJwt, guards.requireScope('providers:write')];
+  // Storing or deleting a credential swaps the key every request in the org flows through, and the
+  // secret is write-only — nobody can review what was set afterwards. That is an owner's decision,
+  // so the scope alone is not enough: the caller must also administer the org.
+  const write = [guards.authJwt, guards.requireScope('providers:write'), guards.requireOrgAdmin()];
   const tags = ['providers'];
 
   app.post(

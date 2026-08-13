@@ -5,9 +5,9 @@
 import { RelayError } from '@relay/shared';
 import { openCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
-import type { CanonicalRequest, Target } from '../../proxy/index.js';
+import type { CanonicalRequest } from '../../proxy/index.js';
 import { createRoutingRepository } from '../repositories/routing.repository.js';
-import type { ModelCapabilities, RoutingTargetRow } from '../types/routing.types.js';
+import type { RoutingPlan, ModelCapabilities, RoutingTargetRow } from '../types/routing.types.js';
 
 export interface RoutingServiceDeps {
   db: Database;
@@ -26,8 +26,12 @@ export function createRoutingService(deps: RoutingServiceDeps) {
   const scope = { isPlatformAdmin: false };
   const cache = new Map<string, CachedTargets>();
 
-  async function selectTargets(orgId: string, req: CanonicalRequest): Promise<Target[]> {
-    const rows = await loadTargets(orgId, req.model);
+  async function selectTargets(
+    orgId: string,
+    appId: string | null,
+    req: CanonicalRequest,
+  ): Promise<RoutingPlan> {
+    const rows = await loadTargets(orgId, appId, req.model);
     if (rows.length === 0) {
       throw new RelayError('model_not_found', {
         message: `No active route for model '${req.model}'.`,
@@ -41,7 +45,10 @@ export function createRoutingService(deps: RoutingServiceDeps) {
       });
     }
 
-    return orderTargets(capable).map((row) => {
+    // Every row comes from the same route, so the flag is uniform across them.
+    const cacheEnabled = capable[0]?.cache_enabled ?? false;
+
+    const targets = orderTargets(capable).map((row) => {
       const apiKey = openCredential(deps.masterKey, {
         ciphertext: row.ciphertext,
         iv: row.iv,
@@ -63,17 +70,26 @@ export function createRoutingService(deps: RoutingServiceDeps) {
         ...(outputUsdPer1k !== undefined ? { outputUsdPer1k } : {}),
       };
     });
+
+    return { targets, cacheEnabled };
   }
 
   return { selectTargets };
 
-  async function loadTargets(orgId: string, model: string): Promise<RoutingTargetRow[]> {
-    const key = `${orgId}:${model}`;
+  async function loadTargets(
+    orgId: string,
+    appId: string | null,
+    model: string,
+  ): Promise<RoutingTargetRow[]> {
+    // The app is part of the cache key, not just the query: two applications asking for the same
+    // model can now legitimately resolve to different providers, and a key of (org, model) would
+    // serve one app the other's plan for up to a minute.
+    const key = `${orgId}:${appId ?? '-'}:${model}`;
     const cached = cache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.rows;
 
     const rows = await deps.db.withTenant(orgId, scope, async (tx) =>
-      createRoutingRepository(tx).listActiveTargets(model),
+      createRoutingRepository(tx).listActiveTargets(model, appId),
     );
     if (rows.length > 0) cache.set(key, { rows, expiresAt: Date.now() + ROUTE_CACHE_MS });
     return rows;

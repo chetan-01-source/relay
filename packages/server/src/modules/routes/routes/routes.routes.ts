@@ -67,6 +67,7 @@ const routeObject = {
     object: { type: 'string' },
     id: { type: 'string' },
     model_name: { type: 'string' },
+    app_id: { type: ['string', 'null'] },
     cache_enabled: { type: 'boolean' },
     active_version_id: { type: ['string', 'null'] },
     active_version: { type: ['integer', 'null'] },
@@ -83,6 +84,7 @@ const routeDetailObject = {
     object: { type: 'string' },
     id: { type: 'string' },
     model_name: { type: 'string' },
+    app_id: { type: ['string', 'null'] },
     cache_enabled: { type: 'boolean' },
     active_version_id: { type: ['string', 'null'] },
     created_at: { type: 'string' },
@@ -154,6 +156,9 @@ export function registerRoutesRoutes(
           required: ['model_name'],
           properties: {
             model_name: { type: 'string', minLength: 1, maxLength: 200 },
+            // Omit (or null) for the org-wide route every application falls back to; supply an
+            // application id to give that one application its own route for this model name.
+            app_id: { type: ['string', 'null'], format: 'uuid' },
             strategy: { type: 'string', enum: ['priority', 'weighted'] },
             cache_enabled: { type: 'boolean' },
             targets: { type: 'array', items: targetInput },

@@ -14,6 +14,8 @@ import { mintVirtualKey } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';
 import type { AuditRepository } from '../../audit/index.js';
+import type { NotificationEnqueuer } from '../../notifications/index.js';
+import type { PlansService } from '../../plans/index.js';
 import { publishKeyInvalidation } from '../../identity/index.js';
 import type {
   Application,
@@ -37,16 +39,22 @@ export interface AppsServiceDeps {
   audit: AuditRepository;
   masterKey: string;
   bus: EventBus | null; // absent for the offline spec dump — invalidation is skipped
+  notify?: NotificationEnqueuer; // absent ⇒ no notification is produced
+  /** Plan quotas. Absent ⇒ unbounded, which is what the offline dump and the unit tests want. */
+  plans?: PlansService;
 }
 
 export function createAppsService(deps: AppsServiceDeps): AppsService {
-  const { db, repo, audit, masterKey, bus } = deps;
+  const { db, repo, audit, masterKey, bus, notify, plans } = deps;
 
   // All operations are self-service within the caller's own org (RLS-scoped, not a platform bypass).
   const scope = { isPlatformAdmin: false };
 
   function createApp(actor: string, orgId: string, input: CreateAppInput): Promise<Application> {
     return db.withTenant(orgId, scope, async (tx) => {
+      // Inside the transaction that inserts, deliberately: checked in a preHandler, two concurrent
+      // creates on a 10-app plan would both count 9 and both succeed (ADR-0014 §5).
+      await plans?.assertQuota(tx, orgId, 'apps.max');
       const app = await repo.createApp(tx, orgId, input);
       await audit.appendWithTx(tx, orgId, { actor, action: 'app.create', target: app.id });
       return toApp(app);
@@ -71,6 +79,9 @@ export function createAppsService(deps: AppsServiceDeps): AppsService {
     const minted = mintVirtualKey(masterKey, input.environment ?? 'live');
     const row = await db.withTenant(orgId, scope, async (tx) => {
       await requireApp(tx, appId);
+      // Scoped to this application: the quota is per app, and it counts only ACTIVE keys so that
+      // rotating a key does not slowly consume the allowance.
+      await plans?.assertQuota(tx, orgId, 'keys.per_app.max', { appId });
       const key = await repo.insertKey(tx, {
         orgId,
         appId,
@@ -136,6 +147,14 @@ export function createAppsService(deps: AppsServiceDeps): AppsService {
       const key = await requireKey(tx, keyId);
       revokedKeyId = key.key_id;
       await repo.revokeKey(tx, keyId);
+      // Same transaction as the revoke: a rolled-back revoke cannot leave a notification behind.
+      if (notify) {
+        await notify.enqueueWithTx(tx, orgId, {
+          event: 'key.revoked',
+          dedupeKey: null,
+          payload: { actor, target: keyId },
+        });
+      }
       await audit.appendWithTx(tx, orgId, { actor, action: 'key.revoke', target: keyId });
       return (await repo.getKey(tx, keyId))!;
     });

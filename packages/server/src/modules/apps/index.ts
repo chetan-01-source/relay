@@ -11,6 +11,8 @@ import type { Database } from '../../platform/db.js';
 import type { EventBus } from '../../platform/eventbus.js';
 import { createAuditRepository } from '../audit/index.js';
 import type { AuthPreHandler } from '../identity/index.js';
+import type { NotificationEnqueuer } from '../notifications/index.js';
+import type { PlansService } from '../plans/index.js';
 import { createAppsRepository } from './repositories/apps.repository.js';
 import { createAppsService } from './services/apps.service.js';
 import { createAppsController } from './controllers/apps.controller.js';
@@ -18,8 +20,12 @@ import { registerAppsRoutes } from './routes/apps.routes.js';
 
 export interface RegisterAppsOptions {
   db: Database;
+  /** Produces key.revoked. Absent ⇒ no notifications. */
+  notify?: NotificationEnqueuer;
   masterKey: string;
   bus?: EventBus; // absent for the offline `relay openapi` dump — invalidation is skipped
+  /** Enforces `apps.max` and `keys.per_app.max`. Absent ⇒ no quota is applied. */
+  plans?: PlansService;
   guards: {
     authJwt: AuthPreHandler;
     requireScope: (...scopes: string[]) => AuthPreHandler;
@@ -31,6 +37,8 @@ export function registerApps(app: FastifyInstance, opts: RegisterAppsOptions): v
     db: opts.db,
     repo: createAppsRepository(),
     audit: createAuditRepository(),
+    ...(opts.notify ? { notify: opts.notify } : {}),
+    ...(opts.plans ? { plans: opts.plans } : {}),
     masterKey: opts.masterKey,
     bus: opts.bus ?? null,
   });

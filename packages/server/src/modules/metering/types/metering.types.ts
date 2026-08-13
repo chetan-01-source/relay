@@ -41,4 +41,17 @@ export interface MeteringRepository {
   /** Recompute one org's hourly rollups for the window — runs inside THAT org's tenant transaction so
    * RLS + the organizations FK line up (current_org must match the rows being written). */
   rebuildRollupsForOrgSince(tx: Queryable, orgId: string, sinceHourIso: string): Promise<void>;
+  /** Every org with metered traffic — the candidate set the retention worker walks. */
+  listOrgsWithUsage(tx: Queryable): Promise<string[]>;
+  /** Delete up to `batch` of one org's events older than `days`. Returns how many went. */
+  pruneUsageEvents(tx: Queryable, orgId: string, days: number, batch: number): Promise<number>;
+}
+
+/**
+ * Supplies each org's `retention.traffic_days`. Injected by the composition root rather than
+ * imported, so the metering module keeps knowing nothing about plans — and so the worker is simply
+ * absent (nothing is ever pruned) in a deployment with no plan layer.
+ */
+export interface RetentionSource {
+  trafficDaysFor(orgId: string): Promise<number | null>;
 }

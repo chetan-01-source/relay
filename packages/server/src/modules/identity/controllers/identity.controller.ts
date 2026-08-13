@@ -25,6 +25,9 @@ export function createIdentityController(): IdentityController {
         org_id: claims.orgId,
         scopes: claims.scopes,
         is_platform_admin: claims.isPlatformAdmin,
+        // The console renders write controls off this: an org member sees budgets and providers but
+        // cannot change them, and hiding the button is only cosmetic — the gateway enforces it too.
+        is_org_admin: claims.isOrgAdmin ?? claims.isPlatformAdmin,
       });
     },
   };

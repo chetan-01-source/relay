@@ -17,6 +17,7 @@ import {
   CH_KEY_INVALIDATE,
   CH_ORG_SUSPEND,
   CH_ORG_FEATURES,
+  CH_ORG_POLICY,
   decodeInvalidation,
 } from '../lib/invalidation.js';
 import type {
@@ -51,7 +52,7 @@ export function createVirtualKeyResolver(deps: ResolverDeps): VirtualKeyResolver
     // resolve — and must not be cached, so it cannot poison a later correct lookup.
     if (!verifyVirtualKeySecret(masterKey, parsed.secret, found.row.key_sha256)) return null;
 
-    const snapshot = toSnapshot(found.row, found.entitlements, found.policy);
+    const snapshot = toSnapshot(found.row, found.entitlements, found.planCode, found.policy);
     cache.set(parsed.keyId, snapshot);
     return snapshot;
   }
@@ -85,6 +86,12 @@ export function createVirtualKeyResolver(deps: ResolverDeps): VirtualKeyResolver
       CH_ORG_FEATURES,
       onMessage(() => cache.clear()),
     );
+    // Budgets and rate limits live in the snapshot's `policy`, so a change has to drop the cached
+    // entries or the data plane keeps enforcing the previous ceiling.
+    await bus.subscribe(
+      CH_ORG_POLICY,
+      onMessage(() => cache.clear()),
+    );
   }
 
   return { resolve, invalidate, start };
@@ -93,6 +100,7 @@ export function createVirtualKeyResolver(deps: ResolverDeps): VirtualKeyResolver
 function toSnapshot(
   row: VirtualKeyRow,
   entitlements: Record<string, unknown>,
+  planCode: string | null,
   policy: VirtualKeyPolicy,
 ): VirtualKeySnapshot {
   return {
@@ -105,6 +113,7 @@ function toSnapshot(
     keyStatus: row.status,
     graceUntil: row.grace_until,
     entitlements,
+    planCode,
     policy,
   };
 }

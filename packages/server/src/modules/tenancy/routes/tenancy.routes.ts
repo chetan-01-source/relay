@@ -224,6 +224,7 @@ export function registerTenancyRoutes(
       id: { type: 'string' },
       name: { type: ['string', 'null'] },
       email: { type: ['string', 'null'] },
+      role: { type: 'string', enum: ['admin', 'member'] },
     },
   };
   const memberParams = {
@@ -261,35 +262,6 @@ export function registerTenancyRoutes(
     (request, reply) => controller.listMembers(request, reply),
   );
 
-  app.post(
-    '/api/v1/platform/orgs/:orgId/members',
-    {
-      preHandler,
-      schema: {
-        tags,
-        summary: 'Invite a member (by email) into the organization',
-        params: orgParams,
-        body: {
-          type: 'object',
-          required: ['email'],
-          properties: { email: { type: 'string', pattern: EMAIL_PATTERN } },
-        },
-        response: {
-          201: {
-            type: 'object',
-            properties: { object: { type: 'string' }, invitation_id: { type: 'string' } },
-          },
-          400: errorObject,
-          401: errorObject,
-          403: errorObject,
-          404: errorObject,
-          503: errorObject,
-        },
-      },
-    },
-    (request, reply) => controller.inviteMember(request, reply),
-  );
-
   app.delete(
     '/api/v1/platform/orgs/:orgId/members/:userId',
     {
@@ -308,5 +280,218 @@ export function registerTenancyRoutes(
       },
     },
     (request, reply) => controller.removeMember(request, reply),
+  );
+
+  app.put(
+    '/api/v1/platform/orgs/:orgId/members/:userId/role',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Set what a member may do in the organization (admin or member)',
+        params: memberParams,
+        body: {
+          type: 'object',
+          required: ['role'],
+          properties: { role: { type: 'string', enum: ['admin', 'member'] } },
+        },
+        response: {
+          200: memberObject,
+          400: errorObject,
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.setMemberRole(request, reply),
+  );
+
+  // ── Invitations ─────────────────────────────────────────────────────────────────────────────────
+  // Two audiences, two guards. Issuing, listing, resending and revoking are tenant administration and
+  // stay behind platform:admin. Reading and accepting belong to the INVITEE, who by definition is not
+  // an admin and — the first time round — belongs to no organization at all, so those two routes are
+  // guarded by authentication alone. Authorization there is the email check in the service: the
+  // signed-in account must own the invited address.
+  const invitationObject = {
+    type: 'object',
+    properties: {
+      object: { type: 'string' },
+      id: { type: 'string' },
+      org_id: { type: 'string' },
+      email: { type: 'string' },
+      role: { type: 'string', enum: ['admin', 'member'] },
+      status: { type: 'string', enum: ['pending', 'accepted', 'expired', 'revoked'] },
+      created_at: { type: 'string' },
+      expires_at: { type: 'string' },
+    },
+  };
+  const invitationParams = {
+    type: 'object',
+    required: ['orgId', 'invitationId'],
+    properties: {
+      orgId: { type: 'string', format: 'uuid' },
+      invitationId: { type: 'string', minLength: 1 },
+    },
+  };
+
+  app.post(
+    '/api/v1/platform/orgs/:orgId/invitations',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Invite an email address into the organization (sends the invitation mail)',
+        params: orgParams,
+        body: {
+          type: 'object',
+          required: ['email'],
+          properties: {
+            email: { type: 'string', pattern: EMAIL_PATTERN },
+            // Defaults to `member`. An admin may additionally change budgets and store provider
+            // credentials — see the org-admin gate on those routes.
+            role: { type: 'string', enum: ['admin', 'member'], default: 'member' },
+          },
+        },
+        response: {
+          201: invitationObject,
+          400: errorObject,
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          409: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.inviteMember(request, reply),
+  );
+
+  app.get(
+    '/api/v1/platform/orgs/:orgId/invitations',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'List the organization’s invitations (newest first)',
+        params: orgParams,
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              object: { type: 'string' },
+              data: { type: 'array', items: invitationObject },
+            },
+          },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.listInvitations(request, reply),
+  );
+
+  app.post(
+    '/api/v1/platform/orgs/:orgId/invitations/:invitationId/resend',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Send the invitation mail again (pending invitations only)',
+        params: invitationParams,
+        response: {
+          200: invitationObject,
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          409: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.resendInvitation(request, reply),
+  );
+
+  app.delete(
+    '/api/v1/platform/orgs/:orgId/invitations/:invitationId',
+    {
+      preHandler,
+      schema: {
+        tags,
+        summary: 'Revoke a pending invitation (frees the address to be invited again)',
+        params: invitationParams,
+        response: {
+          204: { type: 'null' },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          503: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.revokeInvitation(request, reply),
+  );
+
+  // Invitee-facing. Authenticated but unscoped: a brand-new account holds no org and no admin grant.
+  const invitedPreHandler = [guards.authJwt];
+  const offerObject = {
+    type: 'object',
+    properties: {
+      object: { type: 'string' },
+      id: { type: 'string' },
+      email: { type: 'string' },
+      org_name: { type: 'string' },
+      status: { type: 'string', enum: ['pending', 'accepted', 'expired', 'revoked'] },
+      expires_at: { type: 'string' },
+    },
+  };
+  const inviteeParams = {
+    type: 'object',
+    required: ['invitationId'],
+    properties: { invitationId: { type: 'string', minLength: 1 } },
+  };
+
+  app.get(
+    '/api/v1/invitations/:invitationId',
+    {
+      preHandler: invitedPreHandler,
+      schema: {
+        tags,
+        summary: 'Read the invitation addressed to the signed-in caller',
+        params: inviteeParams,
+        response: { 200: offerObject, 401: errorObject, 403: errorObject, 404: errorObject },
+      },
+    },
+    (request, reply) => controller.getInvitation(request, reply),
+  );
+
+  app.post(
+    '/api/v1/invitations/:invitationId/accept',
+    {
+      preHandler: invitedPreHandler,
+      schema: {
+        tags,
+        summary: 'Accept an invitation — joins the signed-in caller to the organization',
+        params: inviteeParams,
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              object: { type: 'string' },
+              org_id: { type: 'string' },
+              org_name: { type: 'string' },
+            },
+          },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+          409: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.acceptInvitation(request, reply),
   );
 }

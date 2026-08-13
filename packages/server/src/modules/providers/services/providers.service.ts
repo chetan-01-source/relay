@@ -7,6 +7,8 @@ import { RelayError } from '@relay/shared';
 import { sealCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';
+import type { NotificationEnqueuer } from '../../notifications/index.js';
+import type { PlansService } from '../../plans/index.js';
 import type {
   CreateCredentialInput,
   ProviderCredential,
@@ -20,10 +22,13 @@ export interface ProvidersServiceDeps {
   repo: ProvidersRepository;
   audit: AuditRepository;
   masterKey: string;
+  notify?: NotificationEnqueuer; // absent ⇒ no notification is produced
+  /** Plan quotas. Absent ⇒ unbounded (offline spec dump, unit tests). */
+  plans?: PlansService;
 }
 
 export function createProvidersService(deps: ProvidersServiceDeps): ProvidersService {
-  const { db, repo, audit, masterKey } = deps;
+  const { db, repo, audit, masterKey, notify, plans } = deps;
   const scope = { isPlatformAdmin: false }; // self-service within the caller's own org
 
   async function createCredential(
@@ -44,6 +49,8 @@ export function createProvidersService(deps: ProvidersServiceDeps): ProvidersSer
     const last4 = input.apiKey.slice(-4);
 
     const row = await db.withTenant(orgId, scope, async (tx) => {
+      // Inside the insert transaction, so concurrent creates cannot both slip past the ceiling.
+      await plans?.assertQuota(tx, orgId, 'providers.max');
       const created = await repo.insert(tx, {
         orgId,
         name: input.name,
@@ -77,6 +84,14 @@ export function createProvidersService(deps: ProvidersServiceDeps): ProvidersSer
       const removed = await repo.remove(tx, id);
       if (removed === 0) {
         throw new RelayError('not_found', { message: `Credential '${id}' not found.` });
+      }
+      // Deleting a credential breaks any route still targeting it — worth telling the org.
+      if (notify) {
+        await notify.enqueueWithTx(tx, orgId, {
+          event: 'provider.deleted',
+          dedupeKey: null,
+          payload: { actor, target: id },
+        });
       }
       await audit.appendWithTx(tx, orgId, { actor, action: 'provider.delete', target: id });
     });

@@ -19,6 +19,13 @@ interface MemberParams {
   orgId: string;
   userId: string;
 }
+interface OrgInvitationParams {
+  orgId: string;
+  invitationId: string;
+}
+interface InvitationParams {
+  invitationId: string;
+}
 
 export interface TenancyController {
   onboard(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
@@ -32,12 +39,33 @@ export interface TenancyController {
   listMembers(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   inviteMember(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   removeMember(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  setMemberRole(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  listInvitations(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  resendInvitation(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  revokeInvitation(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  /** Invitee-facing: read the invitation addressed to the signed-in caller. */
+  getInvitation(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  /** Invitee-facing: accept it, which is what creates the membership. */
+  acceptInvitation(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
 }
 
 export function createTenancyController(service: TenancyService): TenancyController {
   /** The verified caller id (authJwt guarantees claims are present before this runs). */
   function actorOf(request: FastifyRequest): string {
     return request.claims?.userId ?? 'system';
+  }
+
+  /**
+   * The Logto user id of the caller. Unlike `actorOf` this refuses to fall back to a placeholder:
+   * the invitation endpoints authorize by comparing this id's account against the invited address,
+   * and a fallback would turn "no subject in the token" into a lookup that quietly fails open-ended.
+   */
+  function userOf(request: FastifyRequest): string {
+    const userId = request.claims?.userId;
+    if (!userId) {
+      throw new RelayError('invalid_api_key', { message: 'This token identifies no user.' });
+    }
+    return userId;
   }
 
   function requireFound<T>(value: T | null, orgId: string): T {
@@ -111,15 +139,52 @@ export function createTenancyController(service: TenancyService): TenancyControl
 
     async inviteMember(request, reply) {
       const { orgId } = request.params as OrgParams;
-      const body = request.body as { email: string };
-      const result = await service.inviteMember(actorOf(request), orgId, body.email);
-      return reply.code(201).send({ object: 'organization.invitation', ...result });
+      const body = request.body as { email: string; role?: 'admin' | 'member' };
+      const invitation = await service.inviteMember(
+        actorOf(request),
+        orgId,
+        body.email,
+        body.role ?? 'member',
+      );
+      return reply.code(201).send(invitation);
     },
 
     async removeMember(request, reply) {
       const { orgId, userId } = request.params as MemberParams;
       await service.removeMember(actorOf(request), orgId, userId);
       return reply.code(204).send();
+    },
+
+    async setMemberRole(request, reply) {
+      const { orgId, userId } = request.params as MemberParams;
+      const body = request.body as { role: 'admin' | 'member' };
+      return reply.send(await service.setMemberRole(actorOf(request), orgId, userId, body.role));
+    },
+
+    async listInvitations(request, reply) {
+      const { orgId } = request.params as OrgParams;
+      return reply.send({ object: 'list', data: await service.listInvitations(orgId) });
+    },
+
+    async resendInvitation(request, reply) {
+      const { orgId, invitationId } = request.params as OrgInvitationParams;
+      return reply.send(await service.resendInvitation(actorOf(request), orgId, invitationId));
+    },
+
+    async revokeInvitation(request, reply) {
+      const { orgId, invitationId } = request.params as OrgInvitationParams;
+      await service.revokeInvitation(actorOf(request), orgId, invitationId);
+      return reply.code(204).send();
+    },
+
+    async getInvitation(request, reply) {
+      const { invitationId } = request.params as InvitationParams;
+      return reply.send(await service.getInvitationOffer(userOf(request), invitationId));
+    },
+
+    async acceptInvitation(request, reply) {
+      const { invitationId } = request.params as InvitationParams;
+      return reply.send(await service.acceptInvitation(userOf(request), invitationId));
     },
   };
 }

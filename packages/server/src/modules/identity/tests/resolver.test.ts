@@ -17,6 +17,9 @@ const master = randomBytes(32).toString('base64');
 function fakeRepo(rows: Record<string, VirtualKeyRow>) {
   const reads = { count: 0 };
   const repo: IdentityRepository = {
+    // Control-plane only — the virtual-key resolver under test never calls it.
+    resolveOrgByLogtoId: () => Promise.resolve(null),
+    getOrgMemberRole: () => Promise.resolve('member' as const),
     resolveByKeyId(keyId) {
       reads.count += 1;
       const row = rows[keyId];
@@ -25,9 +28,18 @@ function fakeRepo(rows: Record<string, VirtualKeyRow>) {
           ? {
               row,
               entitlements: { 'cache.exact': true },
+              planCode: null,
               policy: {
                 rateLimit: { rpm: 60, tpm: 1000 },
-                budget: { period: 'monthly', limitUsd: 25, hardCutoff: true },
+                budgets: [
+                  {
+                    scope: 'org' as const,
+                    appId: null,
+                    period: 'monthly' as const,
+                    limitUsd: 25,
+                    hardCutoff: true,
+                  },
+                ],
               },
             }
           : null,
@@ -90,7 +102,15 @@ describe('virtual-key resolver', () => {
     expect(first?.entitlements).toEqual({ 'cache.exact': true });
     expect(first?.policy).toEqual({
       rateLimit: { rpm: 60, tpm: 1000 },
-      budget: { period: 'monthly', limitUsd: 25, hardCutoff: true },
+      budgets: [
+        {
+          scope: 'org' as const,
+          appId: null,
+          period: 'monthly' as const,
+          limitUsd: 25,
+          hardCutoff: true,
+        },
+      ],
     });
     expect(second).toEqual(first);
     expect(reads.count).toBe(1); // second call served from cache

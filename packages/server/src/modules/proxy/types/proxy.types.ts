@@ -112,8 +112,20 @@ export interface ProxyService {
 }
 
 /** Public routing contract consumed by the proxy module. Implemented by modules/routing. */
+/** The failover plan the proxy receives, plus the route-level settings it must honour. */
+export interface ProxyRoutingPlan {
+  targets: Target[];
+  /** False ⇒ the route opts out of the response cache; completions must not be stored. */
+  cacheEnabled: boolean;
+}
+
 export interface ProxyRoutingService {
-  selectTargets(orgId: string, req: CanonicalRequest): Promise<Target[]>;
+  /** `appId` is the calling key's application — it selects that app's route when one exists. */
+  selectTargets(
+    orgId: string,
+    appId: string | null,
+    req: CanonicalRequest,
+  ): Promise<ProxyRoutingPlan>;
 }
 
 /** A cached completion (structural mirror of modules/cache CachedCompletion). */
@@ -125,7 +137,7 @@ export interface ProxyCachedCompletion {
 
 /** Public cache contract consumed by the proxy. Implemented by modules/cache (Valkey-backed). */
 export interface ProxyCacheService {
-  keyFor(orgId: string, req: CanonicalRequest): string;
+  keyFor(orgId: string, appId: string | null, req: CanonicalRequest): string;
   get(key: string): Promise<ProxyCachedCompletion | null>;
   set(key: string, value: ProxyCachedCompletion): Promise<void>;
 }
@@ -157,6 +169,8 @@ export interface ProxyRateLimitSnapshot {
 }
 
 export interface ProxyBudgetSnapshot {
+  scope: 'org' | 'app';
+  appId: string | null;
   period: 'daily' | 'monthly';
   limitUsd: number;
   hardCutoff: boolean;
@@ -164,10 +178,13 @@ export interface ProxyBudgetSnapshot {
 
 export interface ProxyIdentitySnapshot {
   orgId: string;
+  /** The application the presented key belongs to — selects that app's routes and cache partition. */
+  appId: string;
   keyId: string;
   policy: {
     rateLimit: ProxyRateLimitSnapshot | null;
-    budget: ProxyBudgetSnapshot | null;
+    /** Every ceiling binding this key (application-scoped and org-wide, per configured period). */
+    budgets: ProxyBudgetSnapshot[];
   };
 }
 

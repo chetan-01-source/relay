@@ -45,8 +45,14 @@ function fakeRepo() {
         }),
       ),
     getRoute: (_tx, id) => Promise.resolve(routes.get(id) ?? null),
-    getRouteByModel: (_tx, modelName) =>
-      Promise.resolve([...routes.values()].find((r) => r.model_name === modelName) ?? null),
+    // Scope-aware, like the SQL: a lookup for one app must not see the org-wide route, or the
+    // service's duplicate check would refuse an override that the database would happily accept.
+    getRouteByModel: (_tx, modelName, appId) =>
+      Promise.resolve(
+        [...routes.values()].find(
+          (r) => r.model_name === modelName && (r.app_id ?? null) === (appId ?? null),
+        ) ?? null,
+      ),
     listVersions: (_tx, routeId) =>
       Promise.resolve(
         [...versions.values()]
@@ -67,6 +73,7 @@ function fakeRepo() {
       const row: RouteRow = {
         id,
         model_name: input.modelName,
+        app_id: input.appId,
         cache_enabled: input.cacheEnabled,
         active_version_id: null,
         created_at: now,
@@ -185,6 +192,28 @@ describe('routes service', () => {
     expect(await codeOf(() => svc.createRoute('u', 'org-1', { model_name: 'dup' }))).toBe(
       'conflict',
     );
+  });
+
+  it('lets an application override the org-wide route for the same model name', async () => {
+    const svc = build();
+    const orgRoute = await svc.createRoute('u', 'org-1', { model_name: 'fast' });
+    const appRoute = await svc.createRoute('u', 'org-1', { model_name: 'fast', app_id: 'app-1' });
+
+    // Same alias, two scopes — this is the override, not a duplicate.
+    expect(orgRoute.app_id).toBeNull();
+    expect(appRoute.app_id).toBe('app-1');
+    expect(appRoute.id).not.toBe(orgRoute.id);
+  });
+
+  it('still rejects a second route in the SAME application scope', async () => {
+    const svc = build();
+    await svc.createRoute('u', 'org-1', { model_name: 'fast', app_id: 'app-1' });
+    expect(
+      await codeOf(() => svc.createRoute('u', 'org-1', { model_name: 'fast', app_id: 'app-1' })),
+    ).toBe('conflict');
+    // …while a different application is free to define its own.
+    const other = await svc.createRoute('u', 'org-1', { model_name: 'fast', app_id: 'app-2' });
+    expect(other.app_id).toBe('app-2');
   });
 
   it('adds a version: increments the ordinal, keeps the old active version', async () => {

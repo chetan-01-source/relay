@@ -12,6 +12,7 @@ const sealed = sealCredential(master, 'sk-real');
 function row(over: Partial<RoutingTargetRow> = {}): RoutingTargetRow {
   return {
     route_id: 'route-1',
+    cache_enabled: true,
     route_version_id: 'version-1',
     strategy: 'priority',
     target_id: 'target-1',
@@ -86,7 +87,7 @@ describe('routing service', () => {
       fallbackBaseUrl: 'http://mock',
     });
 
-    const targets = await service.selectTargets('org-1', visionReq);
+    const targets = (await service.selectTargets('org-1', null, visionReq)).targets;
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
       routeTargetId: 'vision',
@@ -104,7 +105,7 @@ describe('routing service', () => {
       fallbackBaseUrl: 'http://mock',
     });
 
-    const err = await service.selectTargets('org-1', visionReq).catch((e: unknown) => e);
+    const err = await service.selectTargets('org-1', null, visionReq).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RelayError);
     expect(err).toMatchObject({ code: 'model_capability_mismatch' });
   });
@@ -120,7 +121,7 @@ describe('routing service', () => {
       fallbackBaseUrl: 'http://mock',
     });
 
-    const targets = await service.selectTargets('org-1', textReq);
+    const targets = (await service.selectTargets('org-1', null, textReq)).targets;
     expect(targets.map((t) => t.routeTargetId)).toEqual(['high-health', 'low-health', 'secondary']);
   });
 
@@ -130,7 +131,7 @@ describe('routing service', () => {
       masterKey: master,
       fallbackBaseUrl: 'http://mock',
     });
-    const err = await service.selectTargets('org-1', textReq).catch((e: unknown) => e);
+    const err = await service.selectTargets('org-1', null, textReq).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RelayError);
     expect(err).toMatchObject({ code: 'model_not_found' });
   });
@@ -146,7 +147,7 @@ describe('routing service', () => {
         masterKey: master,
         fallbackBaseUrl: 'http://mock',
       });
-      const targets = await service.selectTargets('org-1', textReq);
+      const targets = (await service.selectTargets('org-1', null, textReq)).targets;
       expect(targets[0]!.routeTargetId).toBe('big');
       expect(targets).toHaveLength(2); // both retained so failover still works
     } finally {
@@ -158,11 +159,11 @@ describe('routing service', () => {
     const { db, reads } = countedDb([row()]);
     const service = createRoutingService({ db, masterKey: master, fallbackBaseUrl: 'http://mock' });
 
-    await service.selectTargets('org-1', {
+    await service.selectTargets('org-1', null, {
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'hi' }],
     });
-    await service.selectTargets('org-1', {
+    await service.selectTargets('org-1', null, {
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'again' }],
     });

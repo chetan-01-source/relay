@@ -9,6 +9,8 @@ import type { FastifyInstance } from 'fastify';
 import type { Database } from '../../platform/db.js';
 import { createAuditRepository } from '../audit/index.js';
 import type { AuthPreHandler } from '../identity/index.js';
+import type { NotificationEnqueuer } from '../notifications/index.js';
+import type { PlansService } from '../plans/index.js';
 import { createProvidersRepository } from './repositories/providers.repository.js';
 import { createProvidersService } from './services/providers.service.js';
 import { createProvidersController } from './controllers/providers.controller.js';
@@ -19,10 +21,15 @@ export type { HealthSample, HealthScore } from './lib/health.js';
 
 export interface RegisterProvidersOptions {
   db: Database;
+  /** Produces provider.deleted. Absent ⇒ no notifications. */
+  notify?: NotificationEnqueuer;
   masterKey: string;
+  /** Enforces `providers.max`. Absent ⇒ no quota is applied. */
+  plans?: PlansService;
   guards: {
     authJwt: AuthPreHandler;
     requireScope: (...scopes: string[]) => AuthPreHandler;
+    requireOrgAdmin: () => AuthPreHandler;
   };
 }
 
@@ -31,6 +38,8 @@ export function registerProviders(app: FastifyInstance, opts: RegisterProvidersO
     db: opts.db,
     repo: createProvidersRepository(),
     audit: createAuditRepository(),
+    ...(opts.notify ? { notify: opts.notify } : {}),
+    ...(opts.plans ? { plans: opts.plans } : {}),
     masterKey: opts.masterKey,
   });
   const controller = createProvidersController(service);

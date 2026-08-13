@@ -22,7 +22,8 @@ function snapshot(over: Partial<VirtualKeySnapshot> = {}): VirtualKeySnapshot {
     keyStatus: 'active',
     graceUntil: null,
     entitlements: {},
-    policy: { rateLimit: null, budget: null },
+    planCode: null,
+    policy: { rateLimit: null, budgets: [] },
     ...over,
   };
 }
@@ -106,6 +107,46 @@ describe('authJwt preHandler', () => {
     await auth(request, reply);
     expect(request.claims?.userId).toBe('user-1');
     expect(request.claims?.isPlatformAdmin).toBe(true);
+  });
+
+  // The token carries Logto's org id; RLS binds our uuid. Skipping this translation makes every
+  // tenant query fail the `app.current_org::uuid` cast.
+  it('translates the Logto org claim to our tenant uuid', async () => {
+    const relayUuid = '0744ded6-30b6-4990-a3df-3f2ce74d632c';
+    const auth = createAuthJwt(stubVerifier({ ...claims, orgId: 'logto-org' }), {
+      resolve: (logtoOrgId) => Promise.resolve(logtoOrgId === 'logto-org' ? relayUuid : null),
+      invalidate: () => undefined,
+    });
+    const request = req('Bearer good');
+    await auth(request, reply);
+    expect(request.claims?.orgId).toBe(relayUuid);
+  });
+
+  it('leaves orgId null when the claim names an org we do not know — not a 401', async () => {
+    // The token is genuine; the user just belongs to no Relay tenant. Platform-admin routes must
+    // still work, and org-scoped controllers reject it themselves.
+    const auth = createAuthJwt(stubVerifier({ ...claims, orgId: 'stranger' }), {
+      resolve: () => Promise.resolve(null),
+      invalidate: () => undefined,
+    });
+    const request = req('Bearer good');
+    await auth(request, reply);
+    expect(request.claims?.orgId).toBeNull();
+  });
+
+  it('leaves a null org claim alone without consulting the resolver', async () => {
+    let consulted = false;
+    const auth = createAuthJwt(stubVerifier({ ...claims, orgId: null }), {
+      resolve: () => {
+        consulted = true;
+        return Promise.resolve(null);
+      },
+      invalidate: () => undefined,
+    });
+    const request = req('Bearer good');
+    await auth(request, reply);
+    expect(request.claims?.orgId).toBeNull();
+    expect(consulted).toBe(false);
   });
 });
 

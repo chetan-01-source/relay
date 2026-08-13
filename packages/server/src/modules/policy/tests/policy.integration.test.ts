@@ -36,7 +36,7 @@ describe.skipIf(!valkeyUrl)('policy integration (real Valkey Lua)', () => {
 
   it('enforces the rpm token bucket: allows up to capacity, then 429s', async () => {
     const service = createPolicyService({ bus });
-    const identity = snapshot({ rateLimit: { rpm: 2, tpm: null }, budget: null });
+    const identity = snapshot({ rateLimit: { rpm: 2, tpm: null }, budgets: [] });
 
     await expect(service.authorize(identity, req, [target])).resolves.toBeTruthy();
     await expect(service.authorize(identity, req, [target])).resolves.toBeTruthy();
@@ -50,7 +50,9 @@ describe.skipIf(!valkeyUrl)('policy integration (real Valkey Lua)', () => {
     // limit $0.000001 is far below the reserve estimate → the very first request is rejected.
     const identity = snapshot({
       rateLimit: null,
-      budget: { period: 'daily', limitUsd: 0.000001, hardCutoff: true },
+      budgets: [
+        { scope: 'org', appId: null, period: 'daily', limitUsd: 0.000001, hardCutoff: true },
+      ],
     });
     const err = await service.authorize(identity, req, [target]).catch((e: unknown) => e);
     expect(err).toMatchObject({ code: 'budget_exceeded' });
@@ -60,22 +62,24 @@ describe.skipIf(!valkeyUrl)('policy integration (real Valkey Lua)', () => {
     const service = createPolicyService({ bus });
     const identity = snapshot({
       rateLimit: null,
-      budget: { period: 'daily', limitUsd: 0.000001, hardCutoff: false },
+      budgets: [
+        { scope: 'org', appId: null, period: 'daily', limitUsd: 0.000001, hardCutoff: false },
+      ],
     });
     const decision = await service.authorize(identity, req, [target]);
-    expect(decision.reservation).toBeTruthy(); // reserved but allowed through
+    expect(decision.reservations?.length).toBeTruthy(); // reserved but allowed through
   });
 
   it('settle refunds the difference between the reserve estimate and the actual cost', async () => {
     const service = createPolicyService({ bus });
     const identity = snapshot({
       rateLimit: null,
-      budget: { period: 'daily', limitUsd: 1000, hardCutoff: true },
+      budgets: [{ scope: 'org', appId: null, period: 'daily', limitUsd: 1000, hardCutoff: true }],
     });
     const decision = await service.authorize(identity, req, [target]);
-    const key = decision.reservation!.key;
+    const key = decision.reservations![0]!.key;
     const afterReserve = Number(await bus.client.get(key));
-    expect(afterReserve).toBe(decision.reservation!.reservedMicroUsd);
+    expect(afterReserve).toBe(decision.reservations![0]!.reservedMicroUsd);
 
     // Actual usage is zero tokens → settle should drive the counter back down toward 0.
     await service.settle(decision, target, { inputTokens: 0, outputTokens: 0 });

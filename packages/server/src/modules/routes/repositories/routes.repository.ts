@@ -35,8 +35,8 @@ export function createRoutesRepository(): RoutesRepository {
       const rows = await tx.run<RouteRow>(getRouteQuery(id));
       return rows[0] ?? null;
     },
-    async getRouteByModel(tx, modelName) {
-      const rows = await tx.run<RouteRow>(getRouteByModelQuery(modelName));
+    async getRouteByModel(tx, modelName, appId) {
+      const rows = await tx.run<RouteRow>(getRouteByModelQuery(modelName, appId));
       return rows[0] ?? null;
     },
     listVersions(tx, routeId) {
@@ -56,7 +56,7 @@ export function createRoutesRepository(): RoutesRepository {
     },
     async insertRoute(tx, orgId, input) {
       const rows = await tx.run<RouteRow>(
-        insertRouteQuery(orgId, input.modelName, input.cacheEnabled),
+        insertRouteQuery(orgId, input.modelName, input.cacheEnabled, input.appId),
       );
       return rows[0]!;
     },

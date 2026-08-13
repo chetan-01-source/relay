@@ -16,6 +16,8 @@ export interface ModelCapabilities {
 
 export interface RoutingTargetRow {
   route_id: string;
+  /** Per-route exact-cache switch (routes.cache_enabled) — surfaced so the proxy can honour it. */
+  cache_enabled: boolean;
   route_version_id: string;
   strategy: RoutingStrategy;
   target_id: string;
@@ -36,9 +38,17 @@ export interface RoutingTargetRow {
 }
 
 export interface RoutingRepository {
-  listActiveTargets(model: string): Promise<RoutingTargetRow[]>;
+  /** `appId` selects the calling application's own route when it has one; null falls back org-wide. */
+  listActiveTargets(model: string, appId: string | null): Promise<RoutingTargetRow[]>;
+}
+
+/** The failover plan plus the route-level settings the data plane needs alongside it. */
+export interface RoutingPlan {
+  targets: Target[];
+  /** False ⇒ this route opts out of the response cache; the proxy must not store its completions. */
+  cacheEnabled: boolean;
 }
 
 export interface RoutingService {
-  selectTargets(orgId: string, req: CanonicalRequest): Promise<Target[]>;
+  selectTargets(orgId: string, appId: string | null, req: CanonicalRequest): Promise<RoutingPlan>;
 }

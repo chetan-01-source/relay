@@ -10,6 +10,20 @@ const schema = z.object({
   RELAY_INTERNAL_PORT: z.coerce.number().int().positive().default(9090), // health + metrics
   RELAY_LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
+  /**
+   * Entitlement regime (ADR-0014 · docs/editions.md).
+   *
+   *   oss   — the default, and what a self-hoster runs. Every organization resolves to the built-in
+   *           `self_hosted` plan: every limit unlimited, every capability on, every quota check a
+   *           no-op. Nobody running their own copy is limited by code we wrote to sell something.
+   *   cloud — plans come from the `plans` table, quotas bite, and the billing surface in
+   *           packages/cloud is registered.
+   *
+   * The value is read ONCE, in the composition root, to choose a PlanService implementation. No
+   * other code branches on it.
+   */
+  RELAY_EDITION: z.enum(['oss', 'cloud']).default('oss'),
+
   // datastores
   RELAY_DATABASE_URL: z.string().url(), // runtime: relay_app (RLS applies)
   RELAY_MIGRATION_DATABASE_URL: z.string().url().optional(), // migrate: postgres (bypasses RLS)
@@ -39,6 +53,18 @@ const schema = z.object({
   // Hard ceiling on graceful shutdown: after this long draining in-flight requests, force exit so a
   // stuck stream can never wedge a rolling deploy (the orchestrator respawns a fresh worker).
   RELAY_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+
+  // Notifications. With no RELAY_SMTP_HOST the gateway uses a console sender that records what it
+  // WOULD have sent and delivers nothing — a dev stack must not mail real tenants while someone
+  // tests a budget breach. Setting a host is the explicit act that turns delivery on.
+  RELAY_SMTP_HOST: z.string().optional(),
+  RELAY_SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+  RELAY_SMTP_SECURE: z.coerce.boolean().default(false),
+  RELAY_SMTP_USER: z.string().optional(),
+  RELAY_SMTP_PASSWORD: z.string().optional(),
+  RELAY_SMTP_FROM: z.string().default('relay@localhost'),
+  RELAY_CONSOLE_URL: z.string().optional(),
+  RELAY_NOTIFY_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
 
   // Logto — control-plane (/api/*) JWT verification (Week 2 Day 6 · ADR two-auth-planes).
   // Issuer is `${endpoint}/oidc`; JWKS is fetched + cached from its discovery document. Audience is

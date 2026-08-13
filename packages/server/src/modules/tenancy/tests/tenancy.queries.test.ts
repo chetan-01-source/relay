@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   insertOrgQuery,
   getOrgByIdQuery,
+  getOrgByLogtoIdQuery,
   listOrgsQuery,
   updateOrgStatusQuery,
   updateOnboardingStateQuery,
@@ -25,6 +26,12 @@ describe('tenancy queries', () => {
       'o1',
       'admin_invited',
     ]);
+  });
+
+  it('getOrgByLogtoId binds the Logto id — the invitation flow’s only handle on the tenant', () => {
+    const q = getOrgByLogtoIdQuery('logto-abc');
+    expect(q.values).toEqual(['logto-abc']);
+    expect(q.text).toContain('WHERE logto_org_id = $1');
   });
 
   it('listOrgs takes no params and orders deterministically', () => {

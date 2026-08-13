@@ -63,18 +63,35 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
       const manifest = manifestImages(parsed);
       if (!manifest.ok) throw new RelayError('invalid_request', { message: manifest.reason });
 
-      const cacheKey = deps.cache.keyFor(identity.orgId, parsed);
+      // Plan gates, read straight off the snapshot — already resolved (plan ⊕ org_features), so this
+      // costs nothing on the hot path. `!== false` rather than `=== true`: a flag nobody has an
+      // opinion about is ON, so an older deployment with no plan layer keeps behaving as it did.
+      if (
+        modalitiesOf(parsed).includes('image') &&
+        identity.entitlements['modalities.image'] === false
+      ) {
+        throw new RelayError('plan_upgrade_required', {
+          param: 'modalities.image',
+          message: 'Image inputs are not included in this organization’s plan.',
+        });
+      }
+      const failoverAllowed = identity.entitlements['routing.failover'] !== false;
+
+      // The org's entitlement gates the cache entirely — it is already in the snapshot, so checking
+      // it here costs nothing and keeps a tenant without the feature out of the cache on both sides.
+      const cacheAllowed = identity.entitlements['cache.exact'] === true;
+      const cacheKey = deps.cache.keyFor(identity.orgId, identity.appId, parsed);
       const labels = { org: identity.orgId, route: parsed.model };
       let decision: ProxyPolicyDecision | undefined;
 
       try {
         // ── cache hit ── serve without touching a provider; rate limits still apply (empty targets
         // ⇒ no budget reservation), so a cache hit can't be used to bypass rpm/tpm.
-        const cached = await deps.cache.get(cacheKey);
+        const cached = cacheAllowed ? await deps.cache.get(cacheKey) : null;
         if (cached) {
           const hitDecision = await deps.policy.authorize(identity, parsed, []);
           cacheHits.inc({ result: 'hit-exact' });
-          await sendCached(reply, cached, parsed, hitDecision, traceId);
+          await sendCached(reply, cached, parsed, hitDecision, traceId, identity.planCode);
           observeOverhead(start, { upstreamMs: 0 });
           deps.metering.recordUsage(
             usageEvent(identity, parsed, traceId, null, cached.usage, 'ok', latencyMs(start)),
@@ -85,13 +102,19 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
         cacheHits.inc({ result: 'miss' });
 
         // ── cache miss ── resolve a real route, enforce policy, call upstream.
-        const targets = await deps.routing.selectTargets(identity.orgId, parsed);
+        const plan = await deps.routing.selectTargets(identity.orgId, identity.appId, parsed);
+        // Without the failover entitlement the route resolves to its FIRST target only, so a dead
+        // provider surfaces as an upstream error instead of silently being covered for. Trimming
+        // here rather than in routing keeps the routing service unaware of entitlements and puts the
+        // gate where the resolved flag already is.
+        const targets = failoverAllowed ? plan.targets : plan.targets.slice(0, 1);
         decision = await deps.policy.authorize(identity, parsed, targets);
 
         reply.header('x-relay-trace-id', traceId);
         reply.header('x-relay-provider', targets[0]?.provider ?? 'unknown');
         reply.header('x-relay-cache', 'miss');
         reply.header('x-relay-modalities', modalitiesOf(parsed));
+        if (identity.planCode) reply.header('x-relay-plan', identity.planCode);
         for (const [name, value] of Object.entries(decision.headers)) reply.header(name, value);
 
         const timing: RequestTiming = { upstreamMs: 0 };
@@ -106,6 +129,7 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
             traceId,
             start,
             timing,
+            identity.planCode,
           );
         } else {
           const json = await deps.service.complete(parsed, targets, timing);
@@ -120,7 +144,10 @@ export function createProxyController(deps: ProxyControllerDeps): ProxyControlle
         }
 
         await deps.policy.settle(decision, timing.selectedTarget, timing.usage);
-        if (toCache) await deps.cache.set(cacheKey, toCache);
+        // Storing is gated on BOTH the route's own switch and the org's entitlement. Gating the
+        // WRITE (not the read) is what makes the per-route toggle work without paying for a route
+        // lookup before every cache probe: a route that never stores can never be served from cache.
+        if (toCache && plan.cacheEnabled && cacheAllowed) await deps.cache.set(cacheKey, toCache);
         deps.metering.recordUsage(
           usageEvent(
             identity,
@@ -161,6 +188,7 @@ async function sendCached(
   req: CanonicalRequest,
   decision: ProxyPolicyDecision,
   traceId: string,
+  planCode: string | null,
 ): Promise<void> {
   if (!req.stream) {
     reply.header('x-relay-trace-id', traceId);
@@ -169,6 +197,7 @@ async function sendCached(
     reply.header('x-relay-failover', 'false');
     reply.header('x-relay-cost-usd', formatCostUsd(0)); // a cache hit skips the upstream → no cost
     reply.header('x-relay-modalities', modalitiesOf(req));
+    if (planCode) reply.header('x-relay-plan', planCode);
     for (const [name, value] of Object.entries(decision.headers)) reply.header(name, value);
     await reply.send(cached.body);
     return;
@@ -183,6 +212,7 @@ async function sendCached(
     'x-relay-failover': 'false',
     'x-relay-cost-usd': formatCostUsd(0),
     'x-relay-modalities': modalitiesOf(req),
+    ...(planCode ? { 'x-relay-plan': planCode } : {}),
     ...decision.headers,
   });
   const id = `chatcmpl-${traceId}`;
@@ -210,6 +240,7 @@ async function streamOut(
   traceId: string,
   start: bigint,
   timing: RequestTiming,
+  planCode: string | null,
 ): Promise<ProxyCachedCompletion> {
   const iterator = service.stream(req, targets, timing)[Symbol.asyncIterator]();
   let step = await iterator.next(); // upstream errors surface here, pre-header
@@ -229,6 +260,7 @@ async function streamOut(
     'x-relay-failover': timing.failover ? 'true' : 'false',
     'x-relay-cost-usd': formatCostUsd(costForTiming(timing)),
     'x-relay-modalities': modalitiesOf(req),
+    ...(planCode ? { 'x-relay-plan': planCode } : {}),
     ...decision.headers,
   });
 
