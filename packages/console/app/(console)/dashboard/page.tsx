@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Activity, CheckCircle2, Circle, Coins, DollarSign, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { requireOrg } from '../../lib/auth';
@@ -121,8 +122,15 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Spend by model</CardTitle>
-            <CardDescription>From the hourly usage rollups.</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5">
+                <CardTitle>Spend by model</CardTitle>
+                <CardDescription>From the hourly usage rollups.</CardDescription>
+              </div>
+              <Link href="/analytics" className="text-sm text-primary hover:underline">
+                Full report
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             {usage && usage.data && usage.data.length > 0 ? (

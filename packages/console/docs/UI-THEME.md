@@ -65,6 +65,11 @@ shadcn/ui primitives over Radix: `button`, `card`, `input`, `label`, `table`, `d
 - **`Button`** — `default` (blue) for primary actions, `outline` for secondary, `destructive` for
   revoke/delete, `ghost` for toolbar. Always has `cursor-pointer` + focus ring.
 - **`Badge`** — `success` (active), `secondary` (revoked/inactive), `outline` (neutral tags).
+- **`SegmentedNav`** (`segmented-nav.tsx`) — a row of mutually-exclusive filter **links** styled as a
+  segmented control (analytics grouping, traffic status). Links, not buttons: the selection is URL
+  state, so each segment is shareable and needs no client JS. Carries `aria-current="page"` on the
+  active segment, because the fill colour alone would be the only indicator (§4).
+- **`Textarea`** (`textarea.tsx`) — multi-line input matching `Input`'s border/ring tokens.
 - **`ThemeToggle` / `ThemeProvider`** — the dark-mode switch + provider (see Dark mode above).
 - **Icons:** `lucide-react` only, sized `size-4`/`h-4 w-4`. One family across the app.
 - **Stat tiles** (dashboard): `Card` with an accent icon chip (`bg-primary/10 text-primary`) + a
@@ -72,9 +77,62 @@ shadcn/ui primitives over Radix: `button`, `card`, `input`, `label`, `table`, `d
 
 ### App shell
 
-`app/(console)/layout.tsx` — left nav (Dashboard / Applications / Providers / Audit, + Organizations
-for admins) + top bar (org id, sign out). Every authenticated screen renders inside it and gates
-server-side (`app/lib/auth.ts`).
+`app/(console)/layout.tsx` — left nav + top bar (org id, theme toggle, sign out). Every authenticated
+screen renders inside it and gates server-side (`app/lib/auth.ts`).
+
+The nav is **grouped, not flat** — a flat list stopped being scannable past six items. The groups are
+the order an operator works in:
+
+| Group                        | Items                                                   |
+| ---------------------------- | ------------------------------------------------------- |
+| _(ungrouped)_                | Dashboard                                               |
+| **Build**                    | Applications · Providers · Routes · Models · Playground |
+| **Operate**                  | Usage & spend · Live traffic · Audit                    |
+| **Platform** _(admins only)_ | Organizations · Platform usage · System status          |
+
+`NavLink` sets `aria-current="page"` on the active item and carries a focus ring.
+
+### Brand
+
+- **`RelayMark` / `RelayLogo`** (`components/brand/relay-logo.tsx`) — the glyph is one inbound node
+  fanning through a junction into three routed outbounds: literally what the gateway does to a
+  request. Strokes on `currentColor`, so it inherits text colour and needs no per-theme asset. Drawn
+  on a 24-unit grid and checked at 16px first, because favicon legibility is what kills most marks.
+- **`app/icon.svg`** — the favicon (Next file convention): the same glyph on a primary tile.
+- The lockup puts the mark in a primary tile so **the accent appears exactly once** in the nav.
+
+## 2a. Landing page (`app/page.tsx`)
+
+The one **marketing** surface, and the only place the rules below differ from the admin console.
+
+- **Pattern:** "Enterprise Gateway" (same engine as the console), adapted from two supplied
+  references. Kept: sticky blurred nav, announcement pill → gradient headline → subcopy → one
+  primary CTA → product proof, and a particle band under the hero. Dropped: `bg-black` (we have a
+  real light mode), Google-Fonts `@import` (render-blocking on our LCP-critical page), hardcoded
+  greys, and `hover:scale-105` (§4 forbids scale hovers).
+- **No fabricated social proof.** The engine's pattern asks for a logo carousel and testimonials.
+  With no customers those would be invented, and a developer audience reads invented logos as a
+  reason to leave. Proof is technical and checkable instead: real endpoints, real `x-relay-*`
+  headers, the real compose file.
+- **`SparklesCore`** (`components/ui/sparkles.tsx`) — the tsparticles field, on
+  `@tsparticles/react@3` + `@tsparticles/slim@3` + `framer-motion`. Two adaptations are load-bearing:
+  - **Colour must be a concrete value.** tsparticles parses colours itself and does not understand
+    CSS variables — passing `hsl(var(--primary))` paints a canvas with **zero pixels and no error**.
+    `accentHex()` reads `--primary` (stored as bare HSL components) and converts it to hex. The
+    `<Particles>` element is keyed on that colour so a theme flip re-initialises the field, since
+    the engine bakes the option in at init.
+  - **`prefers-reduced-motion` is honoured** (§1): particles still paint, but `move` and the opacity
+    twinkle are disabled. A static field under `reduce` is correct, not a bug.
+- **Where it is used** (`components/landing/sparkles-band.tsx`): `SparklesBand` under the hero, and
+  `SparklesWordmark` — the display-size "Relay" closing the page. Both are `next/dynamic`
+  `ssr: false` with a sized placeholder, so ~90KB of engine stays off the critical path and its late
+  arrival causes no layout shift. The wordmark is real `<h2>` text over an `aria-hidden` canvas.
+- **Client JS is three components only:** the mobile menu, the theme toggle, and the particle field.
+  The FAQ is `<details>` — keyboard-operable and working before hydration.
+- **Verify motion empirically.** Screenshot a canvas across frames and compare hashes; identical
+  hashes in _both_ motion modes means it is painting nothing, not that it is paused.
+- **Headline gradient** uses `from-foreground … to-foreground/55`, never white-to-transparent, so it
+  reads in both modes.
 
 ## 3. Patterns
 
@@ -86,6 +144,11 @@ text-muted-foreground` subtitle.
   `text-destructive` error. Mutations are server actions.
 - **Destructive actions** (revoke/delete) always confirm in a `Dialog` first.
 - **One-time secrets** (keys) reveal once with a copy button + warning; never re-render the value.
+- **Filters and view state live in the URL**, not React state — a `SegmentedNav` for enumerated
+  choices, a plain `method="get"` form for date windows. That keeps the screen a server component
+  (no client bundle, no loading flash), makes every view linkable, and keeps Back working.
+- **Pagination** is keyset (`?before=<cursor>`), rendered as Newest / Older controls at the foot of
+  the card — never an offset page-number strip, which the API does not support.
 
 ## 4. Do / Don't (from the ui-ux-pro-max checklist)
 

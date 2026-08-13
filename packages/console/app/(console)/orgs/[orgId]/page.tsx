@@ -7,15 +7,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { requireAdmin } from '../../../lib/auth';
-import { getOrg, getEntitlements, listMembers } from '../../../lib/api';
+import { getOrg, getEntitlements, listMembers, listInvitations } from '../../../lib/api';
 import { FEATURE_KEYS } from '../../../lib/features';
+import { ONBOARDING_STEPS, nextOnboardingState } from '../../../lib/onboarding';
 import {
   updateEntitlementsAction,
   suspendOrgAction,
   unsuspendOrgAction,
   advanceOnboardingAction,
 } from '../actions';
-import { inviteMemberAction, removeMemberAction } from '../members-actions';
+import {
+  InviteMemberForm,
+  MemberRoleForm,
+  RemoveMemberForm,
+  ResendInvitationForm,
+  RevokeInvitationForm,
+} from '../../../../components/member-forms';
+import { LocalTime } from '../../../../components/local-time';
 import { FeatureCard } from '../../../../components/ui/feature-card';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui/card';
 import {
@@ -27,14 +35,9 @@ import {
   TableCell,
 } from '../../../../components/ui/table';
 import { Button } from '../../../../components/ui/button';
-import { Input } from '../../../../components/ui/input';
-import { Label } from '../../../../components/ui/label';
 import { Badge } from '../../../../components/ui/badge';
 
 export const dynamic = 'force-dynamic';
-
-// The onboarding state machine, in order — used to render progress and the next-step label.
-const ONBOARDING_STEPS = ['created', 'admin_invited', 'provider_added', 'first_request'] as const;
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ orgId: string }> }) {
   await requireAdmin();
@@ -45,13 +48,17 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgI
 
   const entitlements = await getEntitlements(orgId).catch(() => null);
   const flags = entitlements?.features ?? {};
-  // Members come from Logto → null when Logto M2M isn't configured (503) or the call fails.
+  // Members and invitations both come from Logto → null when Logto M2M isn't configured (503) or the
+  // call fails. Only invitations still awaiting a decision are worth a row; the rest are history.
   const members = await listMembers(orgId)
     .then((r) => r.data ?? [])
     .catch(() => null);
+  const pending = await listInvitations(orgId)
+    .then((r) => (r.data ?? []).filter((i) => i.status === 'pending'))
+    .catch(() => []);
   const state = org.onboarding_state ?? 'created';
-  const stepIndex = ONBOARDING_STEPS.indexOf(state);
-  const isComplete = stepIndex >= ONBOARDING_STEPS.length - 1;
+  const stepIndex = (ONBOARDING_STEPS as readonly string[]).indexOf(state);
+  const nextState = nextOnboardingState(state);
   const suspended = org.status === 'suspended';
 
   return (
@@ -94,13 +101,14 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgI
                 </li>
               ))}
             </ol>
-            {isComplete ? (
+            {nextState === null ? (
               <p className="text-sm text-muted-foreground">Onboarding complete.</p>
             ) : (
               <form action={advanceOnboardingAction}>
                 <input type="hidden" name="orgId" value={org.id} />
+                <input type="hidden" name="state" value={nextState} />
                 <Button type="submit" size="sm">
-                  Advance onboarding
+                  Advance to {nextState}
                 </Button>
               </form>
             )}
@@ -155,6 +163,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgI
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -163,30 +172,65 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgI
                       <TableRow key={m.id}>
                         <TableCell className="font-medium">{m.name ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{m.email ?? '—'}</TableCell>
+                        <TableCell>
+                          {m.id ? (
+                            <MemberRoleForm
+                              orgId={orgId}
+                              userId={m.id}
+                              role={m.role === 'admin' ? 'admin' : 'member'}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <form action={removeMemberAction}>
-                            <input type="hidden" name="orgId" value={org.id} />
-                            <input type="hidden" name="userId" value={m.id} />
-                            <Button type="submit" variant="ghost" size="sm">
-                              Remove
-                            </Button>
-                          </form>
+                          {m.id ? (
+                            <RemoveMemberForm orgId={orgId} userId={m.id} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               )}
-              <form action={inviteMemberAction} className="flex flex-wrap items-end gap-3">
-                <input type="hidden" name="orgId" value={org.id} />
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Invite by email</Label>
-                  <Input id="email" name="email" type="email" required placeholder="dev@acme.com" />
+              {pending.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">Pending invitations</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pending.map((invitation) => (
+                        <TableRow key={invitation.id}>
+                          <TableCell className="font-medium">{invitation.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={invitation.role === 'admin' ? 'outline' : 'secondary'}>
+                              {invitation.role ?? 'member'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <LocalTime iso={invitation.expires_at} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <ResendInvitationForm orgId={orgId} invitationId={invitation.id!} />
+                            <RevokeInvitationForm orgId={orgId} invitationId={invitation.id!} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-                <Button type="submit" variant="outline" size="sm">
-                  Send invite
-                </Button>
-              </form>
+              ) : null}
+
+              <InviteMemberForm orgId={orgId} />
             </>
           )}
         </CardContent>

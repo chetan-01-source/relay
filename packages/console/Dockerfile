@@ -26,6 +26,10 @@ RUN addgroup -S relay && adduser -S relay -G relay
 # Standalone bundle (server + traced node_modules) + the static assets it serves.
 COPY --from=build /repo/packages/console/.next/standalone ./
 COPY --from=build /repo/packages/console/.next/static ./packages/console/.next/static
+# `public/` is NOT part of the standalone trace — Next expects it copied alongside, and without this
+# every file it holds 404s in the container while working perfectly in `next dev`. That is currently
+# the docs screenshots; it would silently swallow anything added there later.
+COPY --from=build /repo/packages/console/public ./packages/console/public
 USER relay
 # The console listens on 3100 (matches the dev + E2E config); Next reads PORT/HOSTNAME.
 ENV PORT=3100 HOSTNAME=0.0.0.0

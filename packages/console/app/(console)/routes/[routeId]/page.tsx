@@ -8,6 +8,8 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, AlertTriangle } from 'lucide-react';
 import { requireOrg } from '../../../lib/auth';
 import { getRoute, listProviders } from '../../../lib/api';
+import { providerNames, labelOf } from '../../../lib/labels';
+import { LabelledId } from '../../../../components/ui/labelled-id';
 import {
   addVersionAction,
   activateVersionAction,
@@ -45,6 +47,7 @@ export default async function RouteDetailPage({
     .filter((p): p is typeof p & { id: string } => Boolean(p.id))
     .map((p) => ({ id: p.id, provider: p.provider ?? 'openai_compat', label: p.name ?? p.id }));
 
+  const credentialNames = providerNames(providers.data ?? []);
   const versions = route.versions ?? [];
 
   return (
@@ -62,6 +65,9 @@ export default async function RouteDetailPage({
             cache {route.cache_enabled ? 'on' : 'off'}
           </Badge>
         </div>
+        {/* The id is what appears in traces, usage buckets and audit rows — keep it copyable here so
+            this page can be reached from, and matched back to, any of them. */}
+        <p className="mt-1 font-mono text-xs text-muted-foreground">{route.id}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -109,6 +115,7 @@ export default async function RouteDetailPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Provider</TableHead>
+                      <TableHead>Credential</TableHead>
                       <TableHead>Model</TableHead>
                       <TableHead className="text-right">Priority</TableHead>
                       <TableHead className="text-right">Weight</TableHead>
@@ -118,6 +125,14 @@ export default async function RouteDetailPage({
                     {(v.targets ?? []).map((t) => (
                       <TableRow key={t.id}>
                         <TableCell>{t.provider}</TableCell>
+                        {/* Which credential, not just which vendor — two OpenAI keys are otherwise
+                            indistinguishable here, and they can have different quotas and health. */}
+                        <TableCell>
+                          <LabelledId
+                            value={labelOf(credentialNames, t.credential_id)}
+                            {...(t.credential_id ? { href: `/providers/${t.credential_id}` } : {})}
+                          />
+                        </TableCell>
                         <TableCell className="flex items-center gap-2 font-medium">
                           {t.model}
                           {!t.known_model ? (

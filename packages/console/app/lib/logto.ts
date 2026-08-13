@@ -5,13 +5,30 @@ import type { LogtoNextConfig } from '@logto/next';
 // fails with "token could not be resolved" — even when the user holds the scopes via a role. Logto
 // only grants the subset the user actually has, so requesting the full set is safe for any user.
 const RELAY_API_RESOURCE = process.env.RELAY_API_RESOURCE ?? 'https://relay.gateway/api';
+
+/**
+ * Logto's reserved organizations scope (`UserScope.Organizations`). REQUIRED, and easy to miss:
+ * without it Logto neither puts an `organizations` claim on the ID token nor allows the
+ * organization-scoped token grant — so `getAccessToken(…, organizationId)` cannot mint a token
+ * carrying `organization_id`, the gateway sees `org_id: null`, and every requireOrg page redirects
+ * home. Spelled out as a literal to match the other scope strings here.
+ */
+const ORGANIZATIONS_SCOPE = 'urn:logto:scope:organizations';
+
 const RELAY_SCOPES = [
+  ORGANIZATIONS_SCOPE,
   'relay:read',
   'relay:write',
   'apps:read',
   'apps:write',
   'providers:read',
   'providers:write',
+  'routes:read',
+  'routes:write',
+  'budgets:read',
+  'budgets:write',
+  'notifications:read',
+  'notifications:write',
   'analytics:read',
   'audit:read',
   'platform:admin',

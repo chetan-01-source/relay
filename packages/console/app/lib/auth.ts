@@ -33,6 +33,18 @@ export function hasScope(me: Me, scope: string): boolean {
   return scopes.includes('all') || scopes.includes(scope);
 }
 
+/**
+ * True when the caller administers their organization — the gate for changing budgets and storing
+ * provider credentials. Platform admins count: they already bypass every scope check at the gateway,
+ * so showing them a disabled button would misrepresent what they can actually do.
+ *
+ * This drives RENDERING only. The gateway re-checks on every write (403 `insufficient_scope`), so a
+ * member who forges a request gets nothing — hiding the control is courtesy, not the boundary.
+ */
+export function isOrgAdmin(me: Me): boolean {
+  return me.is_org_admin === true || me.is_platform_admin === true;
+}
+
 /** Require an org-scoped caller (the build/operate screens act on the caller's own org). */
 export async function requireOrg(): Promise<Me & { org_id: string }> {
   const me = await requireUser();

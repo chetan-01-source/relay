@@ -6,10 +6,11 @@
  */
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
-import { Activity, Building2, DollarSign } from 'lucide-react';
+import { Activity, Building2, DollarSign, Download } from 'lucide-react';
 import { requireAdmin } from '../../lib/auth';
 import { getPlatformUsage, listOrgs } from '../../lib/api';
 import { labelOrgUsage, formatUsd } from '../../lib/usage';
+import { defaultWindow, parseDate, exportHref, apiWindow } from '../../lib/analytics';
 import {
   Card,
   CardHeader,
@@ -25,14 +26,27 @@ import {
   TableBody,
   TableCell,
 } from '../../../components/ui/table';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PlatformDashboardPage() {
-  await requireAdmin();
+interface PlatformPageProps {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}
 
+export default async function PlatformDashboardPage({ searchParams }: PlatformPageProps) {
+  await requireAdmin();
+  const params = await searchParams;
+
+  const fallback = defaultWindow(new Date());
+  const from = parseDate(params.from, fallback.from);
+  const to = parseDate(params.to, fallback.to);
+
+  // Inclusive for display, exclusive for the endpoint — same conversion as the org report.
   const [usage, orgList] = await Promise.all([
-    getPlatformUsage().catch(() => null),
+    getPlatformUsage(apiWindow({ from, to })).catch(() => null),
     listOrgs().catch(() => ({ data: [] })),
   ]);
 
@@ -60,6 +74,29 @@ export default async function PlatformDashboardPage() {
         </p>
       </div>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-end justify-between gap-4 pt-6">
+          <form method="get" action="/platform" className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="from">From (UTC)</Label>
+              <Input id="from" name="from" type="date" defaultValue={from} className="w-40" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="to">To (UTC)</Label>
+              <Input id="to" name="to" type="date" defaultValue={to} className="w-40" />
+            </div>
+            <Button type="submit" variant="outline">
+              Apply
+            </Button>
+          </form>
+          <Button asChild variant="outline">
+            <a href={exportHref('platform', { from, to })} download>
+              <Download aria-hidden="true" /> Export CSV
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-3">
         {tiles.map((t) => (
           <Card key={t.label} className="transition-colors hover:border-primary/40">
@@ -79,7 +116,9 @@ export default async function PlatformDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Spend by organization</CardTitle>
-          <CardDescription>Highest spend first.</CardDescription>
+          <CardDescription>
+            Highest spend first · {from} → {to} (UTC).
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {rows.length > 0 ? (

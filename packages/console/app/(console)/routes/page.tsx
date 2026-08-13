@@ -5,9 +5,13 @@
  */
 import Link from 'next/link';
 import { requireOrg } from '../../lib/auth';
-import { listRoutes, listProviders } from '../../lib/api';
+import { listRoutes, listProviders, listApps } from '../../lib/api';
 import { createRouteAction } from './actions';
-import { AddVersionForm, type CredentialOption } from '../../../components/add-version-form';
+import {
+  AddVersionForm,
+  type AppOption,
+  type CredentialOption,
+} from '../../../components/add-version-form';
 import { FeatureCard } from '../../../components/ui/feature-card';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
 import {
@@ -26,11 +30,16 @@ export const dynamic = 'force-dynamic';
 export default async function RoutesPage() {
   await requireOrg();
 
-  const [routes, providers] = await Promise.all([
+  const [routes, providers, appsList] = await Promise.all([
     listRoutes().catch(() => ({ data: [] })),
     listProviders().catch(() => ({ data: [] })),
+    listApps().catch(() => ({ data: [] })),
   ]);
   const list = routes.data ?? [];
+  const apps: AppOption[] = (appsList.data ?? [])
+    .filter((a): a is typeof a & { id: string } => Boolean(a.id))
+    .map((a) => ({ id: a.id, name: a.name ?? a.id }));
+  const appName = new Map(apps.map((a) => [a.id, a.name]));
   const credentials: CredentialOption[] = (providers.data ?? [])
     .filter((p): p is typeof p & { id: string } => Boolean(p.id))
     .map((p) => ({ id: p.id, provider: p.provider ?? 'openai_compat', label: p.name ?? p.id }));
@@ -41,7 +50,8 @@ export default async function RoutesPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Routes</h1>
         <p className="text-sm text-muted-foreground">
           Map a client-facing model to an ordered set of upstream targets. Rollback = activate an
-          older version.
+          older version. A route applies to the whole organization unless it names an application,
+          in which case it overrides the organization&rsquo;s route for that application only.
         </p>
       </div>
 
@@ -59,7 +69,12 @@ export default async function RoutesPage() {
               first — a route needs at least one upstream target.
             </p>
           ) : (
-            <AddVersionForm action={createRouteAction} credentials={credentials} showRouteFields />
+            <AddVersionForm
+              action={createRouteAction}
+              credentials={credentials}
+              apps={apps}
+              showRouteFields
+            />
           )}
         </CardContent>
       </FeatureCard>
@@ -76,6 +91,7 @@ export default async function RoutesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Model</TableHead>
+                  <TableHead>Applies to</TableHead>
                   <TableHead>Active version</TableHead>
                   <TableHead>Targets</TableHead>
                   <TableHead>Cache</TableHead>
@@ -89,6 +105,13 @@ export default async function RoutesPage() {
                       <Link href={`/routes/${r.id}`} className="hover:underline">
                         {r.model_name}
                       </Link>
+                    </TableCell>
+                    <TableCell>
+                      {r.app_id ? (
+                        <Badge variant="outline">{appName.get(r.app_id) ?? r.app_id}</Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Organization</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {r.active_version ? `v${r.active_version} (${r.active_strategy})` : '—'}

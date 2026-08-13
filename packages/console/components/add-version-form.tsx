@@ -28,15 +28,23 @@ interface Row {
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
 
+/** An application a route may be scoped to, for the create-route form's scope picker. */
+export interface AppOption {
+  id: string;
+  name: string;
+}
+
 export function AddVersionForm({
   action,
   routeId,
   credentials,
+  apps = [],
   showRouteFields = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   routeId?: string; // omitted on the "create route" form (no route id yet)
   credentials: CredentialOption[];
+  apps?: AppOption[]; // create-route form: which applications the route may be scoped to
   showRouteFields?: boolean; // create-route form: also collect model alias + cache toggle
 }) {
   const [rows, setRows] = useState<Row[]>([
@@ -75,16 +83,34 @@ export function AddVersionForm({
       <input type="hidden" name="targets" value={JSON.stringify(targets)} />
 
       {showRouteFields ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="model_name">Model alias</Label>
-            <Input id="model_name" name="model_name" required placeholder="fast" />
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="model_name">Model alias</Label>
+              <Input id="model_name" name="model_name" required placeholder="fast" />
+            </div>
+            <label className="flex items-end gap-2 pb-2 text-sm text-muted-foreground">
+              <input type="checkbox" name="cache_enabled" className="size-4 accent-primary" />
+              Enable exact-cache
+            </label>
           </div>
-          <label className="flex items-end gap-2 pb-2 text-sm text-muted-foreground">
-            <input type="checkbox" name="cache_enabled" className="size-4 accent-primary" />
-            Enable exact-cache
-          </label>
-        </div>
+          {/* Scope. The default is org-wide, which every application falls back to; picking an
+              application creates an override that only that application's keys resolve. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="app_id">Applies to</Label>
+            <select id="app_id" name="app_id" defaultValue="" className={selectClass}>
+              <option value="">Whole organization (default for every application)</option>
+              {apps.map((a) => (
+                <option key={a.id} value={a.id}>
+                  Only {a.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              An application-scoped route overrides the organization one for the same model alias.
+            </p>
+          </div>
+        </>
       ) : null}
 
       <div className="space-y-3">
