@@ -151,21 +151,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat > NOTES.md <<'EOF'
+          # docker/metadata-action's {{version}} strips the leading `v`, so the pushed tag is
+          # `1.0.0` while the git ref is `v1.0.0`. The notes must advertise the IMAGE tag, or the
+          # pull command on the release page 404s. Same strip as scripts/selfhost-bundle.sh.
+          IMAGE_TAG="${GITHUB_REF_NAME#v}"
+          cat > NOTES.md <<EOF
           Signed, multi-arch (amd64+arm64) Phase-1 release. Images on GHCR:
 
-          - `${{ env.IMAGE_SERVER }}:${{ github.ref_name }}`
-          - `${{ env.IMAGE_CONSOLE }}:${{ github.ref_name }}`
+          - \`${{ env.IMAGE_SERVER }}:${IMAGE_TAG}\`
+          - \`${{ env.IMAGE_CONSOLE }}:${IMAGE_TAG}\`
 
           ## Verify the signature (keyless / Sigstore)
-          ```
-          cosign verify ${{ steps.refs.outputs.server }} \
-            --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.github/workflows/release.yml@.*' \
+          \`\`\`
+          cosign verify ${{ steps.refs.outputs.server }} \\
+            --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.github/workflows/release.yml@.*' \\
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
-          ```
+          \`\`\`
 
           ## Self-host
-          Download `relay-selfhost.tar.gz`, then `docker compose up -d` (see the bundle README).
+          Download \`relay-selfhost.tar.gz\`, then \`docker compose up -d\` (see the bundle README).
           SBOMs (SPDX + CycloneDX) for both images are attached.
           EOF
           gh release create "${{ github.ref_name }}" \
