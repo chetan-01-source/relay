@@ -5,7 +5,7 @@
  * JWT, 403 without the required scope) end-to-end. Tenancy CRUD lands with the Day 7 module.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 
 export interface IdentityController {
   me(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;

@@ -84,8 +84,8 @@ export default function ApiDocsPage() {
             ]}
           />
           <p>
-            The console&apos;s typed client and <code>@relay-ai/sdk</code> are both generated from
-            that same document, which is what keeps all three in step.
+            The console&apos;s typed client and <code>relay-gateway-sdk</code> are both generated
+            from that same document, which is what keeps all three in step.
           </p>
         </DocSection>
 

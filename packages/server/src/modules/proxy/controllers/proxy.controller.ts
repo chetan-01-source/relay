@@ -10,7 +10,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError, isRelayError } from '@relay-ai/shared';
+import { RelayError, isRelayError } from 'relay-shared';
 import { getContext } from '../../../platform/als.js';
 import { cacheHits, gatewayOverhead, requestsTotal } from '../../../platform/metrics.js';
 import { manifestImages } from '../lib/image-manifest.js';

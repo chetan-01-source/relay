@@ -6,7 +6,7 @@
  * Run locally:
  *   make up
  *   RELAY_MIGRATION_DATABASE_URL="postgres://postgres:<pw>@localhost:5432/relay" \
- *     pnpm --filter @relay-ai/server test
+ *     pnpm --filter relay-server test
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes } from 'node:crypto';

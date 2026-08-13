@@ -5,7 +5,7 @@
  * The SMTP password is sealed with the same envelope crypto as provider credentials and is NEVER
  * returned by any read — the wire shape exposes `has_secret`, not the value.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { openCredential, sealCredential } from '../../../platform/crypto.js';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';

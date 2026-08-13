@@ -4,7 +4,7 @@
  * No business logic, no SQL.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { CreateRouteInput, CreateVersionInput, RoutesService } from '../types/routes.types.js';
 
 interface RouteParams {

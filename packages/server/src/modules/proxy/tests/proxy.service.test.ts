@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { createProxyService } from '../services/proxy.service.js';
 import { type CanonicalRequest, type RequestTiming, type Target } from '../types/proxy.types.js';
 

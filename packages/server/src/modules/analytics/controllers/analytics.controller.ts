@@ -5,7 +5,7 @@
  * Errors are thrown as RelayError and formatted centrally by the app's errorHandler.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { parseFormat, parseGroupBy, parseWindow, toCsv } from '../lib/usage-format.js';
 import type { AnalyticsService, UsageSummary } from '../types/analytics.types.js';
 

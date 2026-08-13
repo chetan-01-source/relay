@@ -1,4 +1,4 @@
-# `@relay-ai/sdk`
+# `relay-gateway-sdk`
 
 TypeScript client for a [Relay Gateway](https://github.com/chetan-01-source/relay). Zero runtime
 dependencies. Runs on Node 18+, Bun, Deno, Cloudflare Workers and in browsers.
@@ -8,13 +8,13 @@ dependencies. Runs on Node 18+, Bun, Deno, Cloudflare Workers and in browsers.
 > fields, or when you want to drive the control plane from code.
 
 ```bash
-npm i @relay-ai/sdk
+npm i relay-gateway-sdk
 ```
 
 ## Chat, with the metadata
 
 ```ts
-import { Relay } from '@relay-ai/sdk';
+import { Relay } from 'relay-gateway-sdk';
 
 const relay = new Relay({
   baseUrl: 'https://relay.acme.internal',
@@ -64,7 +64,7 @@ A failure **before the first token** — a tripped budget, an unreachable provid
 ## Errors
 
 ```ts
-import { RelayApiError } from '@relay-ai/sdk';
+import { RelayApiError } from 'relay-gateway-sdk';
 
 try {
   await relay.chat.completions.create({ model: 'fast', messages });

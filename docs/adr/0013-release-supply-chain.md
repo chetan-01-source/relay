@@ -17,7 +17,7 @@ a build toolchain. The stack is Docker Compose + GHCR (not AWS/SAM), so the rele
 Two multi-stage Dockerfiles, built with `docker buildx` for **linux/amd64 + linux/arm64**:
 
 - `packages/server/Dockerfile` — builds the workspace, then `pnpm deploy --prod` produces a
-  self-contained node_modules (with `@relay-ai/shared` resolved from `workspace:*` to its built output);
+  self-contained node_modules (with `relay-shared` resolved from `workspace:*` to its built output);
   the runtime stage carries only `dist` + prod deps + the SQL migrations `relay migrate` reads, and
   runs as a non-root user.
 - `packages/console/Dockerfile` — Next.js `output: 'standalone'`, so the runtime ships only traced

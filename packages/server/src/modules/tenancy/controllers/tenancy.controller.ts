@@ -5,7 +5,7 @@
  * RelayError and formatted centrally by app.ts.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type {
   EntitlementTemplateName,
   OnboardingState,

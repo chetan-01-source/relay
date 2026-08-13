@@ -18,7 +18,7 @@
  *
  * No SQL and no HTTP live here. Every mutation is audited inside the same transaction as the write.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';
 import { planRejections } from '../../../platform/metrics.js';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { isRelayError } from '@relay-ai/shared';
+import { isRelayError } from 'relay-shared';
 import { createAuthVirtualKey, createAuthJwt, requireScope } from '../middleware/auth.js';
 import type { JwtVerifier } from '../services/jwt.js';
 import type { JwtClaims, VirtualKeyResolver, VirtualKeySnapshot } from '../types/identity.types.js';

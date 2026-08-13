@@ -60,7 +60,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build --filter=@relay-ai/server --filter=@relay-ai/mockllm
+      - run: pnpm turbo build --filter=relay-server --filter=relay-mockllm
 
       - name: generate master key
         run: echo "RELAY_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
@@ -96,10 +96,10 @@ jobs:
           RELAY_CONFORMANCE_BASE_URL: http://localhost:3000
         run: |
           RELAY_CONFORMANCE_KEY="$(cat .relay/seed-demo.key)" \
-            pnpm --filter @relay-ai/conformance test
+            pnpm --filter relay-conformance test
 
       - name: cross-tenant isolation suite (G4, real relay_app role → RLS enforced)
         env:
           RELAY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/relay
           RELAY_ISOLATION_APP_URL: postgres://relay_app:relay_app_ci@localhost:5432/relay
-        run: pnpm --filter @relay-ai/server test
+        run: pnpm --filter relay-server test

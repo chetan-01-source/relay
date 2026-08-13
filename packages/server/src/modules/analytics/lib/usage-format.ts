@@ -4,7 +4,7 @@
  * render the CSV export. Keeping them here (not in the controller) makes the boundary logic testable
  * and the controller a thin HTTP shell. Validation failures throw the shared RelayError.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { USAGE_GROUP_BY, type UsageBucket, type UsageGroupBy } from '../types/analytics.types.js';
 
 /** Validate `group_by` against the allowlist; default is `model`. Throws 400 on anything else — the

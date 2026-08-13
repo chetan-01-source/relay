@@ -150,7 +150,7 @@ x-relay-plan: pro`}
           </p>
           <CodeBlock
             label="typescript"
-            code={`import { Relay } from '@relay-ai/sdk';
+            code={`import { Relay } from 'relay-gateway-sdk';
 
 const relay = new Relay({ baseUrl, apiKey: 'rk_live_…' });
 const admin = relay.admin(await getLogtoAccessToken());

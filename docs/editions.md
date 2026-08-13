@@ -48,7 +48,7 @@ relay/
 │   ├── shared/        Apache-2.0   error catalog, wire types
 │   ├── server/        Apache-2.0   gateway: proxy, identity, tenancy, policy, plans, …
 │   ├── console/       Apache-2.0   admin console + /docs
-│   ├── sdk/           Apache-2.0   @relay-ai/sdk — published to npm
+│   ├── sdk/           Apache-2.0   relay-gateway-sdk — published to npm
 │   ├── mockllm/       Apache-2.0   test upstream
 │   └── cloud/         COMMERCIAL   billing, Stripe, plan catalog seeds, signup, pricing
 ├── db/migrations/     Apache-2.0   0001–0018 …  (0017 seeds plans, 0018 subscriptions;

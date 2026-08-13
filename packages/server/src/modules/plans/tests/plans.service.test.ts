@@ -5,7 +5,7 @@
  * The database is faked at the repository boundary — the point here is the decision logic, not SQL.
  */
 import { describe, expect, it } from 'vitest';
-import { isRelayError } from '@relay-ai/shared';
+import { isRelayError } from 'relay-shared';
 import type { Database, Queryable } from '../../../platform/db.js';
 import { createPlansService } from '../services/plans.service.js';
 import { createUnlimitedPlansService } from '../services/unlimited.service.js';

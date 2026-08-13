@@ -5,7 +5,7 @@
  * secret enters; it is sealed by the service and never echoed back.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { CreateCredentialInput, ProvidersService } from '../types/providers.types.js';
 
 interface CredentialParams {

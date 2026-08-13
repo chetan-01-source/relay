@@ -4,7 +4,7 @@
  * touch another's apps. Reads the request, calls the service, shapes the envelope. No logic, no SQL.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { AppsService } from '../types/apps.types.js';
 
 interface AppParams {

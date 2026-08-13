@@ -1,6 +1,6 @@
 # SDK end-to-end testing
 
-How to prove `@relay-ai/sdk` works against a **real** gateway, not a mock — and what each layer of the
+How to prove `relay-gateway-sdk` works against a **real** gateway, not a mock — and what each layer of the
 test suite is actually responsible for.
 
 ---
@@ -51,7 +51,7 @@ which is exactly:
 RELAY_E2E_BASE_URL=http://localhost:3000 \
 RELAY_E2E_API_KEY="$(cat .relay/seed-demo.key)" \
 RELAY_E2E_MODEL=gpt-4o \
-pnpm --filter @relay-ai/sdk exec vitest run src/tests/e2e.test.ts
+pnpm --filter relay-gateway-sdk exec vitest run src/tests/e2e.test.ts
 ```
 
 Expected — the control-plane block skips until you supply a token (§2.4):
@@ -70,7 +70,7 @@ sends on any `/api/v1/*` request.
 ```bash
 RELAY_E2E_ADMIN_TOKEN="eyJhbGciOi…" \
 RELAY_E2E_BASE_URL=… RELAY_E2E_API_KEY=… \
-pnpm --filter @relay-ai/sdk exec vitest run src/tests/e2e.test.ts
+pnpm --filter relay-gateway-sdk exec vitest run src/tests/e2e.test.ts
 ```
 
 ### Variables
@@ -147,9 +147,9 @@ it actually run, bring a stack up in the job and export the two variables:
     RELAY_E2E_MODEL: gpt-4o
   run: |
     make up
-    pnpm --filter @relay-ai/server exec tsx src/cli/index.ts seed-demo
+    pnpm --filter relay-server exec tsx src/cli/index.ts seed-demo
     RELAY_E2E_API_KEY="$(cat .relay/seed-demo.key)" \
-      pnpm --filter @relay-ai/sdk exec vitest run src/tests/e2e.test.ts
+      pnpm --filter relay-gateway-sdk exec vitest run src/tests/e2e.test.ts
 ```
 
 Point `RELAY_UPSTREAM_URL` at the bundled `mockllm` container rather than a real provider: the suite
@@ -163,14 +163,14 @@ Catches the packaging failures a source-tree test cannot — a missing export ma
 does not resolve under `moduleResolution: node16`, a `dist` that was never rebuilt.
 
 ```bash
-pnpm --filter @relay-ai/sdk build
+pnpm --filter relay-gateway-sdk build
 cd packages/sdk && npm pack          # → relay-sdk-0.2.0.tgz
 
 mkdir /tmp/sdk-smoke && cd /tmp/sdk-smoke && npm init -y
 npm i /path/to/relay-sdk-0.2.0.tgz
 
 node --input-type=module -e "
-  import { Relay } from '@relay-ai/sdk';
+  import { Relay } from 'relay-gateway-sdk';
   const relay = new Relay({ baseUrl: process.env.RELAY_E2E_BASE_URL, apiKey: process.env.RELAY_E2E_API_KEY });
   const res = await relay.chat.completions.create({ model: 'gpt-4o', messages: [{ role: 'user', content: 'ok' }] });
   console.log(res.relay);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { isRelayError } from '@relay-ai/shared';
+import { isRelayError } from 'relay-shared';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { AuditEventInput, AuditRepository } from '../../audit/index.js';
 import { createRoutesService } from '../services/routes.service.js';
