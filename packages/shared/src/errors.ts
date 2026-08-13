@@ -31,7 +31,27 @@ export const ERROR_CATALOG = {
     type: 'permission_error',
     message: 'This organization is suspended.',
   },
+  /**
+   * A capability the organization's plan does not include (ADR-0014). Distinct from
+   * insufficient_scope, which is about who the caller is; this is about what the tenant bought, and
+   * the console branches on it to offer an upgrade rather than an access-denied dead end.
+   */
+  plan_upgrade_required: {
+    status: 403,
+    type: 'permission_error',
+    message: 'This capability is not included in the current plan.',
+  },
   not_found: { status: 404, type: 'not_found_error', message: 'Resource not found.' },
+  /**
+   * A countable plan quota is exhausted — applications, providers, routes, keys or members. 409
+   * rather than 400 because the request is well-formed and the state is what refuses it: deleting
+   * something or upgrading both make the identical request succeed. `param` names the quota.
+   */
+  quota_exceeded: {
+    status: 409,
+    type: 'invalid_request_error',
+    message: 'A plan quota is exhausted.',
+  },
   conflict: {
     status: 409,
     type: 'invalid_request_error',
@@ -125,6 +145,43 @@ function isValidationError(err: unknown): err is ValidationLike {
 }
 
 /**
+ * Minimal shape of a framework error that already carries an HTTP status. Fastify sets `statusCode`
+ * on failures it raises before any handler runs — content-type parsing, malformed/empty JSON,
+ * oversized payloads, unsupported media types. Matched structurally (no fastify import).
+ */
+interface StatusCarrying {
+  statusCode?: unknown;
+  message?: string;
+}
+
+/** The 4xx status a framework error already decided on, or null when it isn't a client error. */
+function clientStatusOf(err: unknown): number | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const status = (err as StatusCarrying).statusCode;
+  return typeof status === 'number' && status >= 400 && status < 500 ? status : null;
+}
+
+/** Catalog code for a bare 4xx status, so a framework client error keeps its meaning on the wire. */
+function codeForClientStatus(status: number): ErrorCode {
+  switch (status) {
+    case 401:
+      return 'invalid_api_key';
+    case 403:
+      return 'insufficient_scope';
+    case 404:
+      return 'not_found';
+    case 409:
+      return 'conflict';
+    case 413:
+      return 'payload_too_large';
+    case 429:
+      return 'rate_limited';
+    default:
+      return 'invalid_request'; // 400/415/422/… — the caller sent something we can't accept
+  }
+}
+
+/**
  * Normalize ANY thrown value to the wire envelope. Used by the server's central error handler so
  * every error — thrown RelayError, Fastify validation failure, or an unexpected exception —
  * leaves as the same OpenAI-compatible shape. Unknown errors never leak internals to the client.
@@ -134,6 +191,19 @@ export function toErrorEnvelope(err: unknown): ErrorResponse {
   if (isValidationError(err)) {
     return new RelayError('invalid_request', {
       message: err.message ?? 'Validation failed.',
+    }).toResponse();
+  }
+  // A framework error that already settled on a 4xx is the CALLER's fault, not ours — report it as
+  // such. Without this, Fastify's pre-handler failures (an empty body sent with
+  // `content-type: application/json`, malformed JSON, an unsupported media type) fell through to the
+  // generic 500 below, so a client mistake looked like a gateway outage and paged whoever was on
+  // call. Fastify's own message is safe to pass through: it describes the request, not our internals.
+  const clientStatus = clientStatusOf(err);
+  if (clientStatus !== null) {
+    const message = (err as StatusCarrying).message;
+    return new RelayError(codeForClientStatus(clientStatus), {
+      status: clientStatus,
+      ...(typeof message === 'string' && message ? { message } : {}),
     }).toResponse();
   }
   // unknown: return a safe generic 500 (details go to logs, not the client)

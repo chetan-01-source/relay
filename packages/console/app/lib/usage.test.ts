@@ -36,9 +36,33 @@ describe('summarizeUsage', () => {
 });
 
 describe('formatUsd', () => {
-  it('formats to 4 dp so sub-cent spend is visible', () => {
+  it('keeps large amounts readable at 2 dp', () => {
+    expect(formatUsd(1234.5678)).toBe('$1234.57');
+    expect(formatUsd(1)).toBe('$1.00');
+  });
+
+  it('uses 4 dp for sub-dollar, above-cent amounts', () => {
     expect(formatUsd(0.0123)).toBe('$0.0123');
-    expect(formatUsd(0)).toBe('$0.0000');
+    expect(formatUsd(0.01)).toBe('$0.0100');
+  });
+
+  // Regression: a short gpt-4o-mini call costs ~$0.000006. At a flat 4 dp that rendered as
+  // "$0.0000", which reads as "usage isn't being tracked" rather than "this was very cheap".
+  it('shows the full stored precision for tiny amounts instead of collapsing to zero', () => {
+    expect(formatUsd(0.000012)).toBe('$0.000012');
+    expect(formatUsd(0.000006)).toBe('$0.000006');
+  });
+
+  it('distinguishes "smaller than we store" from "nothing"', () => {
+    // cost_usd is numeric(14,6), so 6 dp is the floor — below it, say so rather than print $0.00.
+    expect(formatUsd(0.0000001)).toBe('<$0.000001');
+    expect(formatUsd(0)).toBe('$0.00');
+  });
+
+  it('handles negatives and non-finite input without emitting NaN', () => {
+    expect(formatUsd(-2.5)).toBe('-$2.50');
+    expect(formatUsd(-0.000012)).toBe('-$0.000012');
+    expect(formatUsd(Number.NaN)).toBe('$0.00');
   });
 });
 

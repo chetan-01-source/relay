@@ -14,11 +14,17 @@ import {
   meteringDropped,
   meteringFlushFailures,
   meteringQueueDepth,
+  retentionPruneRuns,
   rollupRuns,
 } from '../../../platform/metrics.js';
 import { RingQueue } from '../lib/ring-queue.js';
 import { createMeteringRepository } from '../repositories/metering.repository.js';
-import type { MeteringRepository, MeteringService, UsageEvent } from '../types/metering.types.js';
+import type {
+  MeteringRepository,
+  MeteringService,
+  RetentionSource,
+  UsageEvent,
+} from '../types/metering.types.js';
 
 export interface MeteringServiceDeps {
   db: Database;
@@ -27,6 +33,14 @@ export interface MeteringServiceDeps {
   queueMax: number;
   flushIntervalMs: number;
   rollupIntervalMs: number;
+  /**
+   * Supplies each org's `retention.traffic_days` (ADR-0014). Absent ⇒ the prune worker never starts
+   * and nothing is ever deleted, which is the correct behaviour for a deployment with no plan layer
+   * and for the offline spec dump.
+   */
+  retention?: RetentionSource;
+  /** How often to sweep. Retention is a days-scale promise; hourly is ample and cheap. */
+  pruneIntervalMs?: number;
 }
 
 // The rollup transaction reads/writes across orgs, so it runs as a platform admin. withTenant still
@@ -35,11 +49,17 @@ export interface MeteringServiceDeps {
 const SYSTEM_ORG = '00000000-0000-0000-0000-000000000000';
 // Recompute the current + previous hour each run so events that landed late are still captured.
 const ROLLUP_LOOKBACK_MS = 2 * 60 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+// Rows deleted per org per sweep. Bounded so a first run against a long-neglected table cannot hold
+// a transaction open for minutes and block autovacuum — the next tick continues where this stopped.
+const PRUNE_BATCH = 20_000;
 
 /** MeteringService plus the two workers exposed so tests can trigger them without the interval timers. */
 export interface MeteringServiceInternal extends MeteringService {
   flush(): Promise<void>;
   rollup(nowMs: number): Promise<void>;
+  /** One retention sweep across every org. Exposed so a test can trigger it without the timer. */
+  prune(): Promise<number>;
 }
 
 export function createMeteringService(deps: MeteringServiceDeps): MeteringServiceInternal {
@@ -47,6 +67,7 @@ export function createMeteringService(deps: MeteringServiceDeps): MeteringServic
   const queue = new RingQueue<UsageEvent>(deps.queueMax);
   let flushTimer: NodeJS.Timeout | undefined;
   let rollupTimer: NodeJS.Timeout | undefined;
+  let pruneTimer: NodeJS.Timeout | undefined;
 
   function recordUsage(event: UsageEvent): void {
     const accepted = queue.enqueue(event);
@@ -119,10 +140,50 @@ export function createMeteringService(deps: MeteringServiceDeps): MeteringServic
     }
   }
 
+  /**
+   * Enforce `retention.traffic_days` (docs/plans.md §3). Walks every org with traffic, asks the
+   * retention source how long that org keeps it, and deletes past the window.
+   *
+   * Each org is pruned in its OWN tenant transaction so RLS applies to the delete — a retention
+   * sweep is the last place a cross-tenant delete should be possible. A failure on one org is
+   * swallowed and the sweep continues: retention is a background promise, not a request, and one
+   * org's problem must not stop everyone else's data from expiring.
+   */
+  async function prune(): Promise<number> {
+    if (!deps.retention) return 0;
+    let deleted = 0;
+    try {
+      const orgs = await deps.db.withTenant(SYSTEM_ORG, { isPlatformAdmin: true }, (tx) =>
+        repo.listOrgsWithUsage(tx),
+      );
+      for (const orgId of orgs) {
+        try {
+          const days = await deps.retention.trafficDaysFor(orgId);
+          if (days === null || days <= 0) continue; // unlimited — keep everything
+          deleted += await deps.db.withTenant(orgId, { isPlatformAdmin: false }, (tx) =>
+            repo.pruneUsageEvents(tx, orgId, days, PRUNE_BATCH),
+          );
+        } catch {
+          retentionPruneRuns.inc({ result: 'error' });
+        }
+      }
+      retentionPruneRuns.inc({ result: 'ok' });
+    } catch {
+      retentionPruneRuns.inc({ result: 'error' });
+    }
+    return deleted;
+  }
+
   function start(): void {
     if (flushTimer) return; // idempotent
     flushTimer = setInterval(() => void flush(), deps.flushIntervalMs);
     rollupTimer = setInterval(() => void rollup(Date.now()), deps.rollupIntervalMs);
+    // Only when a retention source was supplied — no plan layer means nothing to enforce, and a
+    // timer that would delete data must not exist unless something asked for it.
+    if (deps.retention) {
+      pruneTimer = setInterval(() => void prune(), deps.pruneIntervalMs ?? PRUNE_INTERVAL_MS);
+      pruneTimer.unref();
+    }
     // Don't let the metering timers keep the process alive on their own.
     flushTimer.unref();
     rollupTimer.unref();
@@ -131,14 +192,16 @@ export function createMeteringService(deps: MeteringServiceDeps): MeteringServic
   async function stop(): Promise<void> {
     if (flushTimer) clearInterval(flushTimer);
     if (rollupTimer) clearInterval(rollupTimer);
+    if (pruneTimer) clearInterval(pruneTimer);
     flushTimer = undefined;
     rollupTimer = undefined;
+    pruneTimer = undefined;
     await flush(); // drain what's queued so a graceful shutdown doesn't lose it
   }
 
   // flush/rollup are exposed (beyond the MeteringService interface) so tests can trigger them
   // deterministically instead of waiting on the interval timers.
-  return { recordUsage, start, stop, flush, rollup };
+  return { recordUsage, start, stop, flush, rollup, prune };
 }
 
 /** Group a mixed batch by org so each org's rows insert inside that org's tenant transaction. */

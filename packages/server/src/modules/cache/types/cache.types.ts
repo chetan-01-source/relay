@@ -17,7 +17,7 @@ export interface CachedCompletion {
 
 export interface CacheService {
   /** Deterministic key for (org, semantic request). Org is embedded → no cross-tenant hit is possible. */
-  keyFor(orgId: string, req: CanonicalRequest): string;
+  keyFor(orgId: string, appId: string | null, req: CanonicalRequest): string;
   get(key: string): Promise<CachedCompletion | null>;
   set(key: string, value: CachedCompletion): Promise<void>;
 }

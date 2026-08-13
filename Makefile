@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/compose/compose.yaml
 ENV_FILE := deploy/compose/.env
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e bench backup restore audit-verify selfhost-bundle release-dry
+.PHONY: help bootstrap up dev down migrate seed-auth seed-demo generate lint test coverage smoke load e2e sdk-e2e bench backup restore audit-verify selfhost-bundle release-dry
 
 help: ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -42,10 +42,12 @@ seed-auth: ## idempotent Logto bootstrap                     [sprint Day 5]
 seed-demo: ## demo org+app+key+route -> prints working curl  [sprint Day 5]
 	$(LOADENV) pnpm --filter @relay/server exec tsx src/cli/index.ts seed-demo
 
-generate: ## dump OpenAPI spec + regen the console's typed API client    [sprint Day 2+]
+generate: ## dump OpenAPI spec + regen the console's typed client + Postman collection  [sprint Day 2+]
 	pnpm --filter @relay/server exec tsx src/cli/index.ts openapi
 	pnpm --filter @relay/console gen:api
-	pnpm exec prettier --write api/openapi/openapi.json packages/console/app/lib/api-types.ts
+	pnpm --filter @relay/sdk gen:api
+	node scripts/gen-postman.mjs
+	pnpm exec prettier --write api/openapi/openapi.json api/postman packages/console/app/lib/api-types.ts packages/sdk/src/generated/api-types.ts
 
 lint: ## eslint + prettier + dependency-cruiser + RLS gate
 	pnpm turbo lint
@@ -68,6 +70,13 @@ load: ## local load smoke on the hot path (node fallback; use k6 for the gate)
 e2e: ## Playwright console E2E (start the stack first: make dev)   [sprint Day 13]
 	pnpm --filter @relay/console exec playwright install --with-deps chromium
 	pnpm --filter @relay/console e2e
+
+sdk-e2e: ## @relay/sdk end-to-end against the running gateway (make dev + seed-demo first)
+	@test -f .relay/seed-demo.key || { echo "no key yet — run: make seed-demo"; exit 1; }
+	RELAY_E2E_BASE_URL=$${RELAY_E2E_BASE_URL:-http://localhost:3000} \
+	RELAY_E2E_API_KEY="$$(cat .relay/seed-demo.key)" \
+	RELAY_E2E_MODEL=$${RELAY_E2E_MODEL:-gpt-4o} \
+	pnpm --filter @relay/sdk exec vitest run src/tests/e2e.test.ts
 
 bench: ## drive load -> gate gateway overhead p99 < 25ms (G3)  [sprint Day 5/14]
 	node scripts/bench.mjs

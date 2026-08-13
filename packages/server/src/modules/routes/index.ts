@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Database } from '../../platform/db.js';
 import { createAuditRepository } from '../audit/index.js';
 import type { AuthPreHandler } from '../identity/index.js';
+import type { PlansService } from '../plans/index.js';
 import { createRoutesRepository } from './repositories/routes.repository.js';
 import { createRoutesService } from './services/routes.service.js';
 import { createRoutesController } from './controllers/routes.controller.js';
@@ -17,6 +18,8 @@ import { registerRoutesRoutes } from './routes/routes.routes.js';
 
 export interface RegisterRoutesOptions {
   db: Database;
+  /** Enforces `routes.max`. Absent ⇒ no quota is applied. */
+  plans?: PlansService;
   guards: {
     authJwt: AuthPreHandler;
     requireScope: (...scopes: string[]) => AuthPreHandler;
@@ -28,6 +31,7 @@ export function registerRoutes(app: FastifyInstance, opts: RegisterRoutesOptions
     db: opts.db,
     repo: createRoutesRepository(),
     audit: createAuditRepository(),
+    ...(opts.plans ? { plans: opts.plans } : {}),
   });
   const controller = createRoutesController(service);
   registerRoutesRoutes(app, controller, opts.guards);

@@ -56,6 +56,12 @@ function fakeRepo(
     async rebuildRollupsForOrgSince(_tx, _orgId, since) {
       rollups.push(since);
     },
+    async listOrgsWithUsage() {
+      return orgsWithUsage;
+    },
+    async pruneUsageEvents() {
+      return 0;
+    },
   };
 }
 

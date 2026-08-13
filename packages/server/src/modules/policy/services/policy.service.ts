@@ -7,7 +7,11 @@ import { RelayError } from '@relay/shared';
 import type { Redis } from 'ioredis';
 import type { EventBus } from '../../../platform/eventbus.js';
 import { budgetSettles, budgetRejections, rateLimitRejections } from '../../../platform/metrics.js';
+import { budgetWindow, budgetKey } from '../lib/window.js';
 import type {
+  BudgetAlertSink,
+  BudgetReservation,
+  SpendReader,
   PolicyDecision,
   PolicyRequest,
   PolicyService,
@@ -18,6 +22,13 @@ import type {
 
 const WINDOW_MS = 60_000;
 const MICRO_USD = 1_000_000;
+
+/**
+ * Fraction of a ceiling at which a warning is worth sending. Matches the console's amber threshold
+ * (lib/budget.ts) on purpose: the bar turning amber and the email arriving should mean the same
+ * thing, or one of them is lying.
+ */
+const WARN_AT = 0.8;
 
 const RATE_LIMIT_SCRIPT = `
 local tokens_key = KEYS[1]
@@ -42,15 +53,27 @@ redis.call('SET', ts_key, now, 'EX', ttl)
 return {1, math.floor(tokens), 0}
 `;
 
+// `seed` is used ONLY when the counter does not exist yet. A cold key must not start at zero: the
+// period may already have been spent against (the budget was created mid-period, or Valkey was
+// restarted), and starting from zero silently re-grants that whole allowance. EXISTS distinguishes
+// "absent" from "legitimately 0", which a plain GET cannot.
 const BUDGET_RESERVE_SCRIPT = `
 local key = KEYS[1]
 local limit = tonumber(ARGV[1])
 local reserve = tonumber(ARGV[2])
 local hard = tonumber(ARGV[3])
 local ttl = tonumber(ARGV[4])
-local current = tonumber(redis.call('GET', key)) or 0
+local seed = tonumber(ARGV[5]) or 0
+local current
+if redis.call('EXISTS', key) == 1 then
+  current = tonumber(redis.call('GET', key)) or 0
+else
+  current = seed
+end
 local next = current + reserve
 if hard == 1 and next > limit then
+  -- Persist the seed even on rejection, so the next request does not re-read the database.
+  redis.call('SET', key, current, 'EX', ttl)
   return {0, current}
 end
 redis.call('SET', key, next, 'EX', ttl)
@@ -70,6 +93,10 @@ return next
 
 export interface PolicyServiceDeps {
   bus?: EventBus;
+  /** Seeds a cold counter from durable spend. Absent → counters start at zero (tests, offline). */
+  spendReader?: SpendReader;
+  /** Notified when a ceiling rejects. Absent ⇒ no alert is produced. */
+  alerts?: BudgetAlertSink;
 }
 
 interface LoadedScripts {
@@ -80,7 +107,32 @@ interface LoadedScripts {
 
 export function createPolicyService(deps: PolicyServiceDeps = {}): PolicyService {
   const client = deps.bus?.client;
+  const spendReader = deps.spendReader;
+  const alerts = deps.alerts;
   const scripts: LoadedScripts = {};
+
+  /**
+   * What this period has already cost, for a counter that does not exist yet.
+   *
+   * Only consulted on a cold key — once per scope per period per worker — so the database read stays
+   * off the steady-state path. A failure seeds 0 rather than rejecting the request: a budget is a
+   * spend control, not an availability control, and failing closed here would take the data plane
+   * down whenever Postgres hiccuped.
+   */
+  async function seedFor(
+    orgId: string,
+    appId: string | null,
+    key: string,
+    periodStart: string,
+  ): Promise<number> {
+    if (!spendReader || !client) return 0;
+    try {
+      if ((await client.exists(key)) === 1) return 0; // warm — the script ignores the seed anyway
+      return await spendReader.periodSpendMicroUsd(orgId, appId, periodStart);
+    } catch {
+      return 0;
+    }
+  }
 
   async function authorize(
     identity: PolicySnapshot,
@@ -121,29 +173,96 @@ export function createPolicyService(deps: PolicyServiceDeps = {}): PolicyService
       }
     }
 
-    const budget = identity.policy.budget;
-    if (!budget) return { headers };
+    const budgets = identity.policy.budgets;
+    if (budgets.length === 0) return { headers };
 
     const reservedMicroUsd = estimateCostMicroUsd(estimate, targets);
     if (reservedMicroUsd <= 0) return { headers };
 
-    const key = `budget:${identity.orgId}:${budget.period}`;
-    const reserve = await reserveBudget(client, scripts, {
-      key,
-      limitMicroUsd: Math.floor(budget.limitUsd * MICRO_USD),
-      reservedMicroUsd,
-      hardCutoff: budget.hardCutoff,
-      ttlSeconds: ttlForPeriod(budget.period),
-    });
-    if (!reserve.allowed) {
-      budgetRejections.inc({ org: identity.orgId });
-      throw new RelayError('budget_exceeded', { message: 'Organization budget limit reached.' });
+    // A request has to fit inside EVERY ceiling that binds it — its application's and its org's, for
+    // each configured period. Reserving is not atomic across keys, so a rejection part-way has to
+    // hand back what the earlier keys already took; otherwise a blocked request would permanently
+    // consume budget it never spent.
+    const now = new Date();
+    const reservations: BudgetReservation[] = [];
+
+    for (const budget of budgets) {
+      const { stamp, ttlSeconds, startsAt } = budgetWindow(budget.period, now);
+      const key = budgetKey(identity.orgId, budget.appId, budget.period, stamp);
+      const reserve = await reserveBudget(client, scripts, {
+        key,
+        limitMicroUsd: Math.floor(budget.limitUsd * MICRO_USD),
+        reservedMicroUsd,
+        hardCutoff: budget.hardCutoff,
+        ttlSeconds,
+        seedMicroUsd: await seedFor(identity.orgId, budget.appId, key, startsAt),
+      });
+
+      if (!reserve.allowed) {
+        await release(reservations);
+        budgetRejections.inc({ org: identity.orgId });
+        // Fire-and-forget. Dedupe lives downstream (one notification per ceiling per period), which
+        // is essential here: a tripped budget rejects EVERY request, so this fires constantly.
+        alerts?.budgetExceeded({
+          orgId: identity.orgId,
+          scope: budget.scope,
+          appId: budget.appId,
+          period: budget.period,
+          window: stamp,
+          limitUsd: budget.limitUsd,
+          spentMicroUsd: reserve.current ?? 0,
+        });
+        throw new RelayError('budget_exceeded', {
+          message:
+            budget.scope === 'app'
+              ? 'Application budget limit reached.'
+              : 'Organization budget limit reached.',
+        });
+      }
+
+      // Warn on the way up, while requests are still being served. The reserve returns the new
+      // running total, so this is measured against the estimate rather than the settled cost —
+      // deliberately eager, because a warning that arrives late is worth much less than one that
+      // arrives slightly early. Dedupe downstream collapses this to one per ceiling per period.
+      if (budget.limitUsd > 0) {
+        const limitMicroUsd = Math.floor(budget.limitUsd * MICRO_USD);
+        const ratio = limitMicroUsd > 0 ? reserve.current / limitMicroUsd : 0;
+        if (ratio >= WARN_AT && ratio < 1) {
+          alerts?.budgetThreshold({
+            orgId: identity.orgId,
+            scope: budget.scope,
+            appId: budget.appId,
+            period: budget.period,
+            window: stamp,
+            limitUsd: budget.limitUsd,
+            spentMicroUsd: reserve.current,
+            percent: Math.round(ratio * 100),
+          });
+        }
+      }
+
+      reservations.push({
+        orgId: identity.orgId,
+        period: budget.period,
+        key,
+        reservedMicroUsd,
+        ttlSeconds,
+      });
     }
 
-    return {
-      headers,
-      reservation: { orgId: identity.orgId, period: budget.period, key, reservedMicroUsd },
-    };
+    return { headers, reservations };
+  }
+
+  /** Hand back reservations taken before a later ceiling rejected the request. */
+  async function release(reservations: readonly BudgetReservation[]): Promise<void> {
+    if (!client) return;
+    for (const reservation of reservations) {
+      await settleBudget(client, scripts, {
+        key: reservation.key,
+        deltaMicroUsd: -reservation.reservedMicroUsd,
+        ttlSeconds: reservation.ttlSeconds,
+      });
+    }
   }
 
   async function settle(
@@ -151,15 +270,17 @@ export function createPolicyService(deps: PolicyServiceDeps = {}): PolicyService
     target: PolicyTarget | undefined,
     usage: UsageTokens | undefined,
   ): Promise<void> {
-    if (!client || !decision.reservation) return;
+    if (!client || !decision.reservations?.length) return;
     const actual = target && usage ? actualCostMicroUsd(usage, target) : 0;
-    const delta = actual - decision.reservation.reservedMicroUsd;
-    await settleBudget(client, scripts, {
-      key: decision.reservation.key,
-      deltaMicroUsd: delta,
-      ttlSeconds: ttlForPeriod(decision.reservation.period),
-    });
-    budgetSettles.inc({ org: decision.reservation.orgId });
+    // Every ceiling reserved the same estimate, so each is corrected by the same delta.
+    for (const reservation of decision.reservations) {
+      await settleBudget(client, scripts, {
+        key: reservation.key,
+        deltaMicroUsd: actual - reservation.reservedMicroUsd,
+        ttlSeconds: reservation.ttlSeconds,
+      });
+    }
+    budgetSettles.inc({ org: decision.reservations[0]!.orgId });
   }
 
   return { authorize, settle };
@@ -194,8 +315,9 @@ async function reserveBudget(
     reservedMicroUsd: number;
     hardCutoff: boolean;
     ttlSeconds: number;
+    seedMicroUsd: number;
   },
-): Promise<{ allowed: boolean }> {
+): Promise<{ allowed: boolean; current: number }> {
   scripts.budgetReserve ??= String(await client.script('LOAD', BUDGET_RESERVE_SCRIPT));
   const script = scripts.budgetReserve;
   const out = (await client.evalsha(
@@ -206,8 +328,11 @@ async function reserveBudget(
     input.reservedMicroUsd,
     input.hardCutoff ? 1 : 0,
     input.ttlSeconds,
+    input.seedMicroUsd,
   )) as [number, number];
-  return { allowed: out[0] === 1 };
+  // The script returns the counter alongside the verdict: `current` on a rejection (what has
+  // already been spent) and the new total on success.
+  return { allowed: out[0] === 1, current: out[1] ?? 0 };
 }
 
 async function settleBudget(
@@ -241,8 +366,4 @@ function actualCostMicroUsd(usage: UsageTokens, target: PolicyTarget): number {
   const input = ((target.inputUsdPer1k ?? 0) * usage.inputTokens * MICRO_USD) / 1000;
   const output = ((target.outputUsdPer1k ?? 0) * usage.outputTokens * MICRO_USD) / 1000;
   return Math.ceil(input + output);
-}
-
-function ttlForPeriod(period: 'daily' | 'monthly'): number {
-  return period === 'daily' ? 36 * 60 * 60 : 45 * 24 * 60 * 60;
 }

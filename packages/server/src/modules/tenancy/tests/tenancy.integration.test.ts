@@ -18,10 +18,24 @@ const url = process.env.RELAY_MIGRATION_DATABASE_URL ?? process.env.RELAY_TEST_D
 const fakeLogto: LogtoOrgSync = {
   createOrganization: () => Promise.resolve(`logto-it-${randomBytes(6).toString('hex')}`),
   deleteOrganization: () => Promise.resolve(),
-  inviteAdmin: () => Promise.resolve('inv-it'),
-  inviteMember: () => Promise.resolve('inv-it'),
   listMembers: () => Promise.resolve([]),
   removeMember: () => Promise.resolve(),
+  createInvitation: (organizationId, invitee) =>
+    Promise.resolve({
+      id: 'inv-it',
+      organizationId,
+      invitee,
+      status: 'Pending',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+      role: 'member',
+    }),
+  listInvitations: () => Promise.resolve([]),
+  getInvitation: () => Promise.resolve(null),
+  sendInvitationMail: () => Promise.resolve(),
+  revokeInvitation: () => Promise.resolve(),
+  acceptInvitation: () => Promise.resolve(),
+  getUser: () => Promise.resolve(null),
 };
 
 describe.skipIf(!url)('tenancy service (integration)', () => {

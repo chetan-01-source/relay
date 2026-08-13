@@ -52,12 +52,62 @@ export interface UpdateEntitlementsInput {
   features: Record<string, unknown>;
 }
 
-/** A member of an org (projected from Logto), returned to the console members panel. */
+/** Role a user holds inside one organization. `admin` may move budgets and store credentials. */
+export type OrgMemberRole = 'admin' | 'member';
+
+/** A member of an org (identity from Logto, role from org_members). */
 export interface Member {
   object: 'organization.member';
   id: string;
   name: string | null;
   email: string | null;
+  role: OrgMemberRole;
+}
+
+export interface OrgMemberRow {
+  user_id: string;
+  role: OrgMemberRole;
+  email: string | null;
+}
+
+/**
+ * A pending or historical invitation to join an org. `status` mirrors Logto's lifecycle, lowercased
+ * to match the rest of the API's vocabulary. This is the platform-admin view — it names the org by
+ * id because the caller already knows which org they are looking at.
+ */
+export interface Invitation {
+  object: 'organization.invitation';
+  id: string;
+  org_id: string;
+  email: string;
+  /** What the invitee becomes on acceptance. */
+  role: OrgMemberRole;
+  status: InvitationStatus;
+  created_at: string;
+  expires_at: string;
+}
+
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
+
+/**
+ * The invitee's view of their own invitation, which is deliberately narrower: it names the org so
+ * the console can render "Join Acme", and it is only ever returned to the person the invitation was
+ * addressed to. Nothing else about the tenant leaks through it.
+ */
+export interface InvitationOffer {
+  object: 'organization.invitation';
+  id: string;
+  email: string;
+  org_name: string;
+  status: InvitationStatus;
+  expires_at: string;
+}
+
+/** What accepting an invitation produced — the org the caller now belongs to. */
+export interface AcceptedInvitation {
+  object: 'organization.membership';
+  org_id: string;
+  org_name: string;
 }
 
 /** Data-access boundary. The ONLY layer that touches the database. Methods take the caller's
@@ -65,11 +115,21 @@ export interface Member {
 export interface TenancyRepository {
   createOrg(tx: Queryable, input: { logtoOrgId: string; name: string }): Promise<OrgRow>;
   getOrg(tx: Queryable, orgId: string): Promise<OrgRow | null>;
+  /** Reverse of the onboarding mapping: Logto's org id → our row. Used by the invitation flow, which
+   * only learns which tenant it is dealing with from the invitation Logto hands back. */
+  getOrgByLogtoId(tx: Queryable, logtoOrgId: string): Promise<OrgRow | null>;
   listOrgs(tx: Queryable): Promise<OrgRow[]>;
   setStatus(tx: Queryable, orgId: string, status: OrgStatus): Promise<void>;
   setOnboardingState(tx: Queryable, orgId: string, state: OnboardingState): Promise<void>;
   upsertFeatures(tx: Queryable, orgId: string, features: Record<string, unknown>): Promise<void>;
   listFeatures(tx: Queryable, orgId: string): Promise<OrgFeatureRow[]>;
+  upsertOrgMember(
+    tx: Queryable,
+    orgId: string,
+    input: { userId: string; role: OrgMemberRole; email: string | null },
+  ): Promise<void>;
+  listOrgMembers(tx: Queryable, orgId: string): Promise<OrgMemberRow[]>;
+  deleteOrgMember(tx: Queryable, orgId: string, userId: string): Promise<void>;
 }
 
 /** Business boundary. Orchestrates Logto sync + DB + audit + snapshot invalidation. No SQL, no HTTP. */
@@ -88,8 +148,27 @@ export interface TenancyService {
   advanceOnboarding(actor: string, orgId: string, to: OnboardingState): Promise<Organization>;
   /** List the org's members (via Logto). Throws service_unavailable when Logto is not configured. */
   listMembers(orgId: string): Promise<Member[]>;
-  /** Invite a member by email; returns the invitation id. */
-  inviteMember(actor: string, orgId: string, email: string): Promise<{ invitation_id: string }>;
   /** Remove a member from the org. */
   removeMember(actor: string, orgId: string, userId: string): Promise<void>;
+
+  // ── Invitations ───────────────────────────────────────────────────────────────────────────────
+  /** Invite an email address into the org as `role`, and send the invitation mail. */
+  inviteMember(
+    actor: string,
+    orgId: string,
+    email: string,
+    role?: OrgMemberRole,
+  ): Promise<Invitation>;
+  /** Change what an existing member may do. Platform-admin operation (console → org detail). */
+  setMemberRole(actor: string, orgId: string, userId: string, role: OrgMemberRole): Promise<Member>;
+  /** Every invitation ever issued for the org, newest first. */
+  listInvitations(orgId: string): Promise<Invitation[]>;
+  /** Send the invitation mail again for a still-pending invitation. */
+  resendInvitation(actor: string, orgId: string, invitationId: string): Promise<Invitation>;
+  /** Revoke a pending invitation, freeing the address to be invited again. */
+  revokeInvitation(actor: string, orgId: string, invitationId: string): Promise<void>;
+  /** The invitee's own view of an invitation. Rejects any caller but the invited address. */
+  getInvitationOffer(userId: string, invitationId: string): Promise<InvitationOffer>;
+  /** Accept an invitation on behalf of the signed-in user, creating the membership. */
+  acceptInvitation(userId: string, invitationId: string): Promise<AcceptedInvitation>;
 }

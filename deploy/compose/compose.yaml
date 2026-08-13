@@ -78,6 +78,28 @@ services:
       timeout: 5s
       retries: 6
 
+  # Local mail catcher (dev only). Nothing here ever reaches a real inbox: Mailpit accepts SMTP on
+  # 1025 and shows every message in a web UI on 8025. Two things use it —
+  #   • the gateway's notification dispatcher (RELAY_SMTP_HOST=localhost, port 1025)
+  #   • Logto's email connector, which is what makes email sign-up + verification codes work locally
+  # Without it, email sign-up cannot be enabled at all: Logto requires verification for an email
+  # identifier, and verification needs a connector that can actually deliver.
+  mailpit:
+    profiles: [dev]
+    image: axllent/mailpit:latest
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # web UI
+    environment:
+      MP_MAX_MESSAGES: '500'
+      MP_SMTP_AUTH_ACCEPT_ANY: '1'
+      MP_SMTP_AUTH_ALLOW_INSECURE: '1'
+    healthcheck:
+      test: ['CMD', 'sh', '-c', 'wget -q --spider http://localhost:8025 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
   mockllm:
     profiles: [dev]
     build:

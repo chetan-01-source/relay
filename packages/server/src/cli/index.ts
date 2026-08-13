@@ -6,6 +6,7 @@ import { initDb } from '../platform/db.js';
 import { createEventBus } from '../platform/eventbus.js';
 import { buildServers, buildPublicApp } from '../app.js';
 import { runMigrations } from '../platform/migrate.js';
+import { brandLogto } from '../platform/logto-branding.js';
 import { bootstrapLogto } from '../platform/logto.js';
 import { RELAY_VERSION } from '../version.js';
 import { seedDemo } from '../seed/demo.js';
@@ -138,6 +139,35 @@ program
       process.exit(0);
     }
     const result = await bootstrapLogto({ endpoint, m2mAppId, m2mAppSecret });
+
+    // Branding is part of the same bootstrap: a rebuilt stack should come back looking like Relay,
+    // not like stock Logto. Idempotent, and a failure here must not fail the auth bootstrap that
+    // the gateway actually depends on.
+    try {
+      const branding = await brandLogto({
+        endpoint,
+        m2mAppId,
+        m2mAppSecret,
+        // Logto runs in Docker and reaches Mailpit by SERVICE NAME; the gateway runs on the host
+        // and reaches the same server on localhost. Same mail server, two different hostnames — so
+        // Logto's view is configurable separately and only falls back to the gateway's.
+        ...((process.env.RELAY_LOGTO_SMTP_HOST ?? process.env.RELAY_SMTP_HOST)
+          ? { smtpHost: process.env.RELAY_LOGTO_SMTP_HOST ?? process.env.RELAY_SMTP_HOST }
+          : {}),
+        ...(process.env.RELAY_SMTP_PORT ? { smtpPort: Number(process.env.RELAY_SMTP_PORT) } : {}),
+        ...(process.env.RELAY_SMTP_FROM ? { smtpFrom: process.env.RELAY_SMTP_FROM } : {}),
+        ...(process.env.RELAY_SMTP_USER ? { smtpUser: process.env.RELAY_SMTP_USER } : {}),
+        ...(process.env.RELAY_SMTP_PASSWORD
+          ? { smtpPassword: process.env.RELAY_SMTP_PASSWORD }
+          : {}),
+      });
+      console.error(`[relay] sign-in experience — ${branding.applied.join(', ')}`);
+      for (const reason of branding.skipped) console.error(`[relay]   skipped ${reason}`);
+    } catch (err) {
+      console.error(
+        `[relay] sign-in branding skipped: ${err instanceof Error ? err.message : 'unknown error'}`,
+      );
+    }
     console.error(`[relay] logto bootstrap ok — apiResource ${result.apiResourceId}`);
     console.error(
       result.created.length

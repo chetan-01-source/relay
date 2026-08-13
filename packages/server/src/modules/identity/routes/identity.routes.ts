@@ -52,6 +52,7 @@ export function registerIdentityRoutes(
               org_id: { type: ['string', 'null'] },
               scopes: { type: 'array', items: { type: 'string' } },
               is_platform_admin: { type: 'boolean' },
+              is_org_admin: { type: 'boolean' },
             },
           },
           401: errorObject,

@@ -14,6 +14,8 @@ export type RoutingStrategy = 'priority' | 'weighted';
 export interface RouteRow {
   id: string;
   model_name: string;
+  /** Application this route is scoped to, or null for the org-wide default. */
+  app_id: string | null;
   cache_enabled: boolean;
   active_version_id: string | null;
   created_at: string;
@@ -56,6 +58,11 @@ export interface TargetInput {
 
 export interface CreateRouteInput {
   model_name: string;
+  /**
+   * Scope the route to one application. Omitted (or null) creates the ORG-WIDE route, which every
+   * application falls back to. An app route overrides the org one for the same model name.
+   */
+  app_id?: string | null;
   strategy?: RoutingStrategy;
   cache_enabled?: boolean;
   targets?: TargetInput[];
@@ -92,6 +99,8 @@ export interface Route {
   object: 'route';
   id: string;
   model_name: string;
+  /** Application this route binds, or null for the org-wide default an app falls back to. */
+  app_id: string | null;
   cache_enabled: boolean;
   active_version_id: string | null;
   active_version: number | null;
@@ -104,6 +113,7 @@ export interface RouteDetail {
   object: 'route';
   id: string;
   model_name: string;
+  app_id: string | null;
   cache_enabled: boolean;
   active_version_id: string | null;
   created_at: string;
@@ -114,7 +124,8 @@ export interface RouteDetail {
 export interface RoutesRepository {
   listRoutes(tx: Queryable): Promise<RouteListRow[]>;
   getRoute(tx: Queryable, id: string): Promise<RouteRow | null>;
-  getRouteByModel(tx: Queryable, modelName: string): Promise<RouteRow | null>;
+  /** The route serving `modelName` in one scope: `appId` null = org-wide, a value = that app's own. */
+  getRouteByModel(tx: Queryable, modelName: string, appId: string | null): Promise<RouteRow | null>;
   listVersions(tx: Queryable, routeId: string): Promise<RouteVersionRow[]>;
   listTargets(tx: Queryable, versionIds: string[]): Promise<RouteTargetRow[]>;
   getVersion(tx: Queryable, versionId: string): Promise<RouteVersionRow | null>;
@@ -122,7 +133,7 @@ export interface RoutesRepository {
   insertRoute(
     tx: Queryable,
     orgId: string,
-    input: { modelName: string; cacheEnabled: boolean },
+    input: { modelName: string; cacheEnabled: boolean; appId: string | null },
   ): Promise<RouteRow>;
   insertVersion(
     tx: Queryable,

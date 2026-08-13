@@ -15,15 +15,23 @@ import {
 describe('routes queries — parametrized, never interpolated', () => {
   it('binds every user value, interpolating none', () => {
     expect(getRouteQuery('r1').values).toEqual(['r1']);
-    expect(getRouteByModelQuery("gpt'; DROP").values).toEqual(["gpt'; DROP"]);
+    expect(getRouteByModelQuery("gpt'; DROP", null).values).toEqual(["gpt'; DROP", null]);
     expect(getRouteQuery('r1').text).not.toContain('r1');
   });
 
-  it('insertRoute binds org, model, cache flag in order', () => {
-    const q = insertRouteQuery('org-1', 'fast', true);
-    expect(q.values).toEqual(['org-1', 'fast', true]);
+  it('insertRoute binds org, model, cache flag, app scope in order', () => {
+    const q = insertRouteQuery('org-1', 'fast', true, null);
+    expect(q.values).toEqual(['org-1', 'fast', true, null]);
     expect(q.text).toContain('$1');
-    expect(q.text).toContain('$3');
+    expect(q.text).toContain('$4');
+  });
+
+  it('getRouteByModel matches per scope, collapsing NULL so org-wide rows compare equal', () => {
+    // A plain `app_id = $2` would never match an org-wide route (NULL = NULL is unknown), so the
+    // duplicate check would pass and a second org-wide route would slip past uniqueness.
+    const q = getRouteByModelQuery('fast', 'app-1');
+    expect(q.values).toEqual(['fast', 'app-1']);
+    expect(q.text).toContain('COALESCE(app_id');
   });
 
   it('insertVersion binds org, route, ordinal, strategy', () => {

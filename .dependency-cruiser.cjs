@@ -26,6 +26,24 @@ module.exports = {
       to: { path: '^packages/[^/]+/src/', pathNot: '^packages/$1/' },
     },
     {
+      name: 'core-never-imports-cloud',
+      comment:
+        'The commercial packages/cloud may import the Apache-2.0 core; never the reverse. ' +
+        'Enforced mechanically because a convention here rots within a quarter (docs/editions.md §4).',
+      severity: 'error',
+      from: { path: '^packages/(server|console|sdk|shared)/' },
+      to: { path: '^packages/cloud/' },
+    },
+    {
+      name: 'sdk-is-standalone',
+      comment:
+        'The SDK is published to npm, so it may not import a private workspace package — an install ' +
+        'would fail. Shared types are duplicated there deliberately (packages/sdk/src/errors.ts).',
+      severity: 'error',
+      from: { path: '^packages/sdk/' },
+      to: { path: '^packages/(server|console|shared)/' },
+    },
+    {
       name: 'no-circular',
       severity: 'error',
       from: {},

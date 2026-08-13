@@ -44,10 +44,14 @@ export async function createRouteAction(formData: FormData): Promise<void> {
   const modelName = field(formData, 'model_name');
   if (!modelName) return;
   const targets = parseTargets(formData);
+  // Empty means the org-wide route — the fallback every application resolves when it has no
+  // override. Only a non-empty value scopes the route to one application.
+  const appId = field(formData, 'app_id');
   const input: CreateRouteInput = {
     model_name: modelName,
     strategy: field(formData, 'strategy') === 'weighted' ? 'weighted' : 'priority',
     cache_enabled: formData.get('cache_enabled') === 'on',
+    ...(appId ? { app_id: appId } : {}),
     ...(targets.length > 0 ? { targets } : {}),
   };
   const route = await createRoute(input);

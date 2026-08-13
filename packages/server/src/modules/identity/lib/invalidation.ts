@@ -15,6 +15,10 @@ export interface InvalidationMessage {
 export const CH_KEY_INVALIDATE = 'key.invalidate';
 export const CH_ORG_SUSPEND = 'org.suspend';
 export const CH_ORG_FEATURES = 'org.features.updated';
+/** Rate limits / budgets changed. Distinct from the entitlements channel on purpose: both clear the
+ * same cache, but publishing "features updated" for a budget edit would misreport what happened in
+ * the logs and in the propagation-lag metric. */
+export const CH_ORG_POLICY = 'org.policy.updated';
 
 export function encodeInvalidation(id: string): string {
   return JSON.stringify({ id, ts: Date.now() });
@@ -51,4 +55,15 @@ export function publishOrgSuspend(bus: EventBus, orgId: string): Promise<number>
 /** Signal that an org's entitlements changed so snapshots reload them. */
 export function publishOrgFeaturesUpdated(bus: EventBus, orgId: string): Promise<number> {
   return bus.publish(CH_ORG_FEATURES, encodeInvalidation(orgId));
+}
+
+/**
+ * Signal that an org's enforcement policy (budget or rate limit) changed.
+ *
+ * Snapshots carry the budget, so without this a raised or lowered ceiling would not reach the data
+ * plane until the cached entry happened to be evicted — a lowered budget in particular has to bite
+ * promptly, or the org keeps spending against a limit its operator already revoked.
+ */
+export function publishOrgPolicyUpdated(bus: EventBus, orgId: string): Promise<number> {
+  return bus.publish(CH_ORG_POLICY, encodeInvalidation(orgId));
 }

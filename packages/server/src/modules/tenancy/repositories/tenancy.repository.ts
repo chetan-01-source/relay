@@ -6,13 +6,22 @@
 import {
   insertOrgQuery,
   getOrgByIdQuery,
+  getOrgByLogtoIdQuery,
   listOrgsQuery,
   updateOrgStatusQuery,
   updateOnboardingStateQuery,
   upsertOrgFeatureQuery,
   listOrgFeaturesQuery,
+  upsertOrgMemberQuery,
+  listOrgMembersQuery,
+  deleteOrgMemberQuery,
 } from '../queries/tenancy.queries.js';
-import type { OrgFeatureRow, OrgRow, TenancyRepository } from '../types/tenancy.types.js';
+import type {
+  OrgFeatureRow,
+  OrgMemberRow,
+  OrgRow,
+  TenancyRepository,
+} from '../types/tenancy.types.js';
 
 export function createTenancyRepository(): TenancyRepository {
   return {
@@ -22,6 +31,10 @@ export function createTenancyRepository(): TenancyRepository {
     },
     async getOrg(tx, orgId) {
       const rows = await tx.run<OrgRow>(getOrgByIdQuery(orgId));
+      return rows[0] ?? null;
+    },
+    async getOrgByLogtoId(tx, logtoOrgId) {
+      const rows = await tx.run<OrgRow>(getOrgByLogtoIdQuery(logtoOrgId));
       return rows[0] ?? null;
     },
     listOrgs(tx) {
@@ -41,6 +54,15 @@ export function createTenancyRepository(): TenancyRepository {
     },
     listFeatures(tx, orgId) {
       return tx.run<OrgFeatureRow>(listOrgFeaturesQuery(orgId));
+    },
+    async upsertOrgMember(tx, orgId, input) {
+      await tx.run(upsertOrgMemberQuery(orgId, input.userId, input.role, input.email));
+    },
+    listOrgMembers(tx, orgId) {
+      return tx.run<OrgMemberRow>(listOrgMembersQuery(orgId));
+    },
+    async deleteOrgMember(tx, orgId, userId) {
+      await tx.run(deleteOrgMemberQuery(orgId, userId));
     },
   };
 }

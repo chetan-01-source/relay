@@ -86,3 +86,43 @@ export function rebuildRollupsForOrgSinceQuery(orgId: string, sinceHourIso: stri
     values: [orgId, sinceHourIso],
   };
 }
+
+/** Every org that currently has any metered traffic — the candidate set for the prune worker. */
+export function listOrgsWithUsageQuery(): SqlQuery {
+  return {
+    text: `SELECT DISTINCT ue.org_id
+             FROM usage_events ue
+             JOIN organizations o ON o.id = ue.org_id`,
+    values: [],
+  };
+}
+
+/**
+ * Delete one org's request feed older than its plan's retention window.
+ *
+ * Bounded by `LIMIT` through a CTE so a first run against a long-neglected table cannot hold a
+ * transaction open for minutes; the worker simply prunes again on its next tick. Rollups are NOT
+ * touched — they are the aggregate the dashboards read, they carry no prompt or trace detail, and a
+ * retention window is about how long individual requests stay inspectable, not about erasing the
+ * spend history a customer is billed on.
+ */
+export function pruneUsageEventsQuery(orgId: string, days: number, batch: number): SqlQuery {
+  return {
+    // Matched on the full primary key `(id, created_at)`, not on ctid: usage_events is RANGE
+    // partitioned, and a ctid is only unique within one partition — matching on it would delete the
+    // wrong rows the moment the table spans more than one.
+    text: `WITH doomed AS (
+             SELECT id, created_at
+               FROM usage_events
+              WHERE org_id = $1
+                AND created_at < now() - ($2::int * INTERVAL '1 day')
+              ORDER BY created_at
+              LIMIT $3
+           )
+           DELETE FROM usage_events ue
+            USING doomed d
+            WHERE ue.id = d.id AND ue.created_at = d.created_at
+        RETURNING 1 AS pruned`,
+    values: [orgId, days, batch],
+  };
+}

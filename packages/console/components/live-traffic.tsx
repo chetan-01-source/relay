@@ -1,28 +1,49 @@
 'use client';
 
 /**
- * Live-traffic table (Day 13 · FE-1). Subscribes to the same-origin SSE proxy (/api/traffic/stream)
- * via EventSource and renders the most recent requests, newest first. Rows are de-duplicated by id
- * and the list is capped so a long-lived tab never grows unbounded. Each row links to its trace.
+ * Live-traffic table. Two sources, one list: the server seeds recent history from
+ * `GET /api/v1/traffic` (so the table is never blank on arrival — it used to sit empty until the next
+ * request happened), and an EventSource on the same-origin SSE proxy appends events as they settle.
+ *
+ * Rows are de-duplicated by id+timestamp and capped, so a tab left open overnight doesn't grow
+ * without bound. The status filter is applied to live events with the same predicate the server used
+ * for the seed (lib/traffic.ts), so the two halves of the list always agree.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { TrafficEvent } from '../app/lib/api';
+import { mergeEvent, statusVariant, type TrafficStatus } from '../app/lib/traffic';
+import { formatUsd } from '../app/lib/usage';
+import { LabelledId } from './ui/labelled-id';
+import { LocalTime } from './local-time';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from './ui/table';
 import { Badge } from './ui/badge';
 
 const MAX_ROWS = 200;
 
-function statusVariant(status: string): 'success' | 'destructive' | 'secondary' {
-  if (status === 'ok') return 'success';
-  if (status === 'error') return 'destructive';
-  return 'secondary'; // rate_limited | budget_exceeded
+export interface LiveTrafficProps {
+  /** Recent requests fetched server-side, newest first — the table's starting state. */
+  initialEvents: TrafficEvent[];
+  /** The active status filter, or null for "all". Live events are filtered to match. */
+  filter: TrafficStatus | null;
+  /**
+   * id → name for the routes and applications events reference, resolved server-side. Passed as
+   * plain objects rather than Maps because this crosses the server/client boundary, where only
+   * JSON-serialisable values survive.
+   */
+  routeNames: Record<string, string>;
+  appNames: Record<string, string>;
 }
 
-export function LiveTraffic() {
-  const [events, setEvents] = useState<TrafficEvent[]>([]);
+export function LiveTraffic({ initialEvents, filter, routeNames, appNames }: LiveTrafficProps) {
+  const [events, setEvents] = useState<TrafficEvent[]>(initialEvents);
   const [connected, setConnected] = useState(false);
-  const seen = useRef<Set<string>>(new Set());
+
+  // The seed is re-fetched by the server whenever the filter changes (it is a URL param), so reset
+  // the list to the new seed rather than merging two filters' worth of rows.
+  useEffect(() => {
+    setEvents(initialEvents);
+  }, [initialEvents]);
 
   useEffect(() => {
     const source = new EventSource('/api/traffic/stream');
@@ -35,26 +56,28 @@ export function LiveTraffic() {
       } catch {
         return;
       }
-      const key = `${event.id}:${event.created_at}`;
-      if (seen.current.has(key)) return;
-      seen.current.add(key);
-      setEvents((prev) => [event, ...prev].slice(0, MAX_ROWS));
+      setEvents((prev) => mergeEvent(prev, event, { filter, max: MAX_ROWS }));
     };
     return () => source.close();
-  }, []);
+  }, [filter]);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span
           className={`inline-block size-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-muted-foreground'}`}
+          aria-hidden="true"
         />
-        {connected ? 'Live' : 'Connecting…'}
-        <span>· {events.length} events</span>
+        <span role="status">{connected ? 'Live' : 'Connecting…'}</span>
+        <span>· {events.length} requests</span>
       </div>
       {events.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Waiting for requests. Make a call to <code>/v1/chat/completions</code> to see traffic.
+          No requests yet. Send one from the{' '}
+          <Link href="/playground" className="underline">
+            playground
+          </Link>{' '}
+          or call <code>/v1/chat/completions</code> directly.
         </p>
       ) : (
         <Table>
@@ -62,8 +85,12 @@ export function LiveTraffic() {
             <TableRow>
               <TableHead>Time</TableHead>
               <TableHead>Model</TableHead>
+              <TableHead>Route</TableHead>
+              <TableHead>Application</TableHead>
+              <TableHead>Provider</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Tokens</TableHead>
+              <TableHead className="text-right">Cost</TableHead>
               <TableHead className="text-right">Latency</TableHead>
               <TableHead>Request</TableHead>
             </TableRow>
@@ -72,14 +99,30 @@ export function LiveTraffic() {
             {events.map((e, i) => (
               <TableRow key={`${e.id}-${i}`}>
                 <TableCell className="text-xs text-muted-foreground">
-                  {new Date(e.created_at ?? '').toLocaleTimeString()}
+                  <LocalTime iso={e.created_at} mode="time" />
                 </TableCell>
                 <TableCell className="font-medium">{e.model}</TableCell>
+                <TableCell>
+                  <LabelledId
+                    value={{ name: routeNames[e.route_id ?? ''] ?? null, id: e.route_id ?? '' }}
+                    {...(e.route_id ? { href: `/routes/${e.route_id}` } : {})}
+                  />
+                </TableCell>
+                <TableCell>
+                  <LabelledId
+                    value={{ name: appNames[e.app_id ?? ''] ?? null, id: e.app_id ?? '' }}
+                    {...(e.app_id ? { href: `/apps/${e.app_id}` } : {})}
+                  />
+                </TableCell>
+                <TableCell className="text-muted-foreground">{e.provider ?? '—'}</TableCell>
                 <TableCell>
                   <Badge variant={statusVariant(e.status ?? 'ok')}>{e.status}</Badge>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {(e.input_tokens ?? 0) + (e.output_tokens ?? 0)}
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">
+                  {formatUsd(e.cost_usd ?? 0)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {e.latency_ms != null ? `${e.latency_ms}ms` : '—'}

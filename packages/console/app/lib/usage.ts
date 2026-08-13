@@ -37,9 +37,27 @@ export function summarizeUsage(summary: UsageSummary | null | undefined): UsageT
   return totals;
 }
 
-/** Format a USD amount for a tile (always 4 dp so sub-cent spend is visible). */
+/**
+ * Format a USD amount, scaling precision to the magnitude.
+ *
+ * A fixed 4 dp is wrong for this product: a short gpt-4o-mini call costs ~$0.000006, so real spend
+ * rendered as "$0.0000" and read as "usage isn't being tracked". Small amounts therefore get the
+ * full 6 dp the rollups actually store (`cost_usd numeric(14,6)`), while larger ones stay readable
+ * — nobody wants to read "$1234.560000".
+ *
+ * 6 dp is the floor because it is the storage precision; a positive amount that would still round to
+ * zero there is shown as a "less than" rather than a bare $0.00, so "tiny" never reads as "none".
+ */
 export function formatUsd(value: number): string {
-  return `$${value.toFixed(4)}`;
+  if (!Number.isFinite(value) || value === 0) return '$0.00';
+
+  const sign = value < 0 ? '-' : '';
+  const amount = Math.abs(value);
+
+  if (amount >= 1) return `${sign}$${amount.toFixed(2)}`;
+  if (amount >= 0.01) return `${sign}$${amount.toFixed(4)}`;
+  if (amount < 0.0000005) return `${sign}<$0.000001`;
+  return `${sign}$${amount.toFixed(6)}`;
 }
 
 export interface DailyPoint {

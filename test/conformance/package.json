@@ -1,6 +1,6 @@
 {
   "name": "@relay/conformance",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Conformance suite — official provider SDKs pointed at the running gateway (Day 14, PRD §11).",

@@ -30,6 +30,12 @@ playwright-report/
 # guidelines under llm/ ARE tracked; only docs/ is ignored.
 llm/docs/
 
+# Internal docs: sprint artifacts, QA runbooks, and the deployment/ops strategy.
+# Ops material maps our production surface and belongs in a private ops repo, not in a
+# public one — see docs/internal/launch-playbook.md §A2. Everything a CONTRIBUTOR or a
+# SELF-HOSTER needs stays tracked in docs/ and docs/adr/.
+docs/internal/
+
 # os / editor
 .DS_Store
 .idea/

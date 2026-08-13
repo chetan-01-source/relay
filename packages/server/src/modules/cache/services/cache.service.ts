@@ -18,7 +18,7 @@ export function createCacheService(deps: CacheServiceDeps): CacheService {
   const enabled = Boolean(client) && deps.ttlSeconds > 0;
 
   return {
-    keyFor: (orgId, req) => cacheKeyFor(orgId, req),
+    keyFor: (orgId, appId, req) => cacheKeyFor(orgId, appId, req),
 
     async get(key) {
       if (!enabled) return null;

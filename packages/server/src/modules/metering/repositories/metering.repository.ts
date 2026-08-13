@@ -7,6 +7,8 @@ import {
   listOrgsWithUsageSinceQuery,
   deleteRollupsForOrgSinceQuery,
   rebuildRollupsForOrgSinceQuery,
+  listOrgsWithUsageQuery,
+  pruneUsageEventsQuery,
 } from '../queries/metering.queries.js';
 import type { MeteringRepository } from '../types/metering.types.js';
 
@@ -24,6 +26,14 @@ export function createMeteringRepository(): MeteringRepository {
       // Delete-then-insert within one transaction ⇒ the recompute is atomic and idempotent.
       await tx.run(deleteRollupsForOrgSinceQuery(orgId, sinceHourIso));
       await tx.run(rebuildRollupsForOrgSinceQuery(orgId, sinceHourIso));
+    },
+    async listOrgsWithUsage(tx) {
+      const rows = await tx.run<{ org_id: string }>(listOrgsWithUsageQuery());
+      return rows.map((r) => r.org_id);
+    },
+    async pruneUsageEvents(tx, orgId, days, batch) {
+      const rows = await tx.run(pruneUsageEventsQuery(orgId, days, batch));
+      return rows.length;
     },
   };
 }

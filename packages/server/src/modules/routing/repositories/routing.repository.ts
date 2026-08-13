@@ -8,8 +8,8 @@ import type { RoutingRepository, RoutingTargetRow } from '../types/routing.types
 
 export function createRoutingRepository(tx: Queryable): RoutingRepository {
   return {
-    listActiveTargets(model) {
-      return tx.run<RoutingTargetRow>(listActiveRouteTargetsQuery(model));
+    listActiveTargets(model, appId) {
+      return tx.run<RoutingTargetRow>(listActiveRouteTargetsQuery(model, appId));
     },
   };
 }

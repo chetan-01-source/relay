@@ -26,6 +26,22 @@ import { registerTenancy } from './modules/tenancy/index.js';
 import { registerApps } from './modules/apps/index.js';
 import { registerProviders } from './modules/providers/index.js';
 import { registerAnalytics } from './modules/analytics/index.js';
+import { registerBudgets } from './modules/budgets/index.js';
+import {
+  registerNotifications,
+  createConsoleSender,
+  createSmtpSender,
+  type EmailSender,
+  createBudgetAlertSink,
+} from './modules/notifications/index.js';
+import { createPolicyRepository } from './modules/policy/index.js';
+import {
+  createPlans,
+  createPlanSource,
+  createRetentionSource,
+  registerPlans,
+  type Edition,
+} from './modules/plans/index.js';
 import { registerAudit } from './modules/audit/index.js';
 import { registerRoutes } from './modules/routes/index.js';
 import { registerTraffic } from './modules/traffic/index.js';
@@ -60,10 +76,26 @@ export interface PublicAppDeps {
   upstreamUrl: string;
   masterKey: string;
   bus?: EventBus; // present when serving; absent for the offline `relay openapi` spec dump
+  /**
+   * Entitlement regime (ADR-0014). Defaults to 'oss' — every org unlimited — so a self-hoster, the
+   * test suite and the offline spec dump all get the permissive service without configuring anything.
+   */
+  edition?: Edition;
   logto?: LogtoJwtConfig; // control-plane JWT verification (identity)
   logtoM2m?: LogtoConfig; // Logto Management API creds (tenancy org sync); absent → onboarding 503
   // Day-11 value-layer knobs (defaulted so the offline spec dump needs none).
   cacheTtlS?: number;
+  // Notifications: absent smtp ⇒ the console sender, which records but never delivers.
+  smtp?: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user?: string | undefined;
+    password?: string | undefined;
+  };
+  smtpFrom?: string;
+  consoleUrl?: string;
+  notifyIntervalMs?: number;
   cacheMaxBytes?: number;
   meteringQueueMax?: number;
   meteringFlushIntervalMs?: number;
@@ -75,7 +107,9 @@ const OPENAPI_DOC = {
   info: {
     title: 'Relay Gateway API',
     description: 'OpenAI-compatible, multi-tenant LLM gateway. Data-plane (/v1/*) surface.',
-    version: '0.2.0',
+    // Read from version.ts, never written here: a hardcoded copy silently publishes a spec whose
+    // stated version disagrees with the binary serving it, and the generated SDK inherits the lie.
+    version: RELAY_VERSION,
   },
   tags: [
     { name: 'chat', description: 'Chat completions (OpenAI-compatible hot path)' },
@@ -85,12 +119,25 @@ const OPENAPI_DOC = {
     { name: 'apps', description: 'Applications + virtual-key lifecycle (issue/rotate/revoke)' },
     { name: 'providers', description: 'Encrypted upstream provider credentials' },
     { name: 'analytics', description: 'Usage/spend reporting over hourly rollups' },
+    {
+      name: 'budgets',
+      description: 'Per-org spend ceilings the data plane enforces (reserve/settle)',
+    },
+    {
+      name: 'notifications',
+      description: 'Per-tenant delivery channel, event preferences, and the delivery log',
+    },
     { name: 'audit', description: 'Append-only, hash-chained audit trail (read/verify)' },
     {
       name: 'routes',
       description: 'Route editor: versions, targets, activate/rollback, cache toggle',
     },
     { name: 'traffic', description: 'Recent request feed + trace detail (live SSE)' },
+    {
+      name: 'plans',
+      description:
+        'Plan catalog, effective entitlements and quotas. Empty/unlimited in the self-hosted edition.',
+    },
   ],
 };
 
@@ -158,12 +205,23 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     void reply.code(status).send(body);
   });
 
+  // Plans first: it is the one place that answers "what may this org do", and identity folds its
+  // answer into every virtual-key snapshot. Constructed before identity because identity consumes it
+  // (through the narrow PlanSource interface) — and it depends on nothing but the database, so this
+  // ordering is free. THE edition switch lives inside createPlans and nowhere else (docs/editions.md).
+  const plans = createPlans({
+    db: deps.db,
+    edition: deps.edition ?? 'oss',
+    ...(deps.bus ? { bus: deps.bus } : {}),
+  });
+
   // Identity is the auth spine: it registers the control-plane /api routes and returns the
   // preHandlers the data plane guards with. Registered before the data routes so its /api paths and
   // the proxy's virtual-key guard are both in place.
   const identity = await registerIdentity(app, {
     db: deps.db,
     masterKey: deps.masterKey,
+    planSource: createPlanSource(plans),
     ...(deps.bus ? { bus: deps.bus } : {}),
     ...(deps.logto ? { logto: deps.logto } : {}),
   });
@@ -171,33 +229,91 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   // Tenancy is a platform control-plane module: it manages the tenant lifecycle, guarded by the
   // identity JWT preHandlers. Logto org-sync is wired only when M2M creds are present; without them
   // onboarding returns 503 while the rest of the control plane works.
+  // One Logto client shared by tenancy (org sync) and notifications (member → recipient lookup).
+  const logtoSync = deps.logtoM2m ? createLogtoOrgSync(deps.logtoM2m) : undefined;
+
+  const guards = {
+    authJwt: identity.authJwt,
+    requireScope: identity.requireScope,
+    requireOrgAdmin: identity.requireOrgAdmin,
+  };
+
+  // The plan read surface + the catalog. In the oss edition the catalog is empty and the effective
+  // plan is `self_hosted`, so the console's plan page still renders real usage with no ceilings.
+  registerPlans(app, { service: plans, guards });
+
+  // Notifications registers its config API and returns the enqueuer other modules produce through.
+  // The platform sender is chosen HERE, once: no SMTP host configured means a console sender, so a
+  // developer cannot accidentally mail a tenant's members while testing.
+  const platformSender: EmailSender = deps.smtp
+    ? createSmtpSender(deps.smtp)
+    : createConsoleSender();
+  const notifications = registerNotifications(app, {
+    db: deps.db,
+    masterKey: deps.masterKey,
+    guards,
+    plans,
+    platformSender,
+    platformFrom: deps.smtpFrom ?? 'relay@localhost',
+    logto: logtoSync,
+    consoleUrl: deps.consoleUrl,
+    ...(deps.notifyIntervalMs ? { dispatchIntervalMs: deps.notifyIntervalMs } : {}),
+  });
+  (app as unknown as { notifications: typeof notifications }).notifications = notifications;
+
+  // Tenancy comes after notifications so it can produce org.suspended and member.removed. Logto
+  // org-sync is wired only when M2M creds are present; without them onboarding returns 503 while the
+  // rest of the control plane works.
   registerTenancy(app, {
     db: deps.db,
     ...(deps.bus ? { bus: deps.bus } : {}),
-    ...(deps.logtoM2m ? { logto: createLogtoOrgSync(deps.logtoM2m) } : {}),
-    guards: { authJwt: identity.authJwt, requireScope: identity.requireScope },
+    ...(logtoSync ? { logto: logtoSync } : {}),
+    guards,
+    plans,
+    notify: notifications.enqueuer,
+    consoleUrl: deps.consoleUrl,
   });
 
   // Org-scoped control plane: applications + virtual-key lifecycle, and the encrypted provider
   // credential store. Both guarded by the identity JWT preHandlers.
-  const guards = { authJwt: identity.authJwt, requireScope: identity.requireScope };
+  // `plans` is threaded into every module that creates a countable resource. Each one calls
+  // assertQuota INSIDE its insert transaction — outside it the check races (ADR-0014 §5).
   registerApps(app, {
     db: deps.db,
     masterKey: deps.masterKey,
     ...(deps.bus ? { bus: deps.bus } : {}),
     guards,
+    plans,
+    notify: notifications.enqueuer,
   });
-  registerProviders(app, { db: deps.db, masterKey: deps.masterKey, guards });
+  registerProviders(app, {
+    db: deps.db,
+    masterKey: deps.masterKey,
+    guards,
+    plans,
+    notify: notifications.enqueuer,
+  });
 
   // Value-layer read surfaces (Day 12): usage/spend analytics over the hourly rollups, and the
   // read/verify endpoints for the append-only audit trail. Both guarded by the identity preHandlers.
+  // Analytics is NOT plan-gated at the gateway. `analytics.export` gates the console's CSV route,
+  // which is where a CSV is actually produced; the underlying usage API is available on every plan,
+  // and pretending otherwise would be a gate anyone could walk around with curl.
   registerAnalytics(app, { db: deps.db, guards });
+  // Budgets are the write side of what policy enforces on the hot path; the bus lets a change reach
+  // every worker's cached snapshot within ~1s instead of waiting for an eviction.
+  registerBudgets(app, {
+    db: deps.db,
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    guards,
+    notify: notifications.enqueuer,
+  });
   registerAudit(app, { db: deps.db, guards });
 
   // Day-13 org control plane: the routes editor (CRUD over the routing tables) and the request-feed
   // read surface (recent usage events + trace detail + live SSE). No new tables — routes reuses 0005
   // + 0012; traffic reads usage_events (0007). Both guarded by the identity preHandlers.
-  registerRoutes(app, { db: deps.db, guards });
+  registerRoutes(app, { db: deps.db, guards, plans });
   registerTraffic(app, {
     db: deps.db,
     ...(deps.bus ? { bus: deps.bus } : {}),
@@ -209,7 +325,14 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     masterKey: deps.masterKey,
     fallbackBaseUrl: deps.upstreamUrl,
   });
-  const policy = createPolicyService({ ...(deps.bus ? { bus: deps.bus } : {}) });
+  // The spend reader seeds a cold budget counter from what the period has already cost, so creating
+  // a budget mid-period (or restarting Valkey) cannot silently re-grant the allowance already spent.
+  const policy = createPolicyService({
+    ...(deps.bus ? { bus: deps.bus } : {}),
+    spendReader: createPolicyRepository(deps.db),
+    // Turns a rejection into ONE notification per ceiling per period (see budget-alerts.ts).
+    alerts: createBudgetAlertSink(notifications.enqueuer),
+  });
 
   // Value layer (Day 11): exact cache (Valkey, no-op without a bus) + metering (async ring queue).
   const cache = createCacheService({
@@ -220,6 +343,9 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   const metering = createMeteringService({
     db: deps.db,
     ...(deps.bus ? { bus: deps.bus } : {}),
+    // Enforces each plan's `retention.traffic_days`. In the oss edition every org resolves to
+    // "unlimited", so the sweep runs and deletes nothing.
+    retention: createRetentionSource(plans),
     queueMax: deps.meteringQueueMax ?? 10_000,
     flushIntervalMs: deps.meteringFlushIntervalMs ?? 2_000,
     rollupIntervalMs: deps.rollupIntervalMs ?? 60_000,
@@ -227,7 +353,11 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   // Start the flush/rollup workers only when serving (a bus is present); the offline spec dump doesn't.
   if (deps.bus) {
     metering.start();
+    // The delivery worker runs only when serving — the offline `relay openapi` dump must not start
+    // timers or attempt to send anything.
+    notifications.dispatcher.start();
     app.addHook('onClose', async () => {
+      notifications.dispatcher.stop();
       await metering.stop();
     });
   }
@@ -261,7 +391,23 @@ export async function buildServers(config: Config, deps: AppDeps): Promise<Serve
     upstreamUrl: config.RELAY_UPSTREAM_URL,
     masterKey: config.RELAY_MASTER_KEY,
     bus: deps.bus,
+    edition: config.RELAY_EDITION,
     cacheTtlS: config.RELAY_CACHE_TTL_S,
+    // No SMTP host ⇒ buildPublicApp picks the console sender and nothing is delivered.
+    ...(config.RELAY_SMTP_HOST
+      ? {
+          smtp: {
+            host: config.RELAY_SMTP_HOST,
+            port: config.RELAY_SMTP_PORT,
+            secure: config.RELAY_SMTP_SECURE,
+            user: config.RELAY_SMTP_USER,
+            password: config.RELAY_SMTP_PASSWORD,
+          },
+        }
+      : {}),
+    smtpFrom: config.RELAY_SMTP_FROM,
+    ...(config.RELAY_CONSOLE_URL ? { consoleUrl: config.RELAY_CONSOLE_URL } : {}),
+    notifyIntervalMs: config.RELAY_NOTIFY_INTERVAL_MS,
     cacheMaxBytes: config.RELAY_CACHE_MAX_BYTES,
     meteringQueueMax: config.RELAY_METERING_QUEUE_MAX,
     meteringFlushIntervalMs: config.RELAY_METERING_FLUSH_INTERVAL_MS,

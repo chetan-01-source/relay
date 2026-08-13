@@ -12,6 +12,7 @@ export function listRoutesQuery(): SqlQuery {
   return {
     text: `SELECT r.id,
                   r.model_name,
+                  r.app_id,
                   r.cache_enabled,
                   r.active_version_id,
                   r.created_at,
@@ -30,17 +31,26 @@ export function listRoutesQuery(): SqlQuery {
 
 export function getRouteQuery(id: string): SqlQuery {
   return {
-    text: `SELECT id, model_name, cache_enabled, active_version_id, created_at
+    text: `SELECT id, model_name, app_id, cache_enabled, active_version_id, created_at
              FROM routes WHERE id = $1`,
     values: [id],
   };
 }
 
-export function getRouteByModelQuery(modelName: string): SqlQuery {
+/**
+ * The route serving `modelName` in ONE scope. `appId` null means the org-wide route; a value means
+ * that application's own. Both sides are collapsed through COALESCE because Postgres compares NULLs
+ * as distinct — `app_id = NULL` matches nothing, so a plain equality test would report "no duplicate"
+ * for every org-wide route and let a second one through the uniqueness check.
+ */
+export function getRouteByModelQuery(modelName: string, appId: string | null): SqlQuery {
   return {
-    text: `SELECT id, model_name, cache_enabled, active_version_id, created_at
-             FROM routes WHERE model_name = $1`,
-    values: [modelName],
+    text: `SELECT id, model_name, app_id, cache_enabled, active_version_id, created_at
+             FROM routes
+            WHERE model_name = $1
+              AND COALESCE(app_id, '00000000-0000-0000-0000-000000000000'::uuid)
+                = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)`,
+    values: [modelName, appId],
   };
 }
 
@@ -91,12 +101,13 @@ export function insertRouteQuery(
   orgId: string,
   modelName: string,
   cacheEnabled: boolean,
+  appId: string | null,
 ): SqlQuery {
   return {
-    text: `INSERT INTO routes (org_id, model_name, cache_enabled)
-           VALUES ($1, $2, $3)
-        RETURNING id, model_name, cache_enabled, active_version_id, created_at`,
-    values: [orgId, modelName, cacheEnabled],
+    text: `INSERT INTO routes (org_id, model_name, cache_enabled, app_id)
+           VALUES ($1, $2, $3, $4::uuid)
+        RETURNING id, model_name, app_id, cache_enabled, active_version_id, created_at`,
+    values: [orgId, modelName, cacheEnabled, appId],
   };
 }
 

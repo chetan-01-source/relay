@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import {
   LayoutDashboard,
   Boxes,
@@ -9,10 +10,17 @@ import {
   Waypoints,
   Radio,
   HeartPulse,
+  LineChart,
+  Layers,
+  TerminalSquare,
+  Wallet,
+  Bell,
+  Gauge,
 } from 'lucide-react';
 import { requireUser } from '../lib/auth';
 import { signOutAction } from '../actions';
 import { NavLink } from '../../components/nav-link';
+import { RelayLogo } from '../../components/brand/relay-logo';
 import { Button } from '../../components/ui/button';
 import { ThemeToggle } from '../../components/theme-toggle';
 
@@ -30,44 +38,79 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-card px-3 py-4 md:flex">
-        <div className="flex items-center gap-2 px-3 pb-5 pt-1">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            R
-          </span>
-          <span className="text-lg font-semibold tracking-tight">Relay</span>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1">
+        {/* The real lockup, not a letter tile — the console and the landing page have to be the
+            same product. Wrapped in a link home so the logo does what every logo is expected to. */}
+        <Link
+          href="/dashboard"
+          aria-label="Relay dashboard"
+          className="mx-3 mb-5 mt-1 inline-flex w-fit rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <RelayLogo />
+        </Link>
+        {/* Grouped build → operate → platform, which is the order an operator actually works in.
+            The groups are labelled because the flat list stopped being scannable past six items. */}
+        <nav className="flex flex-1 flex-col gap-1" aria-label="Console">
           <NavLink href="/dashboard">
-            <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+            <LayoutDashboard className="mr-2 h-4 w-4" aria-hidden="true" /> Dashboard
           </NavLink>
+
+          <div className="mt-4 px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Build
+          </div>
           <NavLink href="/apps">
-            <Boxes className="mr-2 h-4 w-4" /> Applications
+            <Boxes className="mr-2 h-4 w-4" aria-hidden="true" /> Applications
           </NavLink>
           <NavLink href="/providers">
-            <KeyRound className="mr-2 h-4 w-4" /> Providers
+            <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" /> Providers
           </NavLink>
           <NavLink href="/routes">
-            <Waypoints className="mr-2 h-4 w-4" /> Routes
+            <Waypoints className="mr-2 h-4 w-4" aria-hidden="true" /> Routes
+          </NavLink>
+          <NavLink href="/models">
+            <Layers className="mr-2 h-4 w-4" aria-hidden="true" /> Models
+          </NavLink>
+          <NavLink href="/playground">
+            <TerminalSquare className="mr-2 h-4 w-4" aria-hidden="true" /> Playground
+          </NavLink>
+
+          <div className="mt-4 px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Operate
+          </div>
+          <NavLink href="/analytics">
+            <LineChart className="mr-2 h-4 w-4" aria-hidden="true" /> Usage &amp; spend
+          </NavLink>
+          <NavLink href="/budgets">
+            <Wallet className="mr-2 h-4 w-4" aria-hidden="true" /> Budgets
           </NavLink>
           <NavLink href="/traffic">
-            <Radio className="mr-2 h-4 w-4" /> Live traffic
+            <Radio className="mr-2 h-4 w-4" aria-hidden="true" /> Live traffic
           </NavLink>
           <NavLink href="/audit">
-            <ScrollText className="mr-2 h-4 w-4" /> Audit
+            <ScrollText className="mr-2 h-4 w-4" aria-hidden="true" /> Audit
           </NavLink>
+          <NavLink href="/notifications">
+            <Bell className="mr-2 h-4 w-4" aria-hidden="true" /> Notifications
+          </NavLink>
+          {/* Last in Operate on purpose: it is the screen you visit when something is refused, not
+              one you work in daily. It renders in both editions — self-hosted shows real usage
+              counts against "Unlimited", which is useful capacity information. */}
+          <NavLink href="/plan">
+            <Gauge className="mr-2 h-4 w-4" aria-hidden="true" /> Plan &amp; usage
+          </NavLink>
+
           {me.is_platform_admin ? (
             <>
               <div className="mt-4 px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Platform
               </div>
               <NavLink href="/orgs">
-                <Building2 className="mr-2 h-4 w-4" /> Organizations
+                <Building2 className="mr-2 h-4 w-4" aria-hidden="true" /> Organizations
               </NavLink>
               <NavLink href="/platform">
-                <BarChart3 className="mr-2 h-4 w-4" /> Platform usage
+                <BarChart3 className="mr-2 h-4 w-4" aria-hidden="true" /> Platform usage
               </NavLink>
               <NavLink href="/status">
-                <HeartPulse className="mr-2 h-4 w-4" /> System status
+                <HeartPulse className="mr-2 h-4 w-4" aria-hidden="true" /> System status
               </NavLink>
             </>
           ) : null}

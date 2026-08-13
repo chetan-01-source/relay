@@ -16,7 +16,8 @@ function identity(over: Partial<VirtualKeySnapshot['policy']> = {}): VirtualKeyS
     keyStatus: 'active',
     graceUntil: null,
     entitlements: {},
-    policy: { rateLimit: null, budget: null, ...over },
+    planCode: null,
+    policy: { rateLimit: null, budgets: [], ...over },
   };
 }
 
@@ -74,7 +75,7 @@ describe('policy service', () => {
     const decision = await service.authorize(
       identity({
         rateLimit: { rpm: 60, tpm: 1000 },
-        budget: { period: 'monthly', limitUsd: 25, hardCutoff: true },
+        budgets: [{ scope: 'org', appId: null, period: 'monthly', limitUsd: 25, hardCutoff: true }],
       }),
       req,
       [target],
@@ -82,7 +83,7 @@ describe('policy service', () => {
     expect(decision.headers['x-ratelimit-limit-requests']).toBe('60');
     expect(decision.headers['x-ratelimit-remaining-requests']).toBe('59');
     expect(decision.headers['x-ratelimit-limit-tokens']).toBe('1000');
-    expect(decision.reservation).toMatchObject({ orgId: 'org-1', period: 'monthly' });
+    expect(decision.reservations?.[0]).toMatchObject({ orgId: 'org-1', period: 'monthly' });
   });
 
   it('settle charges the actual cost against the reservation via the settle script', async () => {
@@ -93,17 +94,20 @@ describe('policy service', () => {
     const service = createPolicyService({ bus });
     const decision = {
       headers: {},
-      reservation: {
-        orgId: 'org-1',
-        period: 'monthly' as const,
-        key: 'budget:org-1:monthly',
-        reservedMicroUsd: 500,
-      },
+      reservations: [
+        {
+          orgId: 'org-1',
+          period: 'monthly' as const,
+          key: 'budget:org-1:org:monthly:2026-08',
+          reservedMicroUsd: 500,
+          ttlSeconds: 3600,
+        },
+      ],
     };
     await service.settle(decision, target, { inputTokens: 1000, outputTokens: 1000 });
     // last evalsha call is the settle; delta = actual(0.005*1000/1000*1e6 + 0.015*1000/1000*1e6=20000) - 500
     const lastCall = evalsha.mock.calls.at(-1)!;
-    expect(lastCall[2]).toBe('budget:org-1:monthly'); // key
+    expect(lastCall[2]).toBe('budget:org-1:org:monthly:2026-08'); // key
     expect(Number(lastCall[3])).toBe(20000 - 500); // delta micro-USD
   });
 
@@ -123,7 +127,9 @@ describe('policy service', () => {
       .authorize(
         identity({
           rateLimit: { rpm: 60, tpm: null },
-          budget: { period: 'monthly', limitUsd: 0.000001, hardCutoff: true },
+          budgets: [
+            { scope: 'org', appId: null, period: 'monthly', limitUsd: 0.000001, hardCutoff: true },
+          ],
         }),
         req,
         [target],

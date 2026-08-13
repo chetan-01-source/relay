@@ -15,6 +15,7 @@ import {
   type OnboardOrgInput,
 } from '../../lib/api';
 import { FEATURE_KEYS } from '../../lib/features';
+import { isOnboardingState } from '../../lib/onboarding';
 
 /** Read a form field as a trimmed string (form values are string | File; we only use text inputs). */
 function field(formData: FormData, name: string): string {
@@ -69,11 +70,14 @@ export async function unsuspendOrgAction(formData: FormData): Promise<void> {
   revalidatePath(`/orgs/${orgId}`);
 }
 
-/** Advance the org's onboarding state machine one step (platform-admin). */
+/** Advance the org's onboarding state machine to the next step (platform-admin). The gateway
+ * validates the transition, so the target state travels in the form and is checked against the
+ * state machine here before the call — an unknown value is dropped rather than sent. */
 export async function advanceOnboardingAction(formData: FormData): Promise<void> {
   const orgId = field(formData, 'orgId');
-  if (!orgId) return;
-  await advanceOnboarding(orgId);
+  const state = field(formData, 'state');
+  if (!orgId || !isOnboardingState(state)) return;
+  await advanceOnboarding(orgId, state);
   revalidatePath('/orgs');
   revalidatePath(`/orgs/${orgId}`);
 }

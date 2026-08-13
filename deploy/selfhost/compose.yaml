@@ -55,6 +55,9 @@ services:
       RELAY_MASTER_KEY: ${RELAY_MASTER_KEY:?set RELAY_MASTER_KEY (openssl rand -base64 32) in .env}
       RELAY_UPSTREAM_URL: ${RELAY_UPSTREAM_URL:-https://api.openai.com}
       RELAY_CACHE_TTL_S: ${RELAY_CACHE_TTL_S:-0}
+      # Which entitlement regime to run (docs/editions.md). Defaults to oss — unlimited everything —
+      # so a self-hoster who never sets it is never limited.
+      RELAY_EDITION: ${RELAY_EDITION:-oss}
       RELAY_PORT: '3000'
       RELAY_INTERNAL_PORT: '9090'
     depends_on:
@@ -77,6 +80,9 @@ services:
       RELAY_API_BASE_URL: http://relay:3000 # server-side calls to the gateway (container network)
       RELAY_INTERNAL_URL: http://relay:9090 # System Status page reads the internal probe
       RELAY_API_RESOURCE: ${RELAY_API_RESOURCE:-https://relay.gateway/api}
+      # Must match the gateway's value: the console gates the pricing section and the upgrade
+      # controls on this, and a mismatch would offer a plan change the server then refuses.
+      RELAY_EDITION: ${RELAY_EDITION:-oss}
       # Logto (console sign-in). Configure per the self-hosting guide; the data plane works without it.
       LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
       LOGTO_APP_ID: ${LOGTO_APP_ID:-}

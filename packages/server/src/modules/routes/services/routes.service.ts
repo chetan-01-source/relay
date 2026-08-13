@@ -8,6 +8,7 @@
 import { RelayError } from '@relay/shared';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';
+import type { PlansService } from '../../plans/index.js';
 import type {
   CreateRouteInput,
   CreateVersionInput,
@@ -25,12 +26,14 @@ export interface RoutesServiceDeps {
   db: Database;
   repo: RoutesRepository;
   audit: AuditRepository;
+  /** Plan quotas. Absent ⇒ unbounded (offline spec dump, unit tests). */
+  plans?: PlansService;
 }
 
 const DEFAULT_STRATEGY: RoutingStrategy = 'priority';
 
 export function createRoutesService(deps: RoutesServiceDeps): RoutesService {
-  const { db, repo, audit } = deps;
+  const { db, repo, audit, plans } = deps;
 
   function listRoutes(orgId: string): Promise<Route[]> {
     return db.withTenant(orgId, { isPlatformAdmin: false }, async (tx) => {
@@ -39,6 +42,7 @@ export function createRoutesService(deps: RoutesServiceDeps): RoutesService {
         object: 'route' as const,
         id: r.id,
         model_name: r.model_name,
+        app_id: r.app_id,
         cache_enabled: r.cache_enabled,
         active_version_id: r.active_version_id,
         active_version: r.active_version,
@@ -63,16 +67,25 @@ export function createRoutesService(deps: RoutesServiceDeps): RoutesService {
   ): Promise<RouteDetail> {
     const targets = input.targets ?? [];
     return db.withTenant(orgId, { isPlatformAdmin: false }, async (tx) => {
-      const existing = await repo.getRouteByModel(tx, input.model_name);
+      // Inside the insert transaction, so concurrent creates cannot both slip past the ceiling.
+      await plans?.assertQuota(tx, orgId, 'routes.max');
+      // Uniqueness is per SCOPE: an application may define its own route for a model the org
+      // already routes, which is the whole point of the override. Only a second route in the SAME
+      // scope is a conflict, and the message says which scope so the operator is not left guessing.
+      const appId = input.app_id ?? null;
+      const existing = await repo.getRouteByModel(tx, input.model_name, appId);
       if (existing) {
         throw new RelayError('conflict', {
-          message: `A route for model '${input.model_name}' already exists.`,
+          message: appId
+            ? `This application already has a route for model '${input.model_name}'.`
+            : `An organization-wide route for model '${input.model_name}' already exists.`,
           param: 'model_name',
         });
       }
       const route = await repo.insertRoute(tx, orgId, {
         modelName: input.model_name,
         cacheEnabled: input.cache_enabled ?? false,
+        appId,
       });
       if (targets.length > 0) {
         const version = await repo.insertVersion(tx, orgId, {
@@ -88,7 +101,7 @@ export function createRoutesService(deps: RoutesServiceDeps): RoutesService {
         actor,
         action: 'route.create',
         target: route.id,
-        data: { model_name: input.model_name, targets: targets.length },
+        data: { model_name: input.model_name, app_id: appId, targets: targets.length },
       });
       return buildDetail(tx, route);
     });
@@ -221,6 +234,7 @@ export function createRoutesService(deps: RoutesServiceDeps): RoutesService {
       object: 'route',
       id: route.id,
       model_name: route.model_name,
+      app_id: route.app_id,
       cache_enabled: route.cache_enabled,
       active_version_id: route.active_version_id,
       created_at: route.created_at,
