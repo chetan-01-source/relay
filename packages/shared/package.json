@@ -1,5 +1,5 @@
 {
-  "name": "@relay/shared",
+  "name": "@relay-ai/shared",
   "version": "1.0.0",
   "private": true,
   "type": "module",

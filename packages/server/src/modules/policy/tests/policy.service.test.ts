@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { EventBus } from '../../../platform/eventbus.js';
 import { createPolicyService } from '../services/policy.service.js';
 import type { VirtualKeySnapshot } from '../../identity/index.js';

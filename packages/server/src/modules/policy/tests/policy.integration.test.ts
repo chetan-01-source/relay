@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { createEventBus, type EventBus } from '../../../platform/eventbus.js';
 import { createPolicyService } from '../services/policy.service.js';
 import type { PolicySnapshot } from '../types/policy.types.js';

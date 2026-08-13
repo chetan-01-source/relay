@@ -4,7 +4,7 @@
  * logic, no SQL. Errors are thrown as RelayError and formatted centrally by the app's errorHandler.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { AuditService } from '../types/audit.types.js';
 
 interface ListQuery {

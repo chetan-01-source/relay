@@ -1,6 +1,6 @@
 /**
  * Plans routes. Each `schema` block does triple duty: request validation, Swagger UI, and the
- * generated OpenAPI document the console's types and `@relay/sdk` are both generated from.
+ * generated OpenAPI document the console's types and `@relay-ai/sdk` are both generated from.
  *
  * Scope choices, deliberately reusing the existing vocabulary rather than minting new scopes (a new
  * scope means re-running the Logto bootstrap, and every already-issued token would lack it):

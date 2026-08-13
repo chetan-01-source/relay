@@ -44,7 +44,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build --filter=@relay/server
+      - run: pnpm turbo build --filter=@relay-ai/server
       - run: node packages/server/dist/index.js migrate
       - run: pnpm turbo test
 

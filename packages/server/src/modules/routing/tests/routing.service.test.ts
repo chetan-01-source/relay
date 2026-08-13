@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { sealCredential } from '../../../platform/crypto.js';
 import type { Database, Queryable } from '../../../platform/db.js';
 import { createRoutingService } from '../services/routing.service.js';

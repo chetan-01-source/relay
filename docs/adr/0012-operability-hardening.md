@@ -73,5 +73,5 @@ stored.
 - Rolling deploys are safe: drain-before-close + a bounded timeout + fail-fast on programmer errors.
 - The drop-in claim is continuously proven by a real SDK, and G4 runs against real RLS in CI.
 - New knobs: `RELAY_SHUTDOWN_TIMEOUT_MS` (server), `RELAY_INTERNAL_URL` (console). New workspace
-  package `@relay/conformance`. No new tables, no new error codes, no public-API change (readiness is
+  package `@relay-ai/conformance`. No new tables, no new error codes, no public-API change (readiness is
   internal; Status is a console read) — so `openapi.json` is unchanged.

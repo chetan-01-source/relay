@@ -12,7 +12,7 @@
  * Usage COUNTS are still real. A self-hoster's plan page reports how many applications, providers,
  * routes, keys and members exist — useful capacity information — with no ceiling beside it.
  */
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { Database } from '../../../platform/db.js';
 import { resolveLimits, unlimitedLimits, flatten } from '../lib/limits.js';
 import type {

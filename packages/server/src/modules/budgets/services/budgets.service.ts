@@ -15,7 +15,7 @@
  * No SQL and no HTTP live here. Every mutation is audited inside the same transaction as the write,
  * so the trail cannot disagree with the state.
  */
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { Database } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';
 import type { AuditRepository } from '../../audit/index.js';

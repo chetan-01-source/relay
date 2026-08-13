@@ -208,7 +208,7 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^5.2.0
         version: 5.2.6
-      '@relay/shared':
+      '@relay-ai/shared':
         specifier: workspace:*
         version: link:../shared
       commander:

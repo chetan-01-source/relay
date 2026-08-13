@@ -8,7 +8,7 @@
  * translate, SSE parse, toDelta) is deliberately NOT timed, so the controller can subtract only the
  * provider wait and report gateway-only overhead.
  */
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { adapterFor } from '../adapters/adapter.js';
 import { parseSse } from '../lib/sse.js';
 import {

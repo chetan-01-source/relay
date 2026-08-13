@@ -1,4 +1,4 @@
-# @relay/console
+# @relay-ai/console
 
 The Relay management console — a Next.js App Router app (SSR) for the **onboarding → build → operate**
 flow. Runs on `:3100`; talks to the gateway control plane on `:3000`. See ADR `0011`.

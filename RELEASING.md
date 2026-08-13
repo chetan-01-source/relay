@@ -1,6 +1,6 @@
 # Releasing Relay
 
-How a release is cut, how `@relay/sdk` is published, and **how to prove the SDK works against a real
+How a release is cut, how `@relay-ai/sdk` is published, and **how to prove the SDK works against a real
 gateway without deploying a server anywhere.**
 
 That last part is the point of this document. A gateway is a container; running it on your laptop
@@ -130,35 +130,41 @@ docker manifest inspect ghcr.io/chetan-01-source/relay:1.0.0 | grep -c arm64   #
 
 ---
 
-## 5. Publish `@relay/sdk`
+## 5. Publish `@relay-ai/sdk`
 
-### 5.1 Settle the scope — the one hard blocker
+### 5.1 Confirm you can publish
 
-The package name `@relay/sdk` is unpublished, **but a scope is owned separately from the packages in
-it** and `npmjs.com/org/relay` already responds. Find out before you plan around the name:
+The package is `@relay-ai/sdk`, under the `relay-ai` organization. Confirm the credential in front
+of you actually has publish rights before doing anything else — an expired token surfaces as a
+`403` halfway through a release, not at the start:
 
 ```bash
-npm login
-npm publish --dry-run --workspace @relay/sdk    # definitive; publishes nothing
+npm whoami                  # expect: chetan0412
+npm org ls relay-ai         # expect: <you> - owner
+npm publish --dry-run --workspace @relay-ai/sdk
 ```
 
-A `403` means the scope is taken. **Rename before publishing — a published name can never be
-reused.** `@relaygateway/sdk` or an unscoped `relay-gateway-sdk` both work. The rename touches
-`packages/sdk/package.json`, `packages/sdk/README.md`, `docs/sdk.md`, and
-`packages/console/app/docs/sdk/page.tsx`.
+> **Why `@relay-ai` and not `@relay`.** The bare `@relay` scope on npm belongs to someone else — it
+> was never ours to publish under, and every workspace package used it. All of them moved to the
+> scope we own, published or not: a private package sitting under a scope you cannot claim is a
+> rename waiting to happen the first time it needs publishing.
+
+A published name can never be reused, so any future rename has to happen **before** the first
+publish, and it touches `packages/*/package.json`, `packages/sdk/README.md`, `docs/sdk.md`,
+`packages/console/app/docs/sdk/page.tsx`, `README.md` and this file.
 
 ### 5.2 Publish
 
 ```bash
-pnpm --filter @relay/sdk test        # unit; the e2e suite self-skips without a gateway
-pnpm --filter @relay/sdk build       # ESM + CJS + .d.ts
+pnpm --filter @relay-ai/sdk test        # unit; the e2e suite self-skips without a gateway
+pnpm --filter @relay-ai/sdk build       # ESM + CJS + .d.ts
 cd packages/sdk && npm pack --dry-run   # expect 7 files, ~46 kB, LICENSE included
 npm publish --access public
 ```
 
 Consider `--tag next` for the first publish. It puts the package on npm — so you can install and test
-it exactly as a user would — without `npm i @relay/sdk` resolving to it for everyone. Promote with
-`npm dist-tag add @relay/sdk@1.0.0 latest` once §6 passes.
+it exactly as a user would — without `npm i @relay-ai/sdk` resolving to it for everyone. Promote with
+`npm dist-tag add @relay-ai/sdk@1.0.0 latest` once §6 passes.
 
 ---
 
@@ -222,13 +228,13 @@ the tarball is installed as a dependency:
 
 ```bash
 mkdir /tmp/relay-smoke && cd /tmp/relay-smoke && npm init -y
-npm i @relay/sdk@next          # from npm, exactly as a user gets it
+npm i @relay-ai/sdk@next          # from npm, exactly as a user gets it
 
 export RELAY_KEY="$(cat ~/path/to/relay/.relay/seed-demo.key)"
 
 # ESM
 node --input-type=module -e '
-  import { Relay } from "@relay/sdk";
+  import { Relay } from "@relay-ai/sdk";
   const relay = new Relay({ baseUrl: "http://localhost:3000", apiKey: process.env.RELAY_KEY });
   const res = await relay.chat.completions.create({
     model: "gpt-4o", messages: [{ role: "user", content: "hello" }],
@@ -240,7 +246,7 @@ node --input-type=module -e '
 '
 
 # CJS — a separate build, and a separate way to be broken
-node -e 'console.log(typeof require("@relay/sdk").Relay)'   # "function"
+node -e 'console.log(typeof require("@relay-ai/sdk").Relay)'   # "function"
 ```
 
 Then prove the **types** resolve for a consumer, not just for us:
@@ -248,7 +254,7 @@ Then prove the **types** resolve for a consumer, not just for us:
 ```bash
 npm i -D typescript
 npx tsc --init --strict --module node16 --moduleResolution node16 >/dev/null
-echo 'import { Relay } from "@relay/sdk"; const r = new Relay({ baseUrl: "", apiKey: "" }); void r;' > t.ts
+echo 'import { Relay } from "@relay-ai/sdk"; const r = new Relay({ baseUrl: "", apiKey: "" }); void r;' > t.ts
 npx tsc --noEmit t.ts
 ```
 
@@ -291,7 +297,7 @@ Non-zero means the gateway is connected as an owner and RLS is being bypassed. S
 - [ ] Tenant isolation returns zero
 - [ ] `docker manifest inspect` shows arm64
 - [ ] Console `/docs` renders, screenshots load
-- [ ] `npm dist-tag add @relay/sdk@1.0.0 latest`
+- [ ] `npm dist-tag add @relay-ai/sdk@1.0.0 latest`
 - [ ] GitHub release notes published from the tag
 
 ---

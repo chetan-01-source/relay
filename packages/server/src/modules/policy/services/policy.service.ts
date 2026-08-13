@@ -3,7 +3,7 @@
  * for token buckets and budget reserve/settle; if Valkey is absent in offline OpenAPI mode, policy
  * allows the request and emits no headers.
  */
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import type { Redis } from 'ioredis';
 import type { EventBus } from '../../../platform/eventbus.js';
 import { budgetSettles, budgetRejections, rateLimitRejections } from '../../../platform/metrics.js';

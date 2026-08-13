@@ -5099,6 +5099,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["object", "id", "name", "description", "created_at"],
                   "properties": {
                     "object": {
                       "type": "string"
@@ -5198,6 +5199,7 @@
                       "type": "array",
                       "items": {
                         "type": "object",
+                        "required": ["object", "id", "name", "description", "created_at"],
                         "properties": {
                           "object": {
                             "type": "string"
@@ -5305,6 +5307,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["object", "id", "name", "description", "created_at"],
                   "properties": {
                     "object": {
                       "type": "string"
@@ -5458,6 +5461,21 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "object",
+                    "id",
+                    "app_id",
+                    "key_id",
+                    "name",
+                    "last4",
+                    "environment",
+                    "status",
+                    "successor_id",
+                    "grace_until",
+                    "created_at",
+                    "revoked_at",
+                    "key"
+                  ],
                   "properties": {
                     "object": {
                       "type": "string"
@@ -5623,6 +5641,20 @@
                       "type": "array",
                       "items": {
                         "type": "object",
+                        "required": [
+                          "object",
+                          "id",
+                          "app_id",
+                          "key_id",
+                          "name",
+                          "last4",
+                          "environment",
+                          "status",
+                          "successor_id",
+                          "grace_until",
+                          "created_at",
+                          "revoked_at"
+                        ],
                         "properties": {
                           "object": {
                             "type": "string"
@@ -5782,6 +5814,21 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "object",
+                    "id",
+                    "app_id",
+                    "key_id",
+                    "name",
+                    "last4",
+                    "environment",
+                    "status",
+                    "successor_id",
+                    "grace_until",
+                    "created_at",
+                    "revoked_at",
+                    "key"
+                  ],
                   "properties": {
                     "object": {
                       "type": "string"
@@ -5970,6 +6017,20 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "object",
+                    "id",
+                    "app_id",
+                    "key_id",
+                    "name",
+                    "last4",
+                    "environment",
+                    "status",
+                    "successor_id",
+                    "grace_until",
+                    "created_at",
+                    "revoked_at"
+                  ],
                   "properties": {
                     "object": {
                       "type": "string"

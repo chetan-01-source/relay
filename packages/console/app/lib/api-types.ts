@@ -3180,11 +3180,11 @@ export interface paths {
             'application/json': {
               object?: string;
               data?: {
-                object?: string;
-                id?: string;
-                name?: string;
-                description?: null | string;
-                created_at?: string;
+                object: string;
+                id: string;
+                name: string;
+                description: null | string;
+                created_at: string;
               }[];
             };
           };
@@ -3248,11 +3248,11 @@ export interface paths {
           };
           content: {
             'application/json': {
-              object?: string;
-              id?: string;
-              name?: string;
-              description?: null | string;
-              created_at?: string;
+              object: string;
+              id: string;
+              name: string;
+              description: null | string;
+              created_at: string;
             };
           };
         };
@@ -3322,11 +3322,11 @@ export interface paths {
           };
           content: {
             'application/json': {
-              object?: string;
-              id?: string;
-              name?: string;
-              description?: null | string;
-              created_at?: string;
+              object: string;
+              id: string;
+              name: string;
+              description: null | string;
+              created_at: string;
             };
           };
         };
@@ -3416,20 +3416,20 @@ export interface paths {
             'application/json': {
               object?: string;
               data?: {
-                object?: string;
-                id?: string;
-                app_id?: string;
-                key_id?: null | string;
-                name?: null | string;
-                last4?: string;
+                object: string;
+                id: string;
+                app_id: string;
+                key_id: null | string;
+                name: null | string;
+                last4: string;
                 /** @enum {string} */
-                environment?: 'live' | 'test';
+                environment: 'live' | 'test';
                 /** @enum {string} */
-                status?: 'active' | 'revoked';
-                successor_id?: null | string;
-                grace_until?: null | string;
-                created_at?: string;
-                revoked_at?: null | string;
+                status: 'active' | 'revoked';
+                successor_id: null | string;
+                grace_until: null | string;
+                created_at: string;
+                revoked_at: null | string;
               }[];
             };
           };
@@ -3512,21 +3512,21 @@ export interface paths {
           };
           content: {
             'application/json': {
-              object?: string;
-              id?: string;
-              app_id?: string;
-              key_id?: null | string;
-              name?: null | string;
-              last4?: string;
+              object: string;
+              id: string;
+              app_id: string;
+              key_id: null | string;
+              name: null | string;
+              last4: string;
               /** @enum {string} */
-              environment?: 'live' | 'test';
+              environment: 'live' | 'test';
               /** @enum {string} */
-              status?: 'active' | 'revoked';
-              successor_id?: null | string;
-              grace_until?: null | string;
-              created_at?: string;
-              revoked_at?: null | string;
-              key?: string;
+              status: 'active' | 'revoked';
+              successor_id: null | string;
+              grace_until: null | string;
+              created_at: string;
+              revoked_at: null | string;
+              key: string;
             };
           };
         };
@@ -3614,21 +3614,21 @@ export interface paths {
           };
           content: {
             'application/json': {
-              object?: string;
-              id?: string;
-              app_id?: string;
-              key_id?: null | string;
-              name?: null | string;
-              last4?: string;
+              object: string;
+              id: string;
+              app_id: string;
+              key_id: null | string;
+              name: null | string;
+              last4: string;
               /** @enum {string} */
-              environment?: 'live' | 'test';
+              environment: 'live' | 'test';
               /** @enum {string} */
-              status?: 'active' | 'revoked';
-              successor_id?: null | string;
-              grace_until?: null | string;
-              created_at?: string;
-              revoked_at?: null | string;
-              key?: string;
+              status: 'active' | 'revoked';
+              successor_id: null | string;
+              grace_until: null | string;
+              created_at: string;
+              revoked_at: null | string;
+              key: string;
             };
           };
         };
@@ -3732,20 +3732,20 @@ export interface paths {
           };
           content: {
             'application/json': {
-              object?: string;
-              id?: string;
-              app_id?: string;
-              key_id?: null | string;
-              name?: null | string;
-              last4?: string;
+              object: string;
+              id: string;
+              app_id: string;
+              key_id: null | string;
+              name: null | string;
+              last4: string;
               /** @enum {string} */
-              environment?: 'live' | 'test';
+              environment: 'live' | 'test';
               /** @enum {string} */
-              status?: 'active' | 'revoked';
-              successor_id?: null | string;
-              grace_until?: null | string;
-              created_at?: string;
-              revoked_at?: null | string;
+              status: 'active' | 'revoked';
+              successor_id: null | string;
+              grace_until: null | string;
+              created_at: string;
+              revoked_at: null | string;
             };
           };
         };

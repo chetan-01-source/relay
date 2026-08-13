@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isRelayError } from '@relay/shared';
+import { isRelayError } from '@relay-ai/shared';
 import { parseGroupBy, parseWindow, parseFormat, toCsv } from '../lib/usage-format.js';
 import type { UsageBucket } from '../types/analytics.types.js';
 

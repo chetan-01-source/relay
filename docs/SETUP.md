@@ -505,7 +505,7 @@ make load        # local hot-path load smoke (p50/p95/p99)
 > **Console E2E:** `make e2e` runs the Playwright specs (`packages/console/test/e2e/`). The **gating**
 > specs (unauthenticated → redirected off every protected route) run against a live `make dev` with no
 > extra setup. The full **build-flow** spec self-skips unless you supply an authenticated Logto session
-> via `RELAY_E2E_STORAGE_STATE` (a saved `storageState` file). Unit tests (`pnpm --filter @relay/console
+> via `RELAY_E2E_STORAGE_STATE` (a saved `storageState` file). Unit tests (`pnpm --filter @relay-ai/console
 test`) cover the pure logic (usage aggregation, checklist, snippet builder) and need no stack.
 
 ---

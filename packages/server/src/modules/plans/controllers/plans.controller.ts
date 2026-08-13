@@ -9,7 +9,7 @@
  * "why is my limit 600" gets "from plan Pro" or "override" in the same response.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay/shared';
+import { RelayError } from '@relay-ai/shared';
 import { LIMIT_KEYS, isCountKey, type LimitKey } from '../lib/limits.js';
 import type { PlansService, QuotaUsage, SetSubscriptionInput } from '../types/plans.types.js';
 

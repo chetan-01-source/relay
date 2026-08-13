@@ -80,9 +80,9 @@ export default async function AppDetailPage({ params }: { params: Promise<{ appI
                     </TableCell>
                     <TableCell>
                       <KeyActions
-                        keyId={k.id as string}
+                        keyId={k.id}
                         appId={appId}
-                        status={(k.status as 'active' | 'revoked') ?? 'active'}
+                        status={k.status}
                         baseUrl={GATEWAY_URL}
                       />
                     </TableCell>
