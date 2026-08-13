@@ -13,6 +13,10 @@ const RELAY_SCOPES = [
   'providers:write',
   'routes:read',
   'routes:write',
+  'budgets:read',
+  'budgets:write',
+  'notifications:read',
+  'notifications:write',
   'analytics:read',
   'audit:read',
   'platform:admin',
@@ -29,6 +33,12 @@ function fakeFetch(handlers: Record<string, () => unknown>) {
     const value = handler();
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(value) });
   });
+}
+
+/** Distinct id per created organization role, so the two are told apart in the assertion. */
+function orgRoleFactory() {
+  let n = 0;
+  return () => ({ id: `orole-${++n}`, name: 'x' });
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -48,6 +58,8 @@ describe('bootstrapLogto', () => {
         'POST http://logto/api/resources/res1/scopes': () => ({ id: 'sc-new', name: 'x' }),
         'GET http://logto/api/roles/role1/scopes': () => [],
         'POST http://logto/api/roles/role1/scopes': () => ({}),
+        'GET http://logto/api/organization-roles': () => [],
+        'POST http://logto/api/organization-roles': orgRoleFactory(),
       }),
     );
     const result = await bootstrapLogto(cfg);
@@ -55,6 +67,13 @@ describe('bootstrapLogto', () => {
     expect(result.created).toContain('resource:Relay Gateway API');
     expect(result.created).toContain('role:relay_admin');
     expect(result.created).toContain('role:relay_member');
+    // The org role an accepted invitation assigns — without it an invitee joins with no scopes.
+    expect(result.created).toContain('org-role:relay_org_member');
+    expect(result.created).toContain('org-role:relay_org_admin');
+    expect(result.orgRoleIds).toEqual({
+      relay_org_member: 'orole-1',
+      relay_org_admin: 'orole-2',
+    });
   });
 
   it('is idempotent — creates nothing when everything already exists', async () => {
@@ -67,18 +86,59 @@ describe('bootstrapLogto', () => {
         ],
         'GET http://logto/api/roles': () => [
           { id: 'r-admin', name: 'relay_admin' },
-          { id: 'r-member', name: 'relay_member' },
+          // relay_member is Logto's default role — that is how a fresh account can hold a token for
+          // the Relay resource at all, which the invitation-accept endpoint depends on.
+          { id: 'r-member', name: 'relay_member', isDefault: true },
         ],
         // Every scope already exists on the resource and is already granted to each role → no writes.
         'GET http://logto/api/resources/res1/scopes': () => asScopes(RELAY_SCOPES),
         'GET http://logto/api/roles/r-admin/scopes': () => asScopes(RELAY_SCOPES),
         'GET http://logto/api/roles/r-member/scopes': () => asScopes(MEMBER_SCOPES),
+        'GET http://logto/api/organization-roles': () => [
+          { id: 'orole1', name: 'relay_org_member' },
+          { id: 'orole2', name: 'relay_org_admin' },
+        ],
+        // Re-syncing each org role's resource scopes is a PUT (replace) — idempotent, always runs.
+        'PUT http://logto/api/organization-roles/orole1/resource-scopes': () => ({}),
+        'PUT http://logto/api/organization-roles/orole2/resource-scopes': () => ({}),
       }),
     );
     const result = await bootstrapLogto(cfg);
     expect(result.apiResourceId).toBe('res1');
     expect(result.roleIds).toEqual({ relay_admin: 'r-admin', relay_member: 'r-member' });
+    expect(result.orgRoleIds).toEqual({
+      relay_org_member: 'orole1',
+      relay_org_admin: 'orole2',
+    });
     expect(result.created).toEqual([]); // nothing created on re-run
+  });
+
+  it('promotes relay_member to Logto’s default role when a prior run left it unset', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fakeFetch({
+        'POST http://logto/oidc/token': () => ({ access_token: 'tok' }),
+        'GET http://logto/api/resources': () => [
+          { id: 'res1', indicator: 'https://relay.gateway/api' },
+        ],
+        'GET http://logto/api/roles': () => [
+          { id: 'r-admin', name: 'relay_admin' },
+          { id: 'r-member', name: 'relay_member', isDefault: false },
+        ],
+        'PATCH http://logto/api/roles/r-member': () => ({}),
+        'GET http://logto/api/resources/res1/scopes': () => asScopes(RELAY_SCOPES),
+        'GET http://logto/api/roles/r-admin/scopes': () => asScopes(RELAY_SCOPES),
+        'GET http://logto/api/roles/r-member/scopes': () => asScopes(MEMBER_SCOPES),
+        'GET http://logto/api/organization-roles': () => [
+          { id: 'orole1', name: 'relay_org_member' },
+          { id: 'orole2', name: 'relay_org_admin' },
+        ],
+        'PUT http://logto/api/organization-roles/orole1/resource-scopes': () => ({}),
+        'PUT http://logto/api/organization-roles/orole2/resource-scopes': () => ({}),
+      }),
+    );
+    const result = await bootstrapLogto(cfg);
+    expect(result.created).toEqual(['role:relay_member(isDefault=true)']);
   });
 
   it('throws a clear error when the token request fails', async () => {

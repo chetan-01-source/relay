@@ -90,3 +90,19 @@ export const rollupRuns = new Counter({
   labelNames: ['result'] as const,
   registers: [registry],
 });
+
+/** Retention sweeps that enforce each plan's `retention.traffic_days` (ADR-0014). */
+export const retentionPruneRuns = new Counter({
+  name: 'relay_retention_prune_runs_total',
+  help: 'Request-feed retention sweeps by result (ok | error).',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+/** Requests refused because a plan quota was exhausted or a capability was not included. */
+export const planRejections = new Counter({
+  name: 'relay_plan_rejections_total',
+  help: 'Plan-layer rejections by limit key and kind (quota | feature).',
+  labelNames: ['limit', 'kind'] as const,
+  registers: [registry],
+});
