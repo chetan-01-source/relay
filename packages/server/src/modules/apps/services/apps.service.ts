@@ -9,7 +9,7 @@
  * Rotate and revoke publish `key.invalidate` so every worker's in-process snapshot reloads ≤1s
  * (a revoked or grace-expired key is then rejected on the data plane with 401).
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { mintVirtualKey } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';

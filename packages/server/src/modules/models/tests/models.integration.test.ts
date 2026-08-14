@@ -5,7 +5,7 @@
  * Run locally:
  *   make up                                   # brings up postgres + applies migrations + seed
  *   RELAY_TEST_DATABASE_URL="postgres://relay_app:<pw>@localhost:5432/relay" \
- *     pnpm --filter @relay-ai/server test
+ *     pnpm --filter relay-server test
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { initDb, resetDb, type Database } from '../../../platform/db.js';

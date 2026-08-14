@@ -254,7 +254,7 @@ export default function PlansDocsPage() {
           <p>
             Both arrive in the same OpenAI-compatible envelope as every other Relay error, so any
             OpenAI SDK surfaces them as ordinary API errors — and{' '}
-            <Link href="/docs/sdk#errors">@relay-ai/sdk</Link> exposes <code>err.code</code> and{' '}
+            <Link href="/docs/sdk#errors">relay-gateway-sdk</Link> exposes <code>err.code</code> and{' '}
             <code>err.param</code> directly.
           </p>
         </DocSection>

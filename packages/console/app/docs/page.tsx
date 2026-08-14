@@ -38,7 +38,7 @@ const ROUTES = [
     href: '/docs/sdk',
     icon: Package,
     title: 'TypeScript SDK',
-    body: '@relay-ai/sdk — chat with typed metadata, plus the whole control plane from code.',
+    body: 'relay-gateway-sdk — chat with typed metadata, plus the whole control plane from code.',
   },
   {
     href: '/docs/plans',

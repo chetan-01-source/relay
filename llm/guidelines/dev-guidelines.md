@@ -91,7 +91,7 @@ pnpm install
 pnpm turbo build
 ```
 
-Expected: all packages (`@relay-ai/shared`, `@relay-ai/server`, `@relay-ai/mockllm`, `@relay-ai/console`) build. `shared` builds first because the others depend on it — Turborepo orders this for you.
+Expected: all packages (`relay-shared`, `relay-server`, `relay-mockllm`, `relay-console`) build. `shared` builds first because the others depend on it — Turborepo orders this for you.
 
 ### 1.6 Boot local infrastructure (when working on server code)
 
@@ -138,7 +138,7 @@ Run the app while iterating:
 ```bash
 pnpm turbo dev        # watch mode across packages
 # or a single package:
-pnpm --filter @relay-ai/server dev
+pnpm --filter relay-server dev
 ```
 
 ### 2.4 Verify continuously (see §3 for the full gate)
@@ -437,7 +437,7 @@ pnpm install                       # deterministic install (frozen in CI)
 
 # --- run ---
 pnpm turbo dev                     # watch all packages
-pnpm --filter @relay-ai/server dev    # one package
+pnpm --filter relay-server dev    # one package
 docker compose --profile core up -d --wait   # local infra (from deploy/compose)
 
 # --- verify (run before every push) ---

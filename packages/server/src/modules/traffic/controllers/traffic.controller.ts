@@ -5,7 +5,7 @@
  * initial snapshot, then forwards live events until the client disconnects.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { TrafficService, UsageStatus } from '../types/traffic.types.js';
 
 const STATUSES: readonly UsageStatus[] = ['ok', 'error', 'rate_limited', 'budget_exceeded'];

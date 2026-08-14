@@ -10,7 +10,7 @@
  * Every write runs as a platform admin (these are platform-console operations). Suspend/unsuspend and
  * entitlement edits publish on the Valkey bus so the data plane's in-process snapshots reload ≤1s.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { Database } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';
 import { LogtoApiError, type LogtoOrgSync, type OrgInvitation } from '../../../platform/logto.js';

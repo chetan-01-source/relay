@@ -326,10 +326,10 @@ export default async function LandingPage() {
                 Or import the library
               </h2>
               <p className="mt-3 text-sm text-muted-foreground md:text-base">
-                Your OpenAI client keeps working — <code className="font-mono">@relay-ai/sdk</code>{' '}
-                is for when you want what the gateway knows about each request as typed fields, and
-                the control plane from code. Zero dependencies; Node, Bun, Deno, Workers and
-                browsers.
+                Your OpenAI client keeps working —{' '}
+                <code className="font-mono">relay-gateway-sdk</code> is for when you want what the
+                gateway knows about each request as typed fields, and the control plane from code.
+                Zero dependencies; Node, Bun, Deno, Workers and browsers.
               </p>
               <ul className="mt-6 space-y-2.5">
                 {[

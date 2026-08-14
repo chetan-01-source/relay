@@ -2,7 +2,7 @@
  * Routing service — business logic only. Converts an active route version into an ordered failover
  * plan, applies capability filters, and opens provider credentials only at send time.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { openCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { CanonicalRequest } from '../../proxy/index.js';

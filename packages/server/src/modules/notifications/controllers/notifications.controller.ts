@@ -3,7 +3,7 @@
  * caller, so one tenant can never read or write another's channel, preferences or delivery log.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { isNotificationEvent } from '../lib/events.js';
 import {
   isChannelType,

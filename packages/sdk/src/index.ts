@@ -1,5 +1,5 @@
 /**
- * `@relay-ai/sdk` — the TypeScript client for a Relay Gateway.
+ * `relay-gateway-sdk` — the TypeScript client for a Relay Gateway.
  *
  * Relay is OpenAI-compatible, so the official OpenAI SDKs already work against it unchanged. This
  * package exists for the two things they structurally cannot do:

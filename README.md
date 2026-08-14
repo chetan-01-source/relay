@@ -88,11 +88,11 @@ The console is at `http://localhost:3100`, with public documentation at `/docs`.
 
 ## Use it from code
 
-Any OpenAI SDK works against Relay unchanged. [`@relay-ai/sdk`](packages/sdk/README.md) adds what a stock
+Any OpenAI SDK works against Relay unchanged. [`relay-gateway-sdk`](packages/sdk/README.md) adds what a stock
 client structurally cannot reach — the per-request metadata as typed fields, plus the control plane:
 
 ```ts
-import { Relay } from '@relay-ai/sdk';
+import { Relay } from 'relay-gateway-sdk';
 
 const relay = new Relay({ baseUrl, apiKey: 'rk_live_…' });
 const res = await relay.chat.completions.create({ model: 'fast', messages });
@@ -135,16 +135,16 @@ Two auth planes that never cross: virtual keys for `/v1/*`, Logto JWTs for `/api
 resolves to an immutable in-process snapshot invalidated over Valkey pub/sub, so the steady-state hot
 path never touches Postgres — and a revocation still lands within ~1s.
 
-| Concern        | Tool                                         |
-| -------------- | -------------------------------------------- |
-| Runtime        | Node.js 22 LTS + TypeScript 5 (strict)       |
-| HTTP           | Fastify 5                                    |
-| Datastore      | PostgreSQL 16, forced RLS                    |
-| Cache / limits | Valkey 8                                     |
-| Auth           | Logto (OIDC + organizations + RBAC)          |
-| Console        | Next.js 15 (admin + public `/docs`)          |
-| SDK            | `@relay-ai/sdk` — zero-dependency TypeScript |
-| Monorepo       | pnpm workspaces + Turborepo                  |
+| Concern        | Tool                                             |
+| -------------- | ------------------------------------------------ |
+| Runtime        | Node.js 22 LTS + TypeScript 5 (strict)           |
+| HTTP           | Fastify 5                                        |
+| Datastore      | PostgreSQL 16, forced RLS                        |
+| Cache / limits | Valkey 8                                         |
+| Auth           | Logto (OIDC + organizations + RBAC)              |
+| Console        | Next.js 15 (admin + public `/docs`)              |
+| SDK            | `relay-gateway-sdk` — zero-dependency TypeScript |
+| Monorepo       | pnpm workspaces + Turborepo                      |
 
 ## Self-hosting
 
@@ -182,17 +182,17 @@ limit and its enforcement point.
 
 ## Documentation
 
-|                                                                         |                                                |
-| ----------------------------------------------------------------------- | ---------------------------------------------- |
-| [Quickstart](docs/quickstart.md)                                        | Empty org → first proxied call                 |
-| [SDK](docs/sdk.md) · [testing it](docs/sdk-e2e-testing.md)              | `@relay-ai/sdk` design and its live test suite |
-| [Self-hosting](docs/self-hosting.md)                                    | Running your own                               |
-| [Plans](docs/plans.md) · [Editions](docs/editions.md)                   | Limits, entitlements, the OSS/cloud seam       |
-| [Errors](docs/errors.md) · [Response headers](docs/response-headers.md) | The wire contract                              |
-| [Threat model](docs/threat-model.md)                                    | What the boundaries are, and are not           |
-| [ADRs](docs/adr/)                                                       | Why the architecture is the way it is          |
-| [Development](docs/DEVELOPMENT.md) · [Setup](docs/SETUP.md)             | Working on Relay                               |
-| [Releasing](RELEASING.md)                                               | Cutting a release and proving the SDK, locally |
+|                                                                         |                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------- |
+| [Quickstart](docs/quickstart.md)                                        | Empty org → first proxied call                     |
+| [SDK](docs/sdk.md) · [testing it](docs/sdk-e2e-testing.md)              | `relay-gateway-sdk` design and its live test suite |
+| [Self-hosting](docs/self-hosting.md)                                    | Running your own                                   |
+| [Plans](docs/plans.md) · [Editions](docs/editions.md)                   | Limits, entitlements, the OSS/cloud seam           |
+| [Errors](docs/errors.md) · [Response headers](docs/response-headers.md) | The wire contract                                  |
+| [Threat model](docs/threat-model.md)                                    | What the boundaries are, and are not               |
+| [ADRs](docs/adr/)                                                       | Why the architecture is the way it is              |
+| [Development](docs/DEVELOPMENT.md) · [Setup](docs/SETUP.md)             | Working on Relay                                   |
+| [Releasing](RELEASING.md)                                               | Cutting a release and proving the SDK, locally     |
 
 The console also serves user-facing documentation at `/docs`, and the gateway serves its OpenAPI
 document at `/openapi.json` with Swagger UI at `/docs`.

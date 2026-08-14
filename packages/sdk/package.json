@@ -1,5 +1,5 @@
 {
-  "name": "@relay-ai/sdk",
+  "name": "relay-gateway-sdk",
   "version": "1.0.0",
   "description": "TypeScript client for the Relay Gateway — OpenAI-compatible chat plus Relay's own request metadata and control plane.",
   "license": "Apache-2.0",

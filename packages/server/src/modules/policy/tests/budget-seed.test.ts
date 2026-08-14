@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import { createPolicyService } from '../services/policy.service.js';
 import type { EventBus } from '../../../platform/eventbus.js';
 import type { SpendReader } from '../types/policy.types.js';

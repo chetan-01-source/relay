@@ -51,7 +51,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build --filter=@relay-ai/server --filter=@relay-ai/mockllm
+      - run: pnpm turbo build --filter=relay-server --filter=relay-mockllm
       - name: generate master key
         run: echo "RELAY_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - name: migrate

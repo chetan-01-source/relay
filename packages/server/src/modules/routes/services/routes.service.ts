@@ -5,7 +5,7 @@
  * version) runs in a single transaction so the invariant "a route's active_version_id always points
  * at one of its own versions" can never half-apply.
  */
-import { RelayError } from '@relay-ai/shared';
+import { RelayError } from 'relay-shared';
 import type { Database, Queryable } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';
 import type { PlansService } from '../../plans/index.js';

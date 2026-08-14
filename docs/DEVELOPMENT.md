@@ -283,7 +283,7 @@ integration + smoke + e2e instead. Thresholds: **lines/functions/statements ≥ 
 
 ```bash
 scripts/check-rls.sh          # static: every tenant table has FORCE RLS + both policies
-pnpm --filter @relay-ai/server test   # dynamic: integration + (soon) test/isolation cross-tenant probes
+pnpm --filter relay-server test   # dynamic: integration + (soon) test/isolation cross-tenant probes
 ```
 
 Both must be green. The dynamic isolation suite proves org A cannot read org B for every role. Its

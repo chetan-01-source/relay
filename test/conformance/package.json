@@ -1,5 +1,5 @@
 {
-  "name": "@relay-ai/conformance",
+  "name": "relay-conformance",
   "version": "1.0.0",
   "private": true,
   "type": "module",

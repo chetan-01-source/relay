@@ -24,7 +24,7 @@ make up   # brings up postgres + migrations + seed
 RELAY_ISOLATION_APP_URL="postgres://relay_app:<pw>@localhost:5432/relay" \
 RELAY_MIGRATION_DATABASE_URL="postgres://postgres:<pw>@localhost:5432/relay" \
 RELAY_MASTER_KEY="$(grep ^RELAY_MASTER_KEY deploy/compose/.env | cut -d= -f2)" \
-  pnpm --filter @relay-ai/server test cross-tenant
+  pnpm --filter relay-server test cross-tenant
 ```
 
 - `RELAY_ISOLATION_APP_URL` — the `relay_app` role (RLS applies). The probe reads through it.
