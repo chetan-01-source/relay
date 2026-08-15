@@ -3,6 +3,7 @@
  * is "given these bytes on the wire, produce this object", and that is exactly what a fake fetch
  * exercises.
  */
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { Relay, RelayApiError, isRelayApiError } from '../index.js';
 import { parseMetadata } from '../metadata.js';
@@ -323,5 +324,27 @@ describe('base URL normalization', () => {
     });
     expect(relay).toBeInstanceOf(Relay);
     expect(Date.now() - started).toBeLessThan(1_000);
+  });
+});
+
+describe('SDK_VERSION', () => {
+  /**
+   * Stamped into `user-agent` and `x-relay-sdk` on every request, which is how a deployment sees its
+   * client-version spread. `npm version` does not touch it, so without this it silently reports the
+   * previous release forever.
+   */
+  it('matches the package version', async () => {
+    const manifest = JSON.parse(
+      await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+    ) as { version: string };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ object: 'list', data: [] }, { headers: {} }));
+    await new Relay({ baseUrl: BASE, apiKey: KEY, fetch: fetchMock }).models();
+
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>;
+    expect(headers['x-relay-sdk']).toBe(`ts/${manifest.version}`);
+    expect(headers['user-agent']).toBe(`relay-sdk-ts/${manifest.version}`);
   });
 });

@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # Relay gateway image (data + control plane). Build context is the REPO ROOT (the server depends on the
-# @relay/shared workspace package), so build with:  docker build -f packages/server/Dockerfile .
+# relay-shared workspace package), so build with:  docker build -f packages/server/Dockerfile .
 #
 # Multi-stage: stage 1 builds the whole workspace slice, stage 2 runs `pnpm deploy` to produce a
-# self-contained prod node_modules (with @relay/shared resolved from workspace:* to its built output),
+# self-contained prod node_modules (with relay-shared resolved from workspace:* to its built output),
 # stage 3 is a minimal runtime carrying only dist + prod deps + the SQL migrations `relay migrate` reads.
 FROM node:22-alpine AS build
 WORKDIR /repo
@@ -15,15 +15,15 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
-RUN pnpm install --frozen-lockfile --filter @relay/server...
+RUN pnpm install --frozen-lockfile --filter relay-server...
 
 # Sources, then build shared first (server imports its published output) and the server.
 COPY packages/shared packages/shared
 COPY packages/server packages/server
-RUN pnpm --filter=@relay/shared build && pnpm --filter=@relay/server build
+RUN pnpm --filter=relay-shared build && pnpm --filter=relay-server build
 
-# A self-contained production deployment: dist + prod deps only, @relay/shared inlined into node_modules.
-RUN pnpm --filter=@relay/server --prod deploy /out
+# A self-contained production deployment: dist + prod deps only, relay-shared inlined into node_modules.
+RUN pnpm --filter=relay-server --prod deploy /out
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

@@ -11,10 +11,10 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY packages/console/package.json packages/console/
-RUN pnpm install --frozen-lockfile --filter @relay/console...
+RUN pnpm install --frozen-lockfile --filter relay-console...
 
 COPY packages/console packages/console
-RUN pnpm --filter=@relay/console build
+RUN pnpm --filter=relay-console build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

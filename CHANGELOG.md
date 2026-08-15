@@ -79,6 +79,14 @@ reading it.
   `step="0.01"` made 50 fail the browser's step check and the form silently would not submit.
 - **Whitespace-only names** were accepted for applications and provider credentials, producing rows
   that could not be told apart in the console.
+- **The container images could not be built at all.** The Dockerfiles still filtered on the
+  pre-rename package names (`@relay/server`, `@relay/shared`), so `pnpm deploy` matched nothing, `/out`
+  was never produced and the build failed on the first `COPY`. Broken since the workspace was renamed
+  after v1.0.0 and only surfaced by tagging, because nothing had built an image since.
+- **The gateway reported the previous version.** `RELAY_VERSION` and the SDK's user-agent stamp are
+  hand-maintained constants and `npm version` does not touch them, so `relay --version`, the `/readyz`
+  probe and the console's Status page all answered `1.0.0` from a 1.1.0 build. Both are now asserted
+  against their package manifest by a test.
 
 ### Security
 

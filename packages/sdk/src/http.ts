@@ -53,7 +53,7 @@ export interface RequestOptions {
 }
 
 /** Identifies the client to the gateway, so a deployment can see its client-version spread. */
-const SDK_VERSION = '1.0.0';
+const SDK_VERSION = '1.1.0';
 const USER_AGENT = `relay-sdk-ts/${SDK_VERSION}`;
 
 /**
