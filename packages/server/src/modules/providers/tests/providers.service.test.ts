@@ -64,8 +64,14 @@ function fakeAudit() {
   return { audit, events };
 }
 
-function build(repo: ProvidersRepository, audit: AuditRepository) {
-  return createProvidersService({ db: fakeDb, repo, audit, masterKey: master });
+function build(repo: ProvidersRepository, audit: AuditRepository, allowPrivateAddresses = true) {
+  return createProvidersService({
+    db: fakeDb,
+    repo,
+    audit,
+    masterKey: master,
+    baseUrlPolicy: { allowPrivateAddresses },
+  });
 }
 
 async function codeOf(fn: () => Promise<unknown>): Promise<string> {
@@ -129,5 +135,104 @@ describe('providers service', () => {
 
     await svc.deleteCredential('u', 'org-1', created.id);
     expect(await codeOf(() => svc.deleteCredential('u', 'org-1', created.id))).toBe('not_found');
+  });
+});
+
+describe('providers service — upstream address safety', () => {
+  /**
+   * The stored base_url is the address the GATEWAY fetches, so accepting an arbitrary one lets a
+   * tenant aim the gateway's own process wherever they like and read the response.
+   */
+  it('refuses a non-http scheme', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit);
+
+    expect(
+      await codeOf(() =>
+        svc.createCredential('u', 'org-1', {
+          name: 'evil',
+          provider: 'openai_compat',
+          apiKey: 'k',
+          baseUrl: 'file:///etc/passwd',
+        }),
+      ),
+    ).toBe('invalid_request');
+  });
+
+  it('refuses the cloud metadata endpoint even on a self-hosted deployment', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit, true); // private addresses allowed, metadata still is not
+
+    expect(
+      await codeOf(() =>
+        svc.createCredential('u', 'org-1', {
+          name: 'imds',
+          provider: 'openai_compat',
+          apiKey: 'k',
+          baseUrl: 'http://169.254.169.254/latest/meta-data',
+        }),
+      ),
+    ).toBe('invalid_request');
+  });
+
+  it('refuses a private upstream on a multi-tenant deployment', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit, false);
+
+    expect(
+      await codeOf(() =>
+        svc.createCredential('u', 'org-1', {
+          name: 'internal',
+          provider: 'openai_compat',
+          apiKey: 'k',
+          baseUrl: 'http://10.0.0.5:8000',
+        }),
+      ),
+    ).toBe('invalid_request');
+  });
+
+  it('still allows a local upstream when self-hosted — Ollama is a documented setup', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit, true);
+
+    const created = await svc.createCredential('u', 'org-1', {
+      name: 'ollama',
+      provider: 'openai_compat',
+      apiKey: 'k',
+      baseUrl: 'http://localhost:11434/',
+    });
+
+    // Normalized on the way in: the adapters append their own path.
+    expect(created.base_url).toBe('http://localhost:11434');
+  });
+
+  it('refuses a blank name instead of storing an unidentifiable row', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit);
+
+    expect(
+      await codeOf(() =>
+        svc.createCredential('u', 'org-1', { name: '   ', provider: 'openai', apiKey: 'sk-x' }),
+      ),
+    ).toBe('invalid_request');
+  });
+
+  it('trims a padded name so the stored value is the one displayed', async () => {
+    const { repo } = fakeRepo();
+    const { audit } = fakeAudit();
+    const svc = build(repo, audit);
+
+    const created = await svc.createCredential('u', 'org-1', {
+      name: '  prod-openai  ',
+      provider: 'openai',
+      apiKey: 'sk-x',
+    });
+
+    expect(created.name).toBe('prod-openai');
   });
 });

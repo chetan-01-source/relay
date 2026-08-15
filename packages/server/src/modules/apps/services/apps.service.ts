@@ -51,11 +51,21 @@ export function createAppsService(deps: AppsServiceDeps): AppsService {
   const scope = { isPlatformAdmin: false };
 
   function createApp(actor: string, orgId: string, input: CreateAppInput): Promise<Application> {
+    // `minLength: 1` in the schema passes a string of spaces, which then renders as an unnamed,
+    // indistinguishable row in the console. Trim at the boundary so the stored name is the one shown.
+    const name = input.name.trim();
+    if (!name) {
+      throw new RelayError('invalid_request', {
+        message: 'name must not be blank.',
+        param: 'name',
+      });
+    }
+
     return db.withTenant(orgId, scope, async (tx) => {
       // Inside the transaction that inserts, deliberately: checked in a preHandler, two concurrent
       // creates on a 10-app plan would both count 9 and both succeed (ADR-0014 §5).
       await plans?.assertQuota(tx, orgId, 'apps.max');
-      const app = await repo.createApp(tx, orgId, input);
+      const app = await repo.createApp(tx, orgId, { ...input, name });
       await audit.appendWithTx(tx, orgId, { actor, action: 'app.create', target: app.id });
       return toApp(app);
     });

@@ -4,6 +4,7 @@
  * no HTTP. Every mutation is audited.
  */
 import { providerInfo, RelayError } from 'relay-shared';
+import { validateBaseUrl, type BaseUrlPolicy } from '../lib/base-url.js';
 import { sealCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';
@@ -18,6 +19,8 @@ import type {
 } from '../types/providers.types.js';
 
 export interface ProvidersServiceDeps {
+  /** Whether a private/loopback upstream address is acceptable on this deployment. */
+  baseUrlPolicy: BaseUrlPolicy;
   db: Database;
   repo: ProvidersRepository;
   audit: AuditRepository;
@@ -47,6 +50,19 @@ export function createProvidersService(deps: ProvidersServiceDeps): ProvidersSer
       });
     }
 
+    // A blank name passes `minLength: 1` as whitespace and then renders as an unclickable empty row
+    // in the console — the credential exists but cannot be told apart from any other.
+    const name = input.name.trim();
+    if (!name) {
+      throw new RelayError('invalid_request', {
+        message: 'name must not be blank.',
+        param: 'name',
+      });
+    }
+
+    // The stored base_url becomes the address the GATEWAY fetches, so this is the SSRF boundary.
+    const baseUrl = input.baseUrl ? validateBaseUrl(input.baseUrl, deps.baseUrlPolicy) : null;
+
     // Seal BEFORE the transaction — the plaintext exists only for this call and is never persisted raw.
     const sealed = sealCredential(masterKey, input.apiKey);
     const last4 = input.apiKey.slice(-4);
@@ -56,11 +72,11 @@ export function createProvidersService(deps: ProvidersServiceDeps): ProvidersSer
       await plans?.assertQuota(tx, orgId, 'providers.max');
       const created = await repo.insert(tx, {
         orgId,
-        name: input.name,
+        name,
         provider: input.provider,
         sealed,
         last4,
-        baseUrl: input.baseUrl ?? null,
+        baseUrl,
       });
       await audit.appendWithTx(tx, orgId, {
         actor,

@@ -5,6 +5,7 @@
  *
  * Layering (DEVELOPMENT.md §2): routes → controller → service → repository → queries, plus lib/.
  */
+import type { BaseUrlPolicy } from './lib/base-url.js';
 import type { FastifyInstance } from 'fastify';
 import type { Database } from '../../platform/db.js';
 import { createAuditRepository } from '../audit/index.js';
@@ -24,6 +25,8 @@ export interface RegisterProvidersOptions {
   /** Produces provider.deleted. Absent ⇒ no notifications. */
   notify?: NotificationEnqueuer;
   masterKey: string;
+  /** Whether a private/loopback upstream address is acceptable on this deployment. */
+  baseUrlPolicy: BaseUrlPolicy;
   /** Enforces `providers.max`. Absent ⇒ no quota is applied. */
   plans?: PlansService;
   guards: {
@@ -41,6 +44,7 @@ export function registerProviders(app: FastifyInstance, opts: RegisterProvidersO
     ...(opts.notify ? { notify: opts.notify } : {}),
     ...(opts.plans ? { plans: opts.plans } : {}),
     masterKey: opts.masterKey,
+    baseUrlPolicy: opts.baseUrlPolicy,
   });
   const controller = createProvidersController(service);
   registerProvidersRoutes(app, controller, opts.guards);

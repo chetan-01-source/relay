@@ -111,6 +111,48 @@ describe('setBudget validation', () => {
     ).toBe('invalid_request');
   });
 
+  /**
+   * The column rounds rather than refusing, so a limit under its scale becomes 0 — and `hard_cutoff`
+   * defaults to true, so a zero budget blocks every request the organization makes. The API used to
+   * answer 201 and echo the number back unchanged while storing 0.
+   */
+  it('rejects a limit that would round to zero and lock the org out', async () => {
+    const { service, saved } = subject();
+    expect(
+      await codeOf(() =>
+        service.setBudget('u1', ORG, null, 'monthly', { limitUsd: 0.000000001, hardCutoff: true }),
+      ),
+    ).toBe('invalid_request');
+    expect(saved).toHaveLength(0); // nothing reached the database
+  });
+
+  it('rejects a limit finer than the column stores, rather than enforcing a different one', async () => {
+    const { service } = subject();
+    expect(
+      await codeOf(() =>
+        service.setBudget('u1', ORG, null, 'monthly', { limitUsd: 1.00001, hardCutoff: true }),
+      ),
+    ).toBe('invalid_request');
+  });
+
+  it('accepts the smallest storable limit', async () => {
+    const { service } = subject();
+    const budget = await service.setBudget('u1', ORG, null, 'monthly', {
+      limitUsd: 0.0001,
+      hardCutoff: true,
+    });
+    expect(budget.limit_usd).toBe(0.0001);
+  });
+
+  it('accepts four decimal places, which the column holds exactly', async () => {
+    const { service } = subject();
+    const budget = await service.setBudget('u1', ORG, null, 'monthly', {
+      limitUsd: 1.0001,
+      hardCutoff: true,
+    });
+    expect(budget.limit_usd).toBe(1.0001);
+  });
+
   it('accepts a normal limit', async () => {
     const { service, saved } = subject();
     const budget = await service.setBudget('u1', ORG, null, 'monthly', {
