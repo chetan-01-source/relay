@@ -17,7 +17,13 @@ import {
   deleteRouteAction,
 } from '../actions';
 import { AddVersionForm, type CredentialOption } from '../../../../components/add-version-form';
-import { Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui/card';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from '../../../../components/ui/card';
 import { FeatureCard } from '../../../../components/ui/feature-card';
 import {
   Table,
@@ -49,6 +55,16 @@ export default async function RouteDetailPage({
 
   const credentialNames = providerNames(providers.data ?? []);
   const versions = route.versions ?? [];
+
+  // What is serving traffic right now. Seeds the update form so an edit starts from reality rather
+  // than from a blank row — the previous behaviour, which made "add a fallback" mean retyping every
+  // target and is why these routes ended up with exactly one.
+  const activeTargets = (versions.find((v) => v.is_active)?.targets ?? []).map((target) => ({
+    credential_id: target.credential_id ?? '',
+    model: target.model ?? '',
+    priority: target.priority ?? 100,
+    weight: target.weight ?? 1,
+  }));
 
   return (
     <div className="space-y-6">
@@ -163,7 +179,11 @@ export default async function RouteDetailPage({
 
       <FeatureCard>
         <CardHeader>
-          <CardTitle>Add version</CardTitle>
+          <CardTitle>Update route</CardTitle>
+          <CardDescription>
+            Versions are immutable, so an edit publishes a new one — prefilled with what is live
+            now. Activate it when you are ready; the current version keeps serving until you do.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {credentials.length === 0 ? (
@@ -175,6 +195,10 @@ export default async function RouteDetailPage({
               action={addVersionAction}
               routeId={route.id}
               credentials={credentials}
+              // Seeded from what is serving traffic, so changing one target does not mean retyping
+              // the rest — and so adding a fallback is one row, not a full re-entry.
+              initialRows={activeTargets}
+              submitLabel="Save as new version"
             />
           )}
         </CardContent>
