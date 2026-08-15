@@ -31,6 +31,7 @@ function row(over: Partial<TrafficEventRow> = {}): TrafficEventRow {
 
 function fakeRepo(rows: TrafficEventRow[]): TrafficRepository {
   return {
+    listLogs: () => Promise.resolve([]),
     listRecent: () => Promise.resolve(rows),
     getByRequestId: (_tx, requestId) =>
       Promise.resolve(rows.filter((r) => r.request_id === requestId)),

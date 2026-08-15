@@ -21,6 +21,7 @@ interface TrafficQuery {
 
 export interface TrafficController {
   listRecent(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  listLogs(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   getTrace(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   stream(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
 }
@@ -52,6 +53,45 @@ export function createTrafficController(service: TrafficService): TrafficControl
   }
 
   return {
+    async listLogs(request, reply) {
+      const query = request.query as {
+        limit?: number;
+        status?: string;
+        model?: string;
+        provider?: string;
+        app_id?: string;
+        from?: string;
+        to?: string;
+        q?: string;
+        before?: string;
+        before_id?: string;
+      };
+      // Trimmed so a box the user cleared means "no filter" rather than "match a space".
+      const search = query.q?.trim();
+      // The cursor is only meaningful as a pair: half of it would silently page from the beginning.
+      const cursor = query.before && query.before_id ? query.before : undefined;
+
+      const page = await service.listLogs(orgOf(request), {
+        limit: query.limit ?? 50,
+        ...(query.status ? { status: query.status as UsageStatus } : {}),
+        ...(query.model ? { model: query.model } : {}),
+        ...(query.provider ? { provider: query.provider } : {}),
+        ...(query.app_id ? { appId: query.app_id } : {}),
+        ...(query.from ? { from: query.from } : {}),
+        ...(query.to ? { to: query.to } : {}),
+        ...(search ? { search } : {}),
+        ...(cursor ? { beforeCreatedAt: cursor, beforeId: query.before_id! } : {}),
+      });
+
+      return reply.send({
+        object: 'list',
+        data: page.events,
+        next_cursor: page.nextCursor
+          ? { before: page.nextCursor.createdAt, before_id: page.nextCursor.id }
+          : null,
+      });
+    },
+
     async listRecent(request, reply) {
       const { limit, status } = parseQuery(request);
       const data = await service.listRecent(orgOf(request), {

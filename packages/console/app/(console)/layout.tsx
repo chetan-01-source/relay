@@ -16,6 +16,7 @@ import {
   Wallet,
   Bell,
   Gauge,
+  ListFilter,
 } from 'lucide-react';
 import { requireUser } from '../lib/auth';
 import { signOutAction } from '../actions';
@@ -84,6 +85,9 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
           </NavLink>
           <NavLink href="/traffic">
             <Radio className="mr-2 h-4 w-4" aria-hidden="true" /> Live traffic
+          </NavLink>
+          <NavLink href="/logs">
+            <ListFilter className="mr-2 h-4 w-4" aria-hidden="true" /> Logs
           </NavLink>
           <NavLink href="/audit">
             <ScrollText className="mr-2 h-4 w-4" aria-hidden="true" /> Audit

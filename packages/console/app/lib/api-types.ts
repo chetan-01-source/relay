@@ -5879,6 +5879,137 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/logs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search the request log (most recent first, keyset-paginated) */
+    get: {
+      parameters: {
+        query?: {
+          limit?: number;
+          status?: 'ok' | 'error' | 'rate_limited' | 'budget_exceeded';
+          model?: string;
+          provider?:
+            | 'openai'
+            | 'anthropic'
+            | 'openrouter'
+            | 'azure_openai'
+            | 'google'
+            | 'groq'
+            | 'together'
+            | 'mistral'
+            | 'deepseek'
+            | 'fireworks'
+            | 'xai'
+            | 'perplexity'
+            | 'openai_compat';
+          app_id?: string;
+          from?: string;
+          to?: string;
+          q?: string;
+          before?: string;
+          before_id?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                id?: string;
+                app_id?: string;
+                key_id?: null | string;
+                route_id?: null | string;
+                request_id?: string;
+                provider?: string;
+                model?: string;
+                input_tokens?: number;
+                output_tokens?: number;
+                cost_usd?: number;
+                /** @enum {string} */
+                status?: 'ok' | 'error' | 'rate_limited' | 'budget_exceeded';
+                latency_ms?: null | number;
+                created_at?: string;
+              }[];
+              next_cursor?: null | {
+                before?: string;
+                before_id?: string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/traffic/stream': {
     parameters: {
       query?: never;

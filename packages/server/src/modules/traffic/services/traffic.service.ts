@@ -11,6 +11,8 @@ import type {
   TrafficEventRow,
   TrafficRepository,
   TrafficService,
+  ListLogsOptions,
+  LogPage,
 } from '../types/traffic.types.js';
 import { trafficChannel } from '../types/traffic.types.js';
 
@@ -28,6 +30,26 @@ export function createTrafficService(deps: TrafficServiceDeps): TrafficService {
     return db.withTenant(orgId, { isPlatformAdmin: false }, async (tx: Queryable) => {
       const rows = await repo.listRecent(tx, opts);
       return rows.map(toApi);
+    });
+  }
+
+  /**
+   * One page of logs, plus the cursor for the next.
+   *
+   * `limit + 1` rows are fetched and the extra is discarded. That is how "is there another page"
+   * is answered without a second COUNT over a partitioned, append-heavy table — and a COUNT would
+   * be both slow and immediately stale.
+   */
+  function listLogs(orgId: string, opts: ListLogsOptions): Promise<LogPage> {
+    return db.withTenant(orgId, { isPlatformAdmin: false }, async (tx: Queryable) => {
+      const rows = await repo.listLogs(tx, { ...opts, limit: opts.limit + 1 });
+      const page = rows.slice(0, opts.limit);
+      const last = page[page.length - 1];
+      return {
+        events: page.map(toApi),
+        nextCursor:
+          rows.length > opts.limit && last ? { createdAt: last.created_at, id: last.id } : null,
+      };
     });
   }
 
@@ -58,7 +80,7 @@ export function createTrafficService(deps: TrafficServiceDeps): TrafficService {
     };
   }
 
-  return { listRecent, getTrace, subscribe };
+  return { listRecent, listLogs, getTrace, subscribe };
 }
 
 /** Coerce a DB row to the API shape (numeric cost arrives as a string). */
