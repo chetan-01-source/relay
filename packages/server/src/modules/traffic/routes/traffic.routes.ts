@@ -3,6 +3,7 @@
  * by authJwt (401) + requireScope('analytics:read') (403), reusing the analytics read scope since the
  * request feed is a read of the same usage data. Each `schema` block drives validation + OpenAPI.
  */
+import { PROVIDER_IDS } from 'relay-shared';
 import type { FastifyInstance } from 'fastify';
 import type { AuthPreHandler } from '../../identity/index.js';
 import type { TrafficController } from '../controllers/traffic.controller.js';
@@ -83,6 +84,54 @@ export function registerTrafficRoutes(
       },
     },
     (request, reply) => controller.listRecent(request, reply),
+  );
+
+  // The log view. `/api/v1/traffic` answers "what is happening now" and is capped; this answers
+  // "what happened", with filters and a keyset cursor so history is reachable past the first page.
+  app.get(
+    '/api/v1/logs',
+    {
+      preHandler: read,
+      schema: {
+        tags,
+        summary: 'Search the request log (most recent first, keyset-paginated)',
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: { type: 'integer', minimum: 1, maximum: 200 },
+            status: { type: 'string', enum: ['ok', 'error', 'rate_limited', 'budget_exceeded'] },
+            model: { type: 'string', maxLength: 200 },
+            provider: { type: 'string', enum: PROVIDER_IDS },
+            app_id: { type: 'string', format: 'uuid' },
+            from: { type: 'string', format: 'date-time' },
+            to: { type: 'string', format: 'date-time' },
+            q: { type: 'string', maxLength: 200 },
+            before: { type: 'string', format: 'date-time' },
+            before_id: { type: 'string', format: 'uuid' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              object: { type: 'string' },
+              data: { type: 'array', items: trafficEvent },
+              next_cursor: {
+                type: ['object', 'null'],
+                properties: {
+                  before: { type: 'string' },
+                  before_id: { type: 'string' },
+                },
+              },
+            },
+          },
+          400: errorObject,
+          401: errorObject,
+          403: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.listLogs(request, reply),
   );
 
   app.get(

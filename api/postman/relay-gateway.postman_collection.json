@@ -2591,6 +2591,100 @@
           "response": []
         },
         {
+          "name": "GET /api/v1/logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/logs?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "ok",
+                  "disabled": true,
+                  "description": "one of: ok, error, rate_limited, budget_exceeded"
+                },
+                {
+                  "key": "model",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "provider",
+                  "value": "openai",
+                  "disabled": true,
+                  "description": "one of: openai, anthropic, openrouter, azure_openai, google, groq, together, mistral, deepseek, fireworks, xai, perplexity, openai_compat"
+                },
+                {
+                  "key": "app_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "before",
+                  "value": "1",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "before_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Search the request log (most recent first, keyset-paginated)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /api/v1/traffic/stream",
           "request": {
             "method": "GET",

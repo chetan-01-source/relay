@@ -48,13 +48,41 @@ export interface ListTrafficOptions {
   status?: UsageStatus;
 }
 
+/**
+ * The log view's filters. Everything optional except `limit`; `beforeCreatedAt`/`beforeId` together
+ * are the keyset cursor, taken from the last row of the previous page.
+ */
+export interface ListLogsOptions {
+  limit: number;
+  status?: UsageStatus;
+  model?: string;
+  provider?: string;
+  appId?: string;
+  /** Inclusive lower bound, ISO. */
+  from?: string;
+  /** EXCLUSIVE upper bound, ISO — so "to = end of day" needs no leap-second reasoning. */
+  to?: string;
+  /** Substring match on request id or model. */
+  search?: string;
+  beforeCreatedAt?: string;
+  beforeId?: string;
+}
+
+/** A page of log rows plus the cursor that fetches the next one, or null at the end. */
+export interface LogPage {
+  events: TrafficEvent[];
+  nextCursor: { createdAt: string; id: string } | null;
+}
+
 export interface TrafficRepository {
   listRecent(tx: Queryable, opts: ListTrafficOptions): Promise<TrafficEventRow[]>;
+  listLogs(tx: Queryable, opts: ListLogsOptions): Promise<TrafficEventRow[]>;
   getByRequestId(tx: Queryable, requestId: string): Promise<TrafficEventRow[]>;
 }
 
 export interface TrafficService {
   listRecent(orgId: string, opts: ListTrafficOptions): Promise<TrafficEvent[]>;
+  listLogs(orgId: string, opts: ListLogsOptions): Promise<LogPage>;
   getTrace(orgId: string, requestId: string): Promise<TrafficEvent[]>;
   /** Subscribe to this org's live feed. Returns an unsubscribe fn; a no-op when no bus is configured. */
   subscribe(orgId: string, onEvent: (event: TrafficEvent) => void): () => void;

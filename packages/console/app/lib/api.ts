@@ -44,6 +44,8 @@ type ProvidersList =
   paths['/api/v1/providers']['get']['responses']['200']['content']['application/json'];
 export type Provider =
   paths['/api/v1/providers']['post']['responses']['201']['content']['application/json'];
+export type LogSearch =
+  paths['/api/v1/logs']['get']['responses']['200']['content']['application/json'];
 export type CatalogSearch =
   paths['/api/v1/catalog/models']['get']['responses']['200']['content']['application/json'];
 export type CatalogModel = NonNullable<CatalogSearch['data']>[number];
@@ -618,4 +620,18 @@ export function searchCatalog(params: {
 /** Delete an application and everything scoped to it. Irreversible — its keys stop working at once. */
 export function deleteApp(appId: string): Promise<DeletedApplication> {
   return apiSend<DeletedApplication>('DELETE', `/api/v1/apps/${appId}`);
+}
+
+// ── Request logs (full history, keyset-paginated) ────────────────────────────────────────────────
+/**
+ * Search the request log. Distinct from `listTraffic()`, which is the capped live view — this pages
+ * back through the whole of `usage_events` with filters.
+ */
+export function searchLogs(params: Record<string, string | undefined>): Promise<LogSearch> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
+  const suffix = query.toString();
+  return apiGet<LogSearch>(`/api/v1/logs${suffix ? `?${suffix}` : ''}`);
 }
