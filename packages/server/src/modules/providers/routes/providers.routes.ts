@@ -4,6 +4,7 @@
  * preHandlers the composition root injects: authJwt (401) then requireScope (403). The response
  * schema intentionally lists only metadata — a credential's secret is never part of any response.
  */
+import { PROVIDER_IDS } from 'relay-shared';
 import type { FastifyInstance } from 'fastify';
 import type { AuthPreHandler } from '../../identity/index.js';
 import type { ProvidersController } from '../controllers/providers.controller.js';
@@ -29,7 +30,7 @@ const credentialObject = {
     object: { type: 'string' },
     id: { type: 'string' },
     name: { type: 'string' },
-    provider: { type: 'string', enum: ['openai', 'anthropic', 'openai_compat'] },
+    provider: { type: 'string', enum: PROVIDER_IDS },
     last4: { type: 'string' },
     base_url: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['active', 'disabled'] },
@@ -74,7 +75,7 @@ export function registerProvidersRoutes(
           required: ['name', 'provider', 'apiKey'],
           properties: {
             name: { type: 'string', minLength: 1, maxLength: 200 },
-            provider: { type: 'string', enum: ['openai', 'anthropic', 'openai_compat'] },
+            provider: { type: 'string', enum: PROVIDER_IDS },
             apiKey: { type: 'string', minLength: 1 },
             baseUrl: { type: 'string', format: 'uri' },
           },

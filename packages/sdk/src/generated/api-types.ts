@@ -3835,7 +3835,20 @@ export interface paths {
                 id?: string;
                 name?: string;
                 /** @enum {string} */
-                provider?: 'openai' | 'anthropic' | 'openai_compat';
+                provider?:
+                  | 'openai'
+                  | 'anthropic'
+                  | 'openrouter'
+                  | 'azure_openai'
+                  | 'google'
+                  | 'groq'
+                  | 'together'
+                  | 'mistral'
+                  | 'deepseek'
+                  | 'fireworks'
+                  | 'xai'
+                  | 'perplexity'
+                  | 'openai_compat';
                 last4?: string;
                 base_url?: null | string;
                 /** @enum {string} */
@@ -3894,7 +3907,20 @@ export interface paths {
           'application/json': {
             name: string;
             /** @enum {string} */
-            provider: 'openai' | 'anthropic' | 'openai_compat';
+            provider:
+              | 'openai'
+              | 'anthropic'
+              | 'openrouter'
+              | 'azure_openai'
+              | 'google'
+              | 'groq'
+              | 'together'
+              | 'mistral'
+              | 'deepseek'
+              | 'fireworks'
+              | 'xai'
+              | 'perplexity'
+              | 'openai_compat';
             apiKey: string;
             /** Format: uri */
             baseUrl?: string;
@@ -3913,7 +3939,20 @@ export interface paths {
               id?: string;
               name?: string;
               /** @enum {string} */
-              provider?: 'openai' | 'anthropic' | 'openai_compat';
+              provider?:
+                | 'openai'
+                | 'anthropic'
+                | 'openrouter'
+                | 'azure_openai'
+                | 'google'
+                | 'groq'
+                | 'together'
+                | 'mistral'
+                | 'deepseek'
+                | 'fireworks'
+                | 'xai'
+                | 'perplexity'
+                | 'openai_compat';
               last4?: string;
               base_url?: null | string;
               /** @enum {string} */
@@ -4009,7 +4048,20 @@ export interface paths {
               id?: string;
               name?: string;
               /** @enum {string} */
-              provider?: 'openai' | 'anthropic' | 'openai_compat';
+              provider?:
+                | 'openai'
+                | 'anthropic'
+                | 'openrouter'
+                | 'azure_openai'
+                | 'google'
+                | 'groq'
+                | 'together'
+                | 'mistral'
+                | 'deepseek'
+                | 'fireworks'
+                | 'xai'
+                | 'perplexity'
+                | 'openai_compat';
               last4?: string;
               base_url?: null | string;
               /** @enum {string} */

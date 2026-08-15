@@ -29,6 +29,15 @@ export interface TenantScope {
 export interface Database extends Queryable {
   /** Run fn inside a tenant-scoped transaction. RLS enforces org isolation. */
   withTenant<T>(orgId: string, scope: TenantScope, fn: (tx: Queryable) => Promise<T>): Promise<T>;
+  /**
+   * Run fn inside a plain transaction, with NO tenant context set.
+   *
+   * Only for the GLOBAL tables — `model_catalog`, `rate_cards` — which carry no `org_id` and are
+   * therefore outside RLS entirely. Anything with an `org_id` must use `withTenant` instead: this
+   * method sets no `app.current_org`, so a tenant query run here would be evaluated against an unset
+   * setting rather than being isolated, and that is a cross-tenant leak, not a convenience.
+   */
+  transaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>;
   ping(): Promise<boolean>;
   close(): Promise<void>;
 }
@@ -84,6 +93,21 @@ class PgDatabase implements Database {
       await client.query(`SELECT set_config('app.is_platform_admin', $1, true)`, [
         scope.isPlatformAdmin ? 'true' : 'false',
       ]);
+      const result = await fn(toQueryable(client));
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async transaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
       const result = await fn(toQueryable(client));
       await client.query('COMMIT');
       return result;

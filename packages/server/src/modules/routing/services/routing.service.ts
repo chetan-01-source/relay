@@ -2,7 +2,7 @@
  * Routing service — business logic only. Converts an active route version into an ordered failover
  * plan, applies capability filters, and opens provider credentials only at send time.
  */
-import { RelayError } from 'relay-shared';
+import { providerInfo, RelayError } from 'relay-shared';
 import { openCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { CanonicalRequest } from '../../proxy/index.js';
@@ -139,10 +139,16 @@ function orderTargets(rows: RoutingTargetRow[]): RoutingTargetRow[] {
   return [primary, ...sorted.filter((row) => row.target_id !== primary.target_id)];
 }
 
+/**
+ * Where to send a credential that carries no explicit base URL.
+ *
+ * Read from the shared registry rather than an if-chain here: every hosted provider knows its own
+ * address, so adding one is a registry entry and this function does not change. Providers with no
+ * canonical address (a self-hosted server, an Azure resource) have `defaultBaseUrl: null` and fall
+ * back to the deployment's configured upstream — which is also what makes `mockllm` work in dev.
+ */
 function defaultBaseUrl(provider: string, fallback: string): string {
-  if (provider === 'anthropic') return 'https://api.anthropic.com';
-  if (provider === 'openai') return 'https://api.openai.com';
-  return fallback;
+  return providerInfo(provider)?.defaultBaseUrl ?? fallback;
 }
 
 function money(raw: string | null): number | undefined {

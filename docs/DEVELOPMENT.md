@@ -125,8 +125,30 @@ repository → queries` + `lib/`. Interface-segregated: read/verify use a separa
   allowlisted enum mapped to a column inside `queries/` (never interpolated). A platform-admin variant
   (`GET /api/v1/platform/analytics/usage`) summarizes spend across orgs. See ADR `0010`.
 
+- `modules/catalog/` — the **library module** behind `relay sync-models`, which refreshes the GLOBAL
+  `model_catalog` + `rate_cards` from each provider's own `/models` endpoint. No HTTP surface: a
+  tenant request must not be able to trigger calls to a dozen third-party APIs. Layers:
+  `service → repository → queries` + `lib/` (pure per-vendor parsers). Writes global tables, so it
+  uses `db.transaction()` rather than `withTenant` — those tables have no `org_id` and are outside
+  RLS. See ADR `0015`.
+
 **Copy `modules/models/` as the template for any new DB-backed feature; copy `modules/identity/` when
 the feature's product is a preHandler (auth/tenant-context) rather than an endpoint.**
+
+### Providers are a registry, not a list you edit in four places
+
+Every supported upstream lives once in `packages/shared/src/providers.ts`, imported by the gateway
+and the console. Adding an OpenAI-compatible vendor is **one registry entry plus one migration line**
+— no adapter, no route change, no console change:
+
+1. Add the entry to `PROVIDERS` (id, label, `wire`, default base URL, models path).
+2. Add the id to the `CHECK` constraint in a new migration. The drift test
+   (`modules/providers/tests/provider-registry.test.ts`) parses the migration and fails if the two
+   lists disagree.
+
+Adapters are keyed by **wire format** (`openai` · `anthropic` · `azure`), not by vendor, because nine
+of the thirteen providers speak OpenAI's protocol and differ only in base URL. Only a genuinely new
+wire format needs a new adapter.
 
 **Every package follows a layered layout — not just the server.** The `mockllm` package is organized
 the same way (`app.ts` composition root + `routes/`, `providers/` (its handlers), `lib/`, `types/`,
@@ -340,6 +362,7 @@ make coverage                        # coverage thresholds (business logic ≥ 8
 
 # 4 · API docs (after the API tests are green)
 make generate                        # regenerate api/openapi/openapi.json from route schemas
+make sync-models PROVIDER=openrouter # refresh the model catalog + prices (needs no API key)
 
 # 5 · run it + smoke + load + docs
 make dev                             # core + mockllm + watch all packages

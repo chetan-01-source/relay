@@ -9,6 +9,7 @@ import { runMigrations } from '../platform/migrate.js';
 import { brandLogto } from '../platform/logto-branding.js';
 import { bootstrapLogto, provisionMachineApp } from '../platform/logto.js';
 import { seedMachine } from '../seed/machine.js';
+import { createCatalog } from '../modules/catalog/index.js';
 import { RELAY_VERSION } from '../version.js';
 import { seedDemo } from '../seed/demo.js';
 import { createAuditService, createAuditRepository } from '../modules/audit/index.js';
@@ -274,6 +275,42 @@ program
   });
 
 program
+  .command('sync-models')
+  .description('refresh the global model catalog + rate cards from the providers themselves')
+  .option('--provider <ids...>', 'limit to these providers (default: every one with a model list)')
+  .action(async (opts: { provider?: string[] }) => {
+    const url = process.env.RELAY_MIGRATION_DATABASE_URL ?? process.env.RELAY_DATABASE_URL;
+    if (!url) {
+      console.error('[relay] sync-models needs RELAY_(MIGRATION_)DATABASE_URL');
+      process.exit(1);
+    }
+    const db = initDb(url);
+    try {
+      const results = await createCatalog(db).sync(opts.provider);
+      let failed = 0;
+      for (const r of results) {
+        if (r.error) {
+          failed += 1;
+          console.error(`[relay] ${r.provider.padEnd(14)} skipped — ${r.error}`);
+          continue;
+        }
+        console.error(
+          `[relay] ${r.provider.padEnd(14)} ${String(r.discovered).padStart(4)} models · ` +
+            `+${r.modelsAdded} new · ~${r.modelsUpdated} updated · ${r.pricesChanged} price changes`,
+        );
+      }
+      console.error(
+        `[relay] catalog sync done — ${results.length - failed}/${results.length} providers refreshed`,
+      );
+      // Zero exit even with failures: an unreachable vendor is an expected, transient condition, and
+      // a cron running this nightly should not page anyone because one API had a bad minute.
+      process.exit(0);
+    } finally {
+      await db.close();
+    }
+  });
+
+program
   .command('audit')
   .description('audit trail operator commands')
   .command('verify')
@@ -319,6 +356,7 @@ program
       db: {
         ...stub,
         withTenant: <T>(_o: string, _s: unknown, fn: (tx: typeof stub) => Promise<T>) => fn(stub),
+        transaction: <T>(fn: (tx: typeof stub) => Promise<T>) => fn(stub),
         ping: () => Promise.resolve(true),
         close: () => Promise.resolve(),
       },

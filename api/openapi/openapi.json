@@ -6184,7 +6184,21 @@
                   },
                   "provider": {
                     "type": "string",
-                    "enum": ["openai", "anthropic", "openai_compat"]
+                    "enum": [
+                      "openai",
+                      "anthropic",
+                      "openrouter",
+                      "azure_openai",
+                      "google",
+                      "groq",
+                      "together",
+                      "mistral",
+                      "deepseek",
+                      "fireworks",
+                      "xai",
+                      "perplexity",
+                      "openai_compat"
+                    ]
                   },
                   "apiKey": {
                     "type": "string",
@@ -6218,7 +6232,21 @@
                     },
                     "provider": {
                       "type": "string",
-                      "enum": ["openai", "anthropic", "openai_compat"]
+                      "enum": [
+                        "openai",
+                        "anthropic",
+                        "openrouter",
+                        "azure_openai",
+                        "google",
+                        "groq",
+                        "together",
+                        "mistral",
+                        "deepseek",
+                        "fireworks",
+                        "xai",
+                        "perplexity",
+                        "openai_compat"
+                      ]
                     },
                     "last4": {
                       "type": "string"
@@ -6360,7 +6388,21 @@
                           },
                           "provider": {
                             "type": "string",
-                            "enum": ["openai", "anthropic", "openai_compat"]
+                            "enum": [
+                              "openai",
+                              "anthropic",
+                              "openrouter",
+                              "azure_openai",
+                              "google",
+                              "groq",
+                              "together",
+                              "mistral",
+                              "deepseek",
+                              "fireworks",
+                              "xai",
+                              "perplexity",
+                              "openai_compat"
+                            ]
                           },
                           "last4": {
                             "type": "string"
@@ -6481,7 +6523,21 @@
                     },
                     "provider": {
                       "type": "string",
-                      "enum": ["openai", "anthropic", "openai_compat"]
+                      "enum": [
+                        "openai",
+                        "anthropic",
+                        "openrouter",
+                        "azure_openai",
+                        "google",
+                        "groq",
+                        "together",
+                        "mistral",
+                        "deepseek",
+                        "fireworks",
+                        "xai",
+                        "perplexity",
+                        "openai_compat"
+                      ]
                     },
                     "last4": {
                       "type": "string"

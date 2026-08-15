@@ -3,6 +3,7 @@ import {
   openaiAdapter,
   anthropicAdapter,
   openaiCompatAdapter,
+  azureAdapter,
   adapterFor,
 } from '../adapters/adapter.js';
 import type { CanonicalRequest, Target } from '../types/proxy.types.js';
@@ -128,11 +129,74 @@ describe('anthropicAdapter', () => {
   });
 });
 
+describe('azureAdapter', () => {
+  const azureTarget: Target = {
+    provider: 'azure_openai',
+    // Azure addresses a DEPLOYMENT — the operator's own name for a model they provisioned — so
+    // `model` is the deployment name and it belongs in the path, not the body.
+    model: 'my-gpt4o-deployment',
+    baseUrl: 'https://acme.openai.azure.com',
+    apiKey: 'azure-secret',
+  };
+
+  it('puts the deployment in the path with an api-version', () => {
+    const out = azureAdapter.translate(req, azureTarget);
+    expect(out.url).toBe(
+      'https://acme.openai.azure.com/openai/deployments/my-gpt4o-deployment/chat/completions?api-version=2024-10-21',
+    );
+  });
+
+  it('authenticates with the api-key header, never a bearer', () => {
+    const out = azureAdapter.translate(req, azureTarget);
+    expect(out.headers['api-key']).toBe('azure-secret');
+    expect(out.headers.authorization).toBeUndefined();
+  });
+
+  it('escapes a deployment name so it cannot break out of the path', () => {
+    const out = azureAdapter.translate(req, { ...azureTarget, model: 'a/../b' });
+    expect(out.url).toContain('/deployments/a%2F..%2Fb/chat/completions');
+  });
+
+  it("sends OpenAI's body unchanged — only the envelope differs", () => {
+    const azure = JSON.parse(azureAdapter.translate(req, azureTarget).body) as { model: string };
+    const openai = JSON.parse(openaiAdapter.translate(req, azureTarget).body) as { model: string };
+    expect(azure).toEqual(openai);
+  });
+
+  it('parses responses and deltas exactly like OpenAI', () => {
+    expect(azureAdapter.toDelta({ data: '[DONE]' })).toEqual({ done: true });
+    expect(
+      azureAdapter.toDelta({ data: JSON.stringify({ choices: [{ delta: { content: 'hi' } }] }) }),
+    ).toEqual({ text: 'hi' });
+  });
+});
+
 describe('adapterFor + countTokens', () => {
   it('resolves each provider to its adapter', () => {
-    expect(adapterFor('openai')).toBe(openaiAdapter);
-    expect(adapterFor('openai_compat')).toBe(openaiCompatAdapter);
     expect(adapterFor('anthropic')).toBe(anthropicAdapter);
+    expect(adapterFor('azure_openai')).toBe(azureAdapter);
+  });
+
+  /**
+   * The registry's payoff: nine vendors share one adapter because they share one wire format, so
+   * adding the next OpenAI-compatible vendor is a registry entry and no code here at all.
+   */
+  it('serves every OpenAI-compatible vendor from the one adapter', () => {
+    for (const provider of [
+      'openai',
+      'openai_compat',
+      'openrouter',
+      'groq',
+      'together',
+      'mistral',
+      'deepseek',
+      'fireworks',
+      'xai',
+      'perplexity',
+      'google',
+    ] as const) {
+      expect(adapterFor(provider)).toBe(openaiCompatAdapter);
+    }
   });
   it('estimates tokens from chars/4 plus max_tokens', () => {
     // "be brief"(8) + "hello world"(11) = 19 chars -> ceil(19/4)=5, +100 max_tokens = 105

@@ -4,6 +4,7 @@
  * fixture; nothing else. Phase-1 ships `openai` (canonical passthrough) and `anthropic`
  * (translates the request and normalizes Anthropic's typed SSE events back to canonical).
  */
+import { wireFor, type ProviderWire } from 'relay-shared';
 import type {
   CanonicalRequest,
   CanonicalResponse,
@@ -205,12 +206,50 @@ export const openaiCompatAdapter: ProviderAdapter = {
   countTokens: estimateTokens,
 };
 
-const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
-  openai: openaiAdapter,
-  openai_compat: openaiCompatAdapter,
+// ── Azure OpenAI adapter — OpenAI's payload, Azure's addressing and auth ─────────────
+// Azure is the one OpenAI-family provider that is not a base-URL swap. Two differences:
+//
+//   1. The model is part of the PATH, not the body. Azure addresses a *deployment* — the operator's
+//      own name for a model they provisioned — as /openai/deployments/{deployment}/chat/completions,
+//      and requires an api-version query parameter. So `target.model` is read as the deployment name.
+//   2. Auth is the `api-key` header, not `Authorization: Bearer`.
+//
+// The body is still OpenAI's, so translation delegates and only the envelope is rewritten. Response
+// and stream parsing are identical to OpenAI's, which is the whole reason Azure is worth supporting
+// as a thin adapter rather than a separate protocol.
+const AZURE_API_VERSION = '2024-10-21';
+
+export const azureAdapter: ProviderAdapter = {
+  name: 'azure_openai',
+  translate(req, target) {
+    const base = openaiAdapter.translate(req, target);
+    const deployment = encodeURIComponent(target.model);
+    return {
+      url: `${target.baseUrl}/openai/deployments/${deployment}/chat/completions?api-version=${AZURE_API_VERSION}`,
+      headers: {
+        'content-type': 'application/json',
+        'api-key': target.apiKey,
+      },
+      body: base.body,
+    };
+  },
+  toDelta: (event) => openaiAdapter.toDelta(event),
+  toResponse: (json, req) => openaiAdapter.toResponse(json, req),
+  countTokens: estimateTokens,
+};
+
+/**
+ * One adapter per WIRE FORMAT, not per provider. OpenRouter, Groq, Together, DeepSeek, Mistral,
+ * Fireworks, xAI, Perplexity and Google's compatibility endpoint all speak OpenAI's protocol and
+ * differ only in base URL — so they share one adapter and adding the next such vendor costs an entry
+ * in the shared registry and no code here.
+ */
+const ADAPTERS: Record<ProviderWire, ProviderAdapter> = {
+  openai: openaiCompatAdapter,
   anthropic: anthropicAdapter,
+  azure: azureAdapter,
 };
 
 export function adapterFor(provider: ProviderName): ProviderAdapter {
-  return ADAPTERS[provider];
+  return ADAPTERS[wireFor(provider)];
 }
