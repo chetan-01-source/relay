@@ -8,6 +8,16 @@
  */
 import { RelayApiError, RelayConnectionError, type RelayErrorBody } from './errors.js';
 
+/**
+ * Resolves the bearer token for a request. Called per request, so an implementation is free to
+ * refresh, rotate, or read from a secret manager; returning a plain string is also fine.
+ *
+ * Declared here rather than beside `machineTokenSource()`, its main producer, because it is what the
+ * transport accepts — putting it there would make the transport depend on the token module and the
+ * token module depend on the transport.
+ */
+export type TokenSource = () => string | Promise<string>;
+
 export interface RetryOptions {
   /** Total attempts, including the first. 1 (the default) means no retrying. */
   attempts?: number;
@@ -18,8 +28,11 @@ export interface RetryOptions {
 
 export interface HttpOptions {
   baseUrl: string;
-  /** Sent as `authorization: Bearer …`. */
-  token: string;
+  /**
+   * Sent as `authorization: Bearer …`. A function is resolved per request, which is what lets a
+   * short-lived control-plane token refresh itself without the caller rebuilding the client.
+   */
+  token: string | TokenSource;
   /** Merged into every request. Per-call headers win. */
   headers?: Record<string, string>;
   timeoutMs?: number;
@@ -52,7 +65,7 @@ const USER_AGENT = `relay-sdk-ts/${SDK_VERSION}`;
  * `baseUrl` is caller-supplied, and in a server that builds it from a request this would be
  * reachable from outside. Scanning backwards is linear and obviously correct.
  */
-function stripTrailingSlashes(url: string): string {
+export function stripTrailingSlashes(url: string): string {
   let end = url.length;
   while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end -= 1;
   return url.slice(0, end);
@@ -60,7 +73,7 @@ function stripTrailingSlashes(url: string): string {
 
 export class Http {
   private readonly baseUrl: string;
-  private readonly token: string;
+  private readonly token: string | TokenSource;
   private readonly extraHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly attempts: number;
@@ -130,8 +143,12 @@ export class Http {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
 
+    // Resolved per attempt, not per client: a token source may mint a fresh token here, and a retry
+    // that reused an expired one would fail for a reason the caller already fixed.
+    const token = typeof this.token === 'string' ? this.token : await this.token();
+
     const headers: Record<string, string> = {
-      authorization: `Bearer ${this.token}`,
+      authorization: `Bearer ${token}`,
       accept: options.stream ? 'text/event-stream' : 'application/json',
       'user-agent': USER_AGENT,
       'x-relay-sdk': `ts/${SDK_VERSION}`,

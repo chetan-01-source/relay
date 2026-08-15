@@ -40,7 +40,7 @@ Relay
 ├── chat.completions.create(params)          → ChatCompletion & { relay }
 ├── chat.completions.stream(params)          → ChatCompletionStream  (+ .relay, .text(), .abort())
 ├── models()                                 → ModelObject[]
-└── admin(token)                             → AdminClient      (control plane, Logto JWT)
+└── admin(token | tokenSource)               → AdminClient      (control plane, Logto JWT)
     ├── me         · the token's identity and org
     ├── apps       · list create get · keys.list issue rotate revoke
     ├── providers  · list create get delete
@@ -133,6 +133,37 @@ and `502`/`503`, with jitter, and **never** retries a request that has already s
 gateway SDK that retries a partially-consumed completion bills you twice.
 
 ## 4. Control plane
+
+The control plane takes a Logto access token, not a virtual key. A browser app already has one from
+the user's session. A **headless** caller — a provisioning script, a cron job, CI — has no session,
+so it holds a machine client id and secret and exchanges them for short-lived tokens:
+
+```ts
+import { machineTokenSource } from 'relay-gateway-sdk';
+
+const admin = relay.admin(
+  machineTokenSource({
+    endpoint: process.env.LOGTO_ENDPOINT!,
+    clientId: process.env.RELAY_MACHINE_CLIENT_ID!,
+    clientSecret: process.env.RELAY_MACHINE_CLIENT_SECRET!,
+    organizationId: process.env.RELAY_ORG_ID!, // required: this is what names the tenant
+  }),
+);
+```
+
+`organizationId` is not optional, and the reason is worth knowing: the gateway resolves your tenant
+from the token's `organization_id` claim, and Logto sets that claim only on a grant naming an
+organization the client belongs to. A token minted for the API resource alone is perfectly valid and
+names no tenant, so every control-plane call answers `401`.
+
+Provision the service account with `make seed-machine ORG=<logto-org-id>` — it creates the machine
+application, makes it a member of the organization, and writes the credentials to a gitignored file.
+Add `ADMIN=1` if it needs to write budgets or provider credentials, which require
+organization-administrator rights on top of the scope check.
+
+The source is a function, called per request, and it caches: the first call mints, the rest of the
+hour reuses, and concurrent callers share one grant. A plain token string still works —
+`relay.admin(token)` — but it expires in about an hour, so prefer the source in anything long-lived.
 
 ```ts
 const admin = relay.admin(await getLogtoAccessToken());

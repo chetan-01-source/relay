@@ -12,7 +12,7 @@
  * cannot accidentally ship an admin token into browser code that only needed to send a completion.
  */
 import type { paths } from './generated/api-types.js';
-import { Http, type RetryOptions } from './http.js';
+import { Http, type RetryOptions, type TokenSource } from './http.js';
 
 /** `GET /x` → its 200 JSON body. */
 type Get<P extends keyof paths> = paths[P] extends {
@@ -73,8 +73,12 @@ export type BudgetPeriod = 'daily' | 'monthly';
 
 export interface AdminClientOptions {
   baseUrl: string;
-  /** A Logto access token for the Relay API resource. */
-  token: string;
+  /**
+   * A Logto access token for the Relay API resource, or a function returning one. Pass a function
+   * for anything long-running: tokens expire in about an hour, and `machineTokenSource()` mints and
+   * refreshes them from a client id/secret with no human in the loop.
+   */
+  token: string | TokenSource;
   headers?: Record<string, string>;
   timeoutMs?: number;
   retry?: RetryOptions;
