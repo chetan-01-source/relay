@@ -14,12 +14,20 @@
  */
 import { isKnownProvider, PROVIDERS, providerInfo, type ProviderId } from 'relay-shared';
 import { capabilitiesChanged, parserFor, priceChanged } from '../lib/model-list.js';
+import { matchPrices } from '../lib/price-match.js';
+
+/**
+ * Whose published prices stand in for a provider that publishes none. OpenRouter is the only one
+ * that returns per-token prices from its models endpoint, and it carries the same vendor models.
+ */
+const PRICE_REFERENCE_PROVIDER = 'openrouter';
 import type {
   CatalogRepository,
   SyncCredentialRow,
   CatalogService,
   DiscoveredModel,
   ProviderSyncResult,
+  RateCardRow,
 } from '../types/catalog.types.js';
 
 export interface CatalogServiceDeps {
@@ -186,7 +194,55 @@ export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
       }
     }
 
+    // A provider that publishes no prices of its own leaves every request through it settling at
+    // zero. OpenRouter carries the same vendor models WITH prices, so its figure is used for the
+    // ones that correspond — see lib/price-match.ts for why that is sound and where it is not.
+    if (!providerInfo(provider)?.publishesPricing) {
+      result.pricesDerived = await derivePrices(provider, discovered, priceByModel);
+      result.pricesChanged += result.pricesDerived;
+    }
+
     return result;
+  }
+
+  /** Copy the reference provider's price for each model that has none of its own. */
+  async function derivePrices(
+    provider: ProviderId,
+    discovered: readonly DiscoveredModel[],
+    existingPrices: Map<string, RateCardRow>,
+  ): Promise<number> {
+    // Only models the provider left unpriced: a price the vendor published itself is better
+    // evidence than one inferred from a marketplace, and must not be overwritten.
+    const unpriced = discovered
+      .filter((model) => model.inputUsdPer1k === undefined)
+      .map((model) => model.model);
+    if (unpriced.length === 0) return 0;
+
+    const reference = (await deps.repo.listReferencePrices(PRICE_REFERENCE_PROVIDER)).map(
+      (row) => ({
+        model: row.model,
+        inputUsdPer1k: Number(row.input_usd_per_1k),
+        outputUsdPer1k: Number(row.output_usd_per_1k),
+      }),
+    );
+    if (reference.length === 0) return 0;
+
+    let written = 0;
+    for (const [model, priced] of matchPrices(unpriced, reference)) {
+      const current = existingPrices.get(model);
+      const unchanged =
+        current &&
+        !priceChanged(
+          current.input_usd_per_1k,
+          current.output_usd_per_1k,
+          priced.inputUsdPer1k,
+          priced.outputUsdPer1k,
+        );
+      if (unchanged) continue;
+      await deps.repo.replacePrice(provider, model, priced.inputUsdPer1k, priced.outputUsdPer1k);
+      written += 1;
+    }
+    return written;
   }
 
   return {

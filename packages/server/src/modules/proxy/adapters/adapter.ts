@@ -38,6 +38,11 @@ export const openaiAdapter: ProviderAdapter = {
         ...(req.max_tokens !== undefined ? { max_tokens: req.max_tokens } : {}),
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
         ...(req.stream ? { stream_options: { include_usage: true } } : {}),
+        // OpenRouter returns the request's actual price under `usage.cost` when accounting is asked
+        // for — authoritative in a way a rate card never is. Sent ONLY to OpenRouter: `usage` is not
+        // an OpenAI parameter, and OpenAI rejects unrecognized arguments outright, so sending it to
+        // every OpenAI-compatible vendor would 400 every direct request.
+        ...(target.provider === 'openrouter' ? { usage: { include: true } } : {}),
       }),
     };
   },
@@ -46,11 +51,15 @@ export const openaiAdapter: ProviderAdapter = {
     try {
       const j = JSON.parse(event.data) as {
         choices?: { delta?: { content?: string } }[];
-        usage?: { prompt_tokens: number; completion_tokens: number };
+        usage?: { prompt_tokens: number; completion_tokens: number; cost?: number };
       };
       const text = j.choices?.[0]?.delta?.content;
       const usage = j.usage
-        ? { inputTokens: j.usage.prompt_tokens, outputTokens: j.usage.completion_tokens }
+        ? {
+            inputTokens: j.usage.prompt_tokens,
+            outputTokens: j.usage.completion_tokens,
+            ...(typeof j.usage.cost === 'number' ? { costUsd: j.usage.cost } : {}),
+          }
         : undefined;
       if (text === undefined && usage === undefined) return null;
       return { ...(text !== undefined ? { text } : {}), ...(usage ? { usage } : {}) };
@@ -60,8 +69,9 @@ export const openaiAdapter: ProviderAdapter = {
   },
   // Canonical IS OpenAI, so the body passes through; we only lift usage for metering/budget settle.
   toResponse(json) {
-    const usage = (json as { usage?: { prompt_tokens?: number; completion_tokens?: number } })
-      .usage;
+    const usage = (
+      json as { usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number } }
+    ).usage;
     return {
       body: json,
       ...(usage
@@ -69,6 +79,8 @@ export const openaiAdapter: ProviderAdapter = {
             usage: {
               inputTokens: usage.prompt_tokens ?? 0,
               outputTokens: usage.completion_tokens ?? 0,
+              // Present only from OpenRouter; authoritative when it is.
+              ...(typeof usage.cost === 'number' ? { costUsd: usage.cost } : {}),
             },
           }
         : {}),

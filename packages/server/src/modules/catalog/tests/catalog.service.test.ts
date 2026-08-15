@@ -17,12 +17,14 @@ function fakeRepo(
     models?: CatalogRow[];
     prices?: RateCardRow[];
     credentials?: SyncCredentialRow[];
+    reference?: RateCardRow[];
   } = {},
 ) {
   const upserts: { provider: string; model: string; capabilities: unknown }[] = [];
   const priceWrites: { model: string; input: number; output: number }[] = [];
   const repo: CatalogRepository = {
     listSyncCredentials: () => Promise.resolve(seed.credentials ?? []),
+    listReferencePrices: () => Promise.resolve(seed.reference ?? []),
     listForProvider: (provider) =>
       Promise.resolve((seed.models ?? []).filter((m) => m.provider === provider)),
     currentPrices: (provider) =>

@@ -50,6 +50,8 @@ export interface ProviderSyncResult {
   modelsUpdated: number;
   /** New rate-card versions written (a price that changed, or a first-ever price). */
   pricesChanged: number;
+  /** Prices copied from the reference provider because this one publishes none. */
+  pricesDerived?: number;
   /** Set when the provider could not be reached or refused; the run continues with the others. */
   error?: string;
 }
@@ -67,6 +69,8 @@ export interface SyncCredentialRow {
 export interface CatalogRepository {
   /** Active credentials, one per provider, for syncing with the operator's own keys. */
   listSyncCredentials(): Promise<SyncCredentialRow[]>;
+  /** Currently-priced models of the reference provider, for deriving prices elsewhere. */
+  listReferencePrices(referenceProvider: string): Promise<RateCardRow[]>;
   listForProvider(provider: string): Promise<CatalogRow[]>;
   upsertModel(provider: string, model: string, capabilities: ModelCapabilities): Promise<void>;
   currentPrices(provider: string): Promise<RateCardRow[]>;
