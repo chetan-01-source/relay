@@ -32,9 +32,18 @@ llm/docs/
 
 # Internal docs: sprint artifacts, QA runbooks, and the deployment/ops strategy.
 # Ops material maps our production surface and belongs in a private ops repo, not in a
-# public one — see docs/internal/launch-playbook.md §A2. Everything a CONTRIBUTOR or a
-# SELF-HOSTER needs stays tracked in docs/ and docs/adr/.
+# public one — see docs/internal/launch-playbook.md §A2.
 docs/internal/
+
+# The public repo carries only what a SELF-HOSTER needs: the self-hosting guide, the
+# backup/restore runbook and the Pages landing (see the allowlist below). Everything else
+# — ADRs, quickstart, SDK notes, plans, editions, errors, headers, threat model, dev and
+# setup guides — stays on disk for us and out of the published tree; the user-facing
+# versions ship inside the console at /docs. Ignore docs/ wholesale, then re-include.
+docs/*
+!docs/self-hosting.md
+!docs/runbooks/
+!docs/site/
 
 # os / editor
 .DS_Store
