@@ -16,6 +16,7 @@
  * rather than optional.
  */
 import { RelayConnectionError } from './errors.js';
+import { stripTrailingSlashes } from './http.js';
 
 /**
  * Resolves the bearer token for a request. Called per request, so an implementation is free to
@@ -124,7 +125,9 @@ export class RelayTokenError extends Error {
  * ```
  */
 export function machineTokenSource(options: MachineTokenOptions): TokenSource {
-  const endpoint = options.endpoint.replace(/\/+$/, '');
+  // Shared with the transport rather than a local `replace(/\/+$/, '')`: that regex backtracks
+  // quadratically on a run of slashes, and `endpoint` is caller-supplied. See http.ts.
+  const endpoint = stripTrailingSlashes(options.endpoint);
   const resource = options.resource ?? DEFAULT_RESOURCE;
   const scope = (options.scopes ?? DEFAULT_SCOPES).join(' ');
   const doFetch = options.fetch ?? globalThis.fetch;

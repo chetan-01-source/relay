@@ -56,7 +56,7 @@ const USER_AGENT = `relay-sdk-ts/${SDK_VERSION}`;
  * `baseUrl` is caller-supplied, and in a server that builds it from a request this would be
  * reachable from outside. Scanning backwards is linear and obviously correct.
  */
-function stripTrailingSlashes(url: string): string {
+export function stripTrailingSlashes(url: string): string {
   let end = url.length;
   while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end -= 1;
   return url.slice(0, end);

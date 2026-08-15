@@ -143,3 +143,18 @@ describe('admin(tokenSource)', () => {
     expect(fetchMock.mock.calls[0]![1].headers.authorization).toBe('Bearer static-token');
   });
 });
+
+describe('endpoint normalization', () => {
+  it('strips trailing slashes without a backtracking regex', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(tokenResponse('tok-1'));
+    const source = machineTokenSource({
+      ...OPTIONS,
+      endpoint: `${LOGTO}${'/'.repeat(5000)}`,
+      fetch: fetchMock,
+    });
+
+    await source();
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(`${LOGTO}/oidc/token`);
+  });
+});
