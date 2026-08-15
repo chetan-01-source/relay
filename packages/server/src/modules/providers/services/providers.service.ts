@@ -3,7 +3,7 @@
  * crypto on write and returns only metadata; the plaintext and ciphertext never leave here. No SQL,
  * no HTTP. Every mutation is audited.
  */
-import { RelayError } from 'relay-shared';
+import { providerInfo, RelayError } from 'relay-shared';
 import { sealCredential } from '../../../platform/crypto.js';
 import type { Database } from '../../../platform/db.js';
 import type { AuditRepository } from '../../audit/index.js';
@@ -36,10 +36,13 @@ export function createProvidersService(deps: ProvidersServiceDeps): ProvidersSer
     orgId: string,
     input: CreateCredentialInput,
   ): Promise<ProviderCredential> {
-    // openai_compat targets are self-hosted, so the base URL is mandatory (nowhere to send otherwise).
-    if (input.provider === 'openai_compat' && !input.baseUrl) {
+    // A provider with no canonical address — a self-hosted server, or an Azure resource that lives
+    // at the customer's own hostname — has nowhere to send the request unless the caller says where.
+    // Everything else defaults to the vendor's published endpoint from the shared registry.
+    const info = providerInfo(input.provider);
+    if (info && info.defaultBaseUrl === null && !input.baseUrl) {
       throw new RelayError('invalid_request', {
-        message: 'base_url is required for the openai_compat provider.',
+        message: `base_url is required for the ${input.provider} provider.`,
         param: 'base_url',
       });
     }

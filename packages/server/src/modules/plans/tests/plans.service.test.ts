@@ -44,6 +44,7 @@ function fakeDb(): Database {
   return {
     run: () => Promise.resolve([]),
     withTenant: <T>(_org: string, _scope: unknown, fn: (tx: Queryable) => Promise<T>) => fn(TX),
+    transaction: <T>(fn: (tx: Queryable) => Promise<T>) => fn(TX),
     ping: () => Promise.resolve(true),
     close: () => Promise.resolve(),
   };

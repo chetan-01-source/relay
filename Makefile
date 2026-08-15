@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/compose/compose.yaml
 ENV_FILE := deploy/compose/.env
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up dev down migrate seed-auth seed-demo seed-machine generate lint test coverage smoke load e2e sdk-e2e bench backup restore audit-verify selfhost-bundle release-dry
+.PHONY: help bootstrap up dev down migrate seed-auth seed-demo seed-machine sync-models generate lint test coverage smoke load e2e sdk-e2e bench backup restore audit-verify selfhost-bundle release-dry
 
 help: ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,6 +46,10 @@ seed-machine: ## headless control-plane service account: make seed-machine ORG=<
 	@test -n "$(ORG)" || { echo "set ORG=<logto-org-id>  (SELECT logto_org_id FROM organizations;)"; exit 1; }
 	$(LOADENV) pnpm --filter relay-server exec tsx src/cli/index.ts seed-machine \
 	  --org "$(ORG)" $(if $(NAME),--name "$(NAME)",) $(if $(ADMIN),--admin,)
+
+sync-models: ## refresh model_catalog + rate_cards from the providers (PROVIDER=openrouter to limit)
+	$(LOADENV) pnpm --filter relay-server exec tsx src/cli/index.ts sync-models \
+	  $(if $(PROVIDER),--provider $(PROVIDER),)
 
 generate: ## dump OpenAPI spec + regen the console's typed client + Postman collection  [sprint Day 2+]
 	pnpm --filter relay-server exec tsx src/cli/index.ts openapi

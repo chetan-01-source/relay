@@ -3,6 +3,8 @@
  * (adapter.ts, proxy.service.ts, proxy.controller.ts) depend on abstractions, not each other.
  * The canonical shape is OpenAI Chat Completions — the gateway's Layer-2 domain type.
  */
+import type { ProviderId } from 'relay-shared';
+
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 /** An async Fastify preHandler (matches the identity module's authVirtualKey). Lives here — not in
@@ -33,7 +35,12 @@ export interface CanonicalRequest {
   temperature?: number;
 }
 
-export type ProviderName = 'openai' | 'anthropic' | 'openai_compat';
+/**
+ * Re-exported from the shared registry rather than restated here. The list of providers has to agree
+ * with the console's dropdown and the SQL CHECK constraint; keeping a second hand-written union in
+ * the proxy is how those drift apart.
+ */
+export type ProviderName = ProviderId;
 
 export interface Target {
   provider: ProviderName;
