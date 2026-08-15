@@ -4,8 +4,91 @@ All notable changes to Relay are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Relay adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The gateway and `relay-gateway-sdk` share a minor version: a `1.0.x` SDK is known to speak to a `1.0.x`
+The gateway and `relay-gateway-sdk` share a minor version: a `1.1.x` SDK is known to speak to a `1.1.x`
 gateway.
+
+## [1.1.0] — 2026-08-15
+
+Thirteen providers instead of three, a catalogue that keeps its own prices current, and a set of
+fixes to spend accounting and input validation found by probing a running gateway rather than by
+reading it.
+
+### Added
+
+- **Thirteen providers, three adapters** ([ADR-0015](docs/adr/0015-provider-registry-and-catalog-sync.md))
+  — OpenRouter, Google Gemini, Groq, Together, Mistral, DeepSeek, Fireworks, xAI, Perplexity and
+  Azure OpenAI join the original three. Most are not new wire formats: nine speak OpenAI's protocol
+  and differ only in base URL, so adapters are keyed by **wire format** rather than by vendor and
+  adding the next such vendor is one registry entry plus one migration line. Azure earns its own
+  adapter — it addresses a deployment in the URL path and authenticates with `api-key`. Every
+  supported upstream now lives once in `packages/shared/src/providers.ts`, imported by the gateway
+  and the console, with a test that parses the SQL constraint and fails if the two disagree.
+- **`relay sync-models`** — refreshes the global model catalogue and rate cards from each provider's
+  own `/models` endpoint. OpenRouter publishes per-token prices and needs no key, which makes it the
+  one source that can populate rate cards with numbers nobody had to guess. In the self-hosted
+  edition the sync uses the provider credentials already stored in the console, so no extra
+  configuration is needed; that path is off in the cloud edition, where a global table read by every
+  tenant must not be filled with one tenant's key.
+- **A Logs section** — the full request history, filterable by status, model, provider, application,
+  date range and a substring of the request id, with keyset pagination. Live traffic still answers
+  "what is happening now"; this answers "what happened". No new storage: both read `usage_events`.
+- **Machine-to-machine control-plane authentication** — `machineTokenSource()` in the SDK mints and
+  refreshes a Logto token from a client id and secret, so a provisioning script, a cron job or CI can
+  drive the control plane with no browser. `relay seed-machine` provisions the service account.
+  Organization-administrator rights are opt-in behind `--admin`, so a leaked read-only account cannot
+  move budgets or swap provider credentials.
+- **Applications can be deleted**, cascading to their keys, budgets and application-scoped routes,
+  and reporting how many live keys the deletion revoked.
+- **A development-only route for the caller's own control-plane token**, for exercising `/api/v1/*`
+  from Swagger UI or curl as a signed-in user. It 404s outside development and returns only the
+  caller's own token.
+
+### Changed
+
+- **The Models page shows the catalogue**, not the org's route aliases. It previously read
+  `GET /v1/models` — "what may this key call" — and so listed four rows on a deployment with four
+  routes, making the one thing the page exists for (find a model id, copy it into a route target)
+  impossible. Now searchable, filterable by provider, with a copy button per row.
+- **Model pickers suggest without restricting.** Route targets may legitimately name a model the
+  catalogue has never heard of, so the picker searches the catalogue while still accepting any id.
+  The playground searches route aliases instead, because a virtual key can only call a name the org
+  has a route for.
+- **The route editor prefills from the version currently serving traffic.** Versions are immutable —
+  an edit publishes a new one — but starting from a blank form meant retyping every target to change
+  one of them, which is why routes tended to end up with a single target and no fallback. The form
+  now also states what the priority and weight columns do: targets are tried in order, and one target
+  means no failover.
+- **The spend chart emits every day in the window**, zeros included. Buckets only exist for days with
+  traffic, so a quiet week previously drew as two adjacent bars and the x-axis stopped meaning
+  anything.
+
+### Fixed
+
+- **Requests to providers that publish no rate card settled at $0.** Cost is tokens times a rate
+  card, and only OpenRouter publishes prices, so direct OpenAI and Anthropic models had none. A price
+  the provider reports at request time now wins over the rate card — it cannot go stale — and
+  `sync-models` derives cards for the rest by matching a provider's model ids against the same models
+  on OpenRouter. An ambiguous match is refused rather than guessed: a wrong price looks plausible on
+  an invoice, while a missing one is visibly zero.
+- **A budget under 0.0001 was silently stored as zero.** `limit_usd` is `numeric(12,4)` and Postgres
+  rounds rather than refusing, so a value that passed `exclusiveMinimum: 0` became a **zero budget
+  with hard cutoff** — blocking every request the organization made, from a call that returned 201
+  and echoed the number back unchanged. A limit finer than the column stores is likewise rejected
+  instead of being rounded into a ceiling nobody chose.
+- **The budget form refused ordinary values.** `step` is measured from `min`, so `min="0.0001"` with
+  `step="0.01"` made 50 fail the browser's step check and the form silently would not submit.
+- **Whitespace-only names** were accepted for applications and provider credentials, producing rows
+  that could not be told apart in the console.
+
+### Security
+
+- **Provider `base_url` accepted any URI**, and that value becomes the address the gateway itself
+  fetches. `javascript:`, `file:///etc/passwd` and `http://169.254.169.254/latest/meta-data` were all
+  stored happily — server-side request forgery, and on a multi-tenant deployment the organization
+  admin is a customer. Schemes are now restricted to http and https everywhere; link-local addresses,
+  which carry the cloud metadata endpoint, are refused in every edition; private ranges remain
+  allowed self-hosted, where a local Ollama is the documented setup, and are refused on a
+  multi-tenant one. DNS rebinding is not addressed by this and is noted in the module.
 
 ## [1.0.0] — 2026-08-14
 
