@@ -41,16 +41,28 @@ export function AddVersionForm({
   credentials,
   apps = [],
   showRouteFields = false,
+  initialRows,
+  submitLabel = 'Add version',
 }: {
   action: (formData: FormData) => void | Promise<void>;
   routeId?: string; // omitted on the "create route" form (no route id yet)
   credentials: CredentialOption[];
   apps?: AppOption[]; // create-route form: which applications the route may be scoped to
   showRouteFields?: boolean; // create-route form: also collect model alias + cache toggle
+  /**
+   * The targets to start from — the ACTIVE version's, on the route editor. Versions are immutable,
+   * so "updating a route" means publishing a new version; starting it blank meant retyping every
+   * target to change one of them, which is why routes here ended up with a single target and no
+   * fallback.
+   */
+  initialRows?: Row[];
+  submitLabel?: string;
 }) {
-  const [rows, setRows] = useState<Row[]>([
-    { credential_id: '', model: '', priority: 100, weight: 1 },
-  ]);
+  const [rows, setRows] = useState<Row[]>(
+    initialRows && initialRows.length > 0
+      ? initialRows
+      : [{ credential_id: '', model: '', priority: 100, weight: 1 }],
+  );
 
   /** The provider behind a chosen credential, so model suggestions match where the call will go. */
   function providerOf(credentialId: string): string | undefined {
@@ -189,9 +201,20 @@ export function AddVersionForm({
           </select>
         </div>
         <Button type="submit" size="sm" disabled={targets.length === 0}>
-          Save version
+          {submitLabel}
         </Button>
       </div>
+
+      {/* The thing that is not obvious from the form alone, and the reason routes here ended up
+          with no fallback: failover happens BETWEEN TARGETS in one version, not between versions.
+          Only one version is ever active — versions are history and rollback. */}
+      <p className="text-xs text-muted-foreground">
+        {rows.length > 1
+          ? 'Targets are tried in order until one answers. A target that errors before the first token fails over to the next.'
+          : 'Add a second target to get failover — if the first errors before the first token, the next one is tried. One target means no fallback.'}{' '}
+        <strong>priority</strong> orders them (lowest first); <strong>weighted</strong> splits
+        traffic across them by weight.
+      </p>
     </form>
   );
 }
