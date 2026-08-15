@@ -15,7 +15,7 @@ reading it.
 
 ### Added
 
-- **Thirteen providers, three adapters** ([ADR-0015](docs/adr/0015-provider-registry-and-catalog-sync.md))
+- **Thirteen providers, three adapters** (ADR-0015)
   — OpenRouter, Google Gemini, Groq, Together, Mistral, DeepSeek, Fireworks, xAI, Perplexity and
   Azure OpenAI join the original three. Most are not new wire formats: nine speak OpenAI's protocol
   and differ only in base URL, so adapters are keyed by **wire format** rather than by vendor and
@@ -114,7 +114,7 @@ but switched off (`RELAY_EDITION=oss`).
   generated from the gateway's own OpenAPI document, so the client cannot drift from the server.
   Ships ESM and CJS with per-condition type declarations; runs on Node, Bun, Deno, Workers and
   browsers.
-- **Plans, quotas and entitlements** ([ADR-0014](docs/adr/0014-plans-and-entitlements.md)) — a plan
+- **Plans, quotas and entitlements** (ADR-0014) — a plan
   catalog and per-org subscriptions, with effective entitlements resolved from plan defaults,
   negotiated overrides and the existing per-org feature flags. Countable quotas are enforced inside
   the same transaction as the write, so two concurrent creates cannot both pass; feature gates and

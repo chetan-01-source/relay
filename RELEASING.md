@@ -318,10 +318,13 @@ public repository can hide nothing, so anything operational lives elsewhere:
 | Production compose overrides, hostnames, tunnel config | A private ops repo               |
 | Runbooks, incident procedures, customer list           | A private ops repo               |
 | Deployment strategy and free-tier analysis             | `docs/internal/` — gitignored    |
+| ADRs, quickstart, SDK, plans, errors, threat model     | `docs/` — gitignored, local only |
 
 What stays public is the whole product: gateway, console, SDK, migrations, plan engine, and the docs
-a self-hoster or contributor needs. That is the part worth being open, and it is what makes anyone
-trust a box that holds their provider keys.
+a self-hoster needs — the self-hosting guide and the backup/restore runbook. Everything a user would
+otherwise read lives in the console's own `/docs`, which ships with the product rather than sitting
+in the repository. That is the part worth being open, and it is what makes anyone trust a box that
+holds their provider keys.
 
 ---
 

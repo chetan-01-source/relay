@@ -173,8 +173,7 @@ One codebase, two builds, selected by `RELAY_EDITION`:
 
 **The open-source edition is never limited by code written to sell something.** A hosted service
 sells operation — running it, backing it up, patching it, answering the phone — not features held
-back. [docs/editions.md](docs/editions.md) has the split; [docs/plans.md](docs/plans.md) has every
-limit and its enforcement point.
+back. The console's `/docs` pages have the split, and every limit with its enforcement point.
 
 > **v1 is free for everyone.** The plan layer is built and tested but switched off:
 > `RELAY_EDITION=oss`, with the pricing surfaces commented out rather than deleted
@@ -182,21 +181,16 @@ limit and its enforcement point.
 
 ## Documentation
 
-|                                                                                      |                                                |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| [Quickstart](docs/quickstart.md)                                                     | Empty org → first proxied call                 |
-| [SDK](docs/sdk.md)                                                                   | `relay-gateway-sdk` design                     |
-| [Test it by hand](docs/sdk-manual-testing.md) · [automated](docs/sdk-e2e-testing.md) | Eight scripts you run yourself · the CI suite  |
-| [Self-hosting](docs/self-hosting.md)                                                 | Running your own                               |
-| [Plans](docs/plans.md) · [Editions](docs/editions.md)                                | Limits, entitlements, the OSS/cloud seam       |
-| [Errors](docs/errors.md) · [Response headers](docs/response-headers.md)              | The wire contract                              |
-| [Threat model](docs/threat-model.md)                                                 | What the boundaries are, and are not           |
-| [ADRs](docs/adr/)                                                                    | Why the architecture is the way it is          |
-| [Development](docs/DEVELOPMENT.md) · [Setup](docs/SETUP.md)                          | Working on Relay                               |
-| [Releasing](RELEASING.md)                                                            | Cutting a release and proving the SDK, locally |
+|                                                       |                                                |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| [Self-hosting](docs/self-hosting.md)                  | Running your own                               |
+| [Backup and restore](docs/runbooks/backup-restore.md) | Postgres dumps, restores, disaster drill       |
+| [Releasing](RELEASING.md)                             | Cutting a release and proving the SDK, locally |
+| [Contributing](CONTRIBUTING.md)                       | Working on Relay                               |
 
-The console also serves user-facing documentation at `/docs`, and the gateway serves its OpenAPI
-document at `/openapi.json` with Swagger UI at `/docs`.
+Quickstart, SDK reference, plans, errors and the response-header contract live in the console's own
+documentation at `/docs` — served by every deployment, including yours. The gateway serves its
+OpenAPI document at `/openapi.json` with Swagger UI at `/docs`.
 
 ## Contributing
 
