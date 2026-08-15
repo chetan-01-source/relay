@@ -24,6 +24,8 @@ describe.skipIf(!url)('providers service (integration)', () => {
       repo: createProvidersRepository(),
       audit: createAuditRepository(),
       masterKey: master,
+      // Self-hosted default: these tests use localhost upstreams.
+      baseUrlPolicy: { allowPrivateAddresses: true },
     });
   }
 

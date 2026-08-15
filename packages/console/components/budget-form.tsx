@@ -47,7 +47,11 @@ export function BudgetForm({ period, limitUsd, hardCutoff, appId = null }: Budge
             name="limit_usd"
             type="number"
             min="0.0001"
-            step="0.01"
+            // `step` is measured FROM `min`, not from zero. With step="0.01" the only valid values
+            // were 0.0001, 0.0101, 0.0201 … so an ordinary "50" failed the browser's step check and
+            // the form silently refused to submit. 0.0001 is the column's scale (numeric(12,4)) and
+            // the smallest ceiling the gateway accepts, so every value it allows is reachable here.
+            step="0.0001"
             inputMode="decimal"
             defaultValue={limitUsd ?? ''}
             placeholder="50.00"

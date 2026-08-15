@@ -292,6 +292,10 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
     guards,
     plans,
     notify: notifications.enqueuer,
+    // Self-hosted deployments legitimately point at a private upstream — Ollama on localhost, vLLM
+    // on the LAN. On a multi-tenant one the org admin is a customer, and letting them aim the
+    // gateway at the operator's internal network is server-side request forgery.
+    baseUrlPolicy: { allowPrivateAddresses: (deps.edition ?? 'oss') === 'oss' },
   });
 
   // Value-layer read surfaces (Day 12): usage/spend analytics over the hourly rollups, and the

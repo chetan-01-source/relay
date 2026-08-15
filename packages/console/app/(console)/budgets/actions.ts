@@ -6,6 +6,7 @@
  * — the UI is a convenience, not the authority.
  */
 import { revalidatePath } from 'next/cache';
+import { limitScaleError } from '../../lib/budget';
 import { setBudget, deleteBudget, type BudgetPeriod } from '../../lib/api';
 import { BUDGET_PERIODS } from '../../lib/budget';
 
@@ -48,6 +49,10 @@ export async function setBudgetAction(
   if (!raw || !Number.isFinite(limitUsd) || limitUsd <= 0) {
     return { ok: false, error: 'Enter a limit greater than 0.' };
   }
+  // Mirrors the gateway's storage scale (numeric(12,4)). Without it, a limit below 0.0001 is stored
+  // as 0 — and a zero hard-cutoff budget blocks every request the organization makes.
+  const message = limitScaleError(limitUsd);
+  if (message) return { ok: false, error: message };
 
   try {
     await setBudget(appIdOf(formData), period, {

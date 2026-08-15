@@ -97,3 +97,28 @@ export function enforcementSummary(hardCutoff: boolean): string {
     ? 'Requests are rejected with budget_exceeded once the ceiling is reached.'
     : 'Spend is tracked and reported, but requests are never blocked.';
 }
+
+/** The gateway stores `limit_usd` as `numeric(12,4)`. */
+const LIMIT_SCALE = 4;
+const MIN_LIMIT_USD = 0.0001;
+
+/**
+ * Why this limit cannot be stored as typed, or `null` when it is fine.
+ *
+ * The gateway is the authority and re-checks independently; this exists so the two failures a user
+ * can actually hit come back instantly and say what to do. The second one is not cosmetic: a value
+ * under 0.0001 rounds to 0 in the column, and a zero budget with hard cutoff blocks every request
+ * the organization makes.
+ */
+export function limitScaleError(limitUsd: number): string | null {
+  if (limitUsd < MIN_LIMIT_USD) {
+    return `The smallest limit is ${MIN_LIMIT_USD}. Anything less is stored as 0, which would block every request.`;
+  }
+  // toPrecision(15) first, because most decimals are inexact as binary doubles: 1.0001 * 1e4 is
+  // 10001.000000000002, and a bare integer check would reject a value that stores perfectly.
+  const scaled = Number((limitUsd * 10 ** LIMIT_SCALE).toPrecision(15));
+  if (!Number.isInteger(scaled)) {
+    return `Limits support at most ${LIMIT_SCALE} decimal places.`;
+  }
+  return null;
+}

@@ -15,6 +15,7 @@
  * No SQL and no HTTP live here. Every mutation is audited inside the same transaction as the write,
  * so the trail cannot disagree with the state.
  */
+import { hasStorableScale } from '../lib/limit.js';
 import { RelayError } from 'relay-shared';
 import type { Database } from '../../../platform/db.js';
 import type { EventBus } from '../../../platform/eventbus.js';
@@ -31,6 +32,22 @@ import type {
 
 /** numeric(12,4) → 8 integer digits. Anything at or above this cannot be stored. */
 const MAX_LIMIT_USD = 99_999_999.9999;
+
+/**
+ * The column is `numeric(12,4)`, so a ceiling is expressible to a hundredth of a cent and no finer.
+ * Postgres does not reject a longer number — it silently ROUNDS it, and both directions of that are
+ * bugs the operator never sees:
+ *
+ *   - `1.00001` becomes `1.0000`: enforcement runs against a limit nobody chose.
+ *   - `0.000000001` becomes `0.0000`: a budget of ZERO. Paired with `hard_cutoff`, which defaults to
+ *     true, that silently blocks every request the org makes — a total outage produced by a request
+ *     that returned `201 Created` and echoed the number back unchanged.
+ *
+ * `exclusiveMinimum: 0` in the route schema does not catch it, because the value really is above
+ * zero when it arrives; it only becomes zero on the way into the column. So the check belongs here,
+ * against the storage scale, not in the schema.
+ */
+const MIN_LIMIT_USD = 0.0001; // the smallest value numeric(12,4) can hold without rounding to zero
 
 export interface BudgetsServiceDeps {
   db: Database;
@@ -61,6 +78,20 @@ export function createBudgetsService(deps: BudgetsServiceDeps): BudgetsService {
     if (limitUsd > MAX_LIMIT_USD) {
       throw new RelayError('invalid_request', {
         message: `limit_usd must not exceed ${MAX_LIMIT_USD}.`,
+        param: 'limit_usd',
+      });
+    }
+    // Below the storage scale the column rounds to 0, and a zero hard-cutoff budget blocks the org
+    // entirely. Rejected explicitly rather than left to become an outage nobody can explain.
+    if (limitUsd < MIN_LIMIT_USD) {
+      throw new RelayError('invalid_request', {
+        message: `limit_usd must be at least ${MIN_LIMIT_USD}. A smaller ceiling rounds to 0, which would block every request.`,
+        param: 'limit_usd',
+      });
+    }
+    if (!hasStorableScale(limitUsd)) {
+      throw new RelayError('invalid_request', {
+        message: `limit_usd supports at most 4 decimal places; a longer value would be rounded and enforced as a different ceiling.`,
         param: 'limit_usd',
       });
     }
