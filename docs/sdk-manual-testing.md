@@ -306,6 +306,13 @@ A different credential: a **Logto access token**, not a virtual key. Get one by 
 console at `localhost:3100` and copying the bearer token the browser sends on any `/api/v1/*`
 request (DevTools → Network → any `/api/v1/` call → Request Headers → `authorization`).
 
+> **Cannot sign in to get the token?** If the callback fails, the console now says why. The usual
+> cause is opening it on a LAN IP (`http://192.168.1.4:3100`) while `LOGTO_BASE_URL` still says
+> `localhost` — the sign-in cookie is set on one origin and the callback lands on the other, so the
+> browser never sends it. Open the console at whatever `LOGTO_BASE_URL` names, or change both that
+> variable _and_ the redirect URI on the Logto application. Retrying a failed callback URL never
+> works either: an authorization code is single-use, so start again from the home page.
+
 First, without a token, confirm every path is actually wired:
 
 ```js
@@ -420,12 +427,13 @@ partially-consumed completion bills you twice for one answer.
 
 ## When something fails
 
-| Symptom                            | Cause                                                                                                |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `models()` returns `(none)`        | No routes configured. Console → **Build → Routes**                                                   |
-| `404 model_not_found`              | The alias is not a route on this gateway                                                             |
-| `401 invalid_api_key`              | Key revoked, or minted under a different `RELAY_MASTER_KEY`. Re-run `make seed-demo`                 |
-| `502 upstream_unreachable`         | No provider credential, or `RELAY_UPSTREAM_URL` points nowhere                                       |
-| Stream hangs                       | The gateway is not terminating the SSE stream. A real bug — do not paper over it with a timeout      |
-| Admin call returns **404** not 401 | The SDK is calling a path that does not exist — a routing regression                                 |
-| Admin 401 with a real token        | The token is not scoped to an organization; Logto only sets `organization_id` on an org-scoped grant |
+| Symptom                              | Cause                                                                                                                |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `models()` returns `(none)`          | No routes configured. Console → **Build → Routes**                                                                   |
+| `404 model_not_found`                | The alias is not a route on this gateway                                                                             |
+| `401 invalid_api_key`                | Key revoked, or minted under a different `RELAY_MASTER_KEY`. Re-run `make seed-demo`                                 |
+| `502 upstream_unreachable`           | No provider credential, or `RELAY_UPSTREAM_URL` points nowhere                                                       |
+| Stream hangs                         | The gateway is not terminating the SSE stream. A real bug — do not paper over it with a timeout                      |
+| Admin call returns **404** not 401   | The SDK is calling a path that does not exist — a routing regression                                                 |
+| Admin 401 with a real token          | The token is not scoped to an organization; Logto only sets `organization_id` on an org-scoped grant                 |
+| Console sign-in fails at `/callback` | Origin mismatch between the browser and `LOGTO_BASE_URL`, or a reused authorization code. The error page names which |
