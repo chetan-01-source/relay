@@ -4,6 +4,8 @@
  * predecessor) commits atomically. Contains NO query text and NO business logic.
  */
 import {
+  countActiveKeysForAppQuery,
+  deleteAppQuery,
   insertAppQuery,
   getAppByIdQuery,
   listAppsQuery,
@@ -17,6 +19,13 @@ import type { ApplicationRow, AppsRepository, VirtualKeyRow } from '../types/app
 
 export function createAppsRepository(): AppsRepository {
   return {
+    async deleteApp(tx, appId) {
+      await tx.run(deleteAppQuery(appId));
+    },
+    async countActiveKeys(tx, appId) {
+      const rows = await tx.run<{ count: number }>(countActiveKeysForAppQuery(appId));
+      return rows[0]?.count ?? 0;
+    },
     async createApp(tx, orgId, input) {
       const rows = await tx.run<ApplicationRow>(
         insertAppQuery(orgId, input.name, input.description ?? null),

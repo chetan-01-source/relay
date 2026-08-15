@@ -67,3 +67,22 @@ export function insertPriceQuery(
     values: [provider, model, inputUsdPer1k, outputUsdPer1k],
   };
 }
+
+/**
+ * One sealed credential per provider, for syncing that provider's catalog with the operator's own
+ * key. Newest first, so a freshly-added credential wins over one that may have been rotated out.
+ *
+ * Deliberately NOT tenant-scoped: `relay sync-models` is an operator command run by the migration
+ * role, and the catalog it fills is global. This is why the calling service refuses to run it in the
+ * cloud edition — there, "some tenant's key" is the wrong authority for a table every tenant reads.
+ */
+export function listSyncCredentialsQuery(): SqlQuery {
+  return {
+    text: `SELECT DISTINCT ON (provider)
+                  provider, base_url, ciphertext, iv, auth_tag, wrapped_dek
+             FROM provider_credentials
+            WHERE status = 'active'
+         ORDER BY provider, created_at DESC`,
+    values: [],
+  };
+}

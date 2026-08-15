@@ -3382,7 +3382,84 @@ export interface paths {
     };
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete an application and every key, budget and route scoped to it
+     * @description Irreversible. Cascades to the application’s virtual keys, budgets and app-scoped routes; every key it owned stops authenticating immediately.
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          appId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              id?: string;
+              revoked_keys?: number;
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error?: {
+                message?: string;
+                type?: string;
+                code?: string;
+                param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
     options?: never;
     head?: never;
     patch?: never;
@@ -6094,6 +6171,72 @@ export interface paths {
                 type?: string;
                 code?: string;
                 param?: null | string;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/catalog/models': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search the upstream model catalog */
+    get: {
+      parameters: {
+        query?: {
+          provider?:
+            | 'openai'
+            | 'anthropic'
+            | 'openrouter'
+            | 'azure_openai'
+            | 'google'
+            | 'groq'
+            | 'together'
+            | 'mistral'
+            | 'deepseek'
+            | 'fireworks'
+            | 'xai'
+            | 'perplexity'
+            | 'openai_compat';
+          q?: string;
+          limit?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              object?: string;
+              data?: {
+                object?: string;
+                provider?: string;
+                model?: string;
+                capabilities?: {
+                  [key: string]: unknown;
+                };
+              }[];
+              counts?: {
+                [key: string]: number;
               };
             };
           };

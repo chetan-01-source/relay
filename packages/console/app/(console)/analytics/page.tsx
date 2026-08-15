@@ -81,7 +81,9 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
 
   const rows = grouped?.data ?? [];
   const totals = summarizeUsage(grouped);
-  const series = toDailySeries(daily);
+  // The user's own window, so a quiet stretch at either end still draws as empty days rather than
+  // being cropped to the last day that happened to have traffic.
+  const series = toDailySeries(daily, 30, { from, to });
   const maps = { apps: appNames(apps.data ?? []), routes: routeNames(routes.data ?? []) };
 
   // The top-spend tile names the same bucket the table's first row does — resolved the same way, so

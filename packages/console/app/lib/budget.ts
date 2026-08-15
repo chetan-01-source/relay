@@ -122,3 +122,23 @@ export function limitScaleError(limitUsd: number): string | null {
   }
   return null;
 }
+
+/**
+ * Filter applications by a free-text query, for the budgets page.
+ *
+ * Matches the name OR the id: an operator arriving from a trace or an alert has the uuid in hand,
+ * not the display name, and having to translate one into the other before they can set a ceiling is
+ * the kind of friction that ends in the wrong application being capped. Pure — unit-tested.
+ */
+export function filterApps<T extends { id?: string; name?: string | null }>(
+  apps: readonly T[],
+  query: string,
+): T[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [...apps];
+  return apps.filter(
+    (app) =>
+      (app.name ?? '').toLowerCase().includes(needle) ||
+      (app.id ?? '').toLowerCase().includes(needle),
+  );
+}

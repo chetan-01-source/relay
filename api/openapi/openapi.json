@@ -5417,6 +5417,132 @@
             }
           }
         }
+      },
+      "delete": {
+        "summary": "Delete an application and every key, budget and route scoped to it",
+        "tags": ["apps"],
+        "description": "Irreversible. Cascades to the application’s virtual keys, budgets and app-scoped routes; every key it owned stops authenticating immediately.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "appId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "revoked_keys": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": ["null", "string"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/apps/{appId}/keys": {
@@ -9874,6 +10000,100 @@
                         "param": {
                           "type": ["null", "string"]
                         }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/models": {
+      "get": {
+        "summary": "Search the upstream model catalog",
+        "tags": ["catalog"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "openai",
+                "anthropic",
+                "openrouter",
+                "azure_openai",
+                "google",
+                "groq",
+                "together",
+                "mistral",
+                "deepseek",
+                "fireworks",
+                "xai",
+                "perplexity",
+                "openai_compat"
+              ]
+            },
+            "in": "query",
+            "name": "provider",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "object": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "capabilities": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    },
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
                       }
                     }
                   }

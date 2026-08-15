@@ -1,7 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createApp, issueKey, rotateKey, revokeKey, type IssuedKey } from '../../lib/api';
+import {
+  createApp,
+  deleteApp,
+  issueKey,
+  rotateKey,
+  revokeKey,
+  type IssuedKey,
+} from '../../lib/api';
 
 /** Result envelope for useActionState — an error message the form renders, or the issued key. */
 export interface ActionResult {
@@ -70,6 +77,21 @@ export async function revokeKeyAction(keyId: string, appId: string): Promise<Act
     await revokeKey(keyId);
     revalidatePath(`/apps/${appId}`);
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorOf(err) };
+  }
+}
+
+/**
+ * Delete an application. Irreversible: the gateway cascades to its virtual keys, budgets and
+ * app-scoped routes, and every key it owned stops authenticating immediately. The count of revoked
+ * keys comes back so the UI can say what was actually switched off.
+ */
+export async function deleteAppAction(appId: string): Promise<ActionResult & { revoked?: number }> {
+  try {
+    const deleted = await deleteApp(appId);
+    revalidatePath('/apps');
+    return { ok: true, revoked: deleted.revoked_keys ?? 0 };
   } catch (err) {
     return { ok: false, error: errorOf(err) };
   }

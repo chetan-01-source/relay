@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { periodWindow, budgetStatus, budgetFor, enforcementSummary } from './budget';
+import { periodWindow, budgetStatus, budgetFor, enforcementSummary, filterApps } from './budget';
 
 describe('periodWindow', () => {
   it('scopes a daily budget to the day itself', () => {
@@ -94,5 +94,44 @@ describe('enforcementSummary', () => {
   it('spells out what actually happens, since the two modes behave very differently', () => {
     expect(enforcementSummary(true)).toContain('rejected');
     expect(enforcementSummary(false)).toContain('never blocked');
+  });
+});
+
+describe('filterApps', () => {
+  const apps = [
+    { id: 'a1b2c3d4-0000-0000-0000-000000000001', name: 'Checkout service' },
+    { id: 'a1b2c3d4-0000-0000-0000-000000000002', name: 'Batch jobs' },
+    { id: 'ffffffff-0000-0000-0000-000000000003', name: null },
+  ];
+
+  it('returns everything for an empty query', () => {
+    expect(filterApps(apps, '')).toHaveLength(3);
+    expect(filterApps(apps, '   ')).toHaveLength(3);
+  });
+
+  it('matches on name, case-insensitively', () => {
+    expect(filterApps(apps, 'checkout').map((a) => a.name)).toEqual(['Checkout service']);
+    expect(filterApps(apps, 'BATCH').map((a) => a.name)).toEqual(['Batch jobs']);
+  });
+
+  /** An operator arriving from a trace or an alert has the uuid, not the display name. */
+  it('matches on id, so a uuid pasted from a trace finds the application', () => {
+    expect(filterApps(apps, 'ffffffff').map((a) => a.id)).toEqual([
+      'ffffffff-0000-0000-0000-000000000003',
+    ]);
+  });
+
+  it('survives an application with no name', () => {
+    expect(() => filterApps(apps, 'anything')).not.toThrow();
+  });
+
+  it('returns nothing when there is no match', () => {
+    expect(filterApps(apps, 'nope')).toEqual([]);
+  });
+
+  it('does not mutate the input', () => {
+    const copy = [...apps];
+    filterApps(apps, 'checkout');
+    expect(apps).toEqual(copy);
   });
 });

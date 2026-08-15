@@ -367,7 +367,7 @@ export async function buildPublicApp(deps: PublicAppDeps): Promise<FastifyInstan
   }
 
   registerProxy(app, { routing, policy, cache, metering, authVirtualKey: identity.authVirtualKey });
-  registerModels(app, { db: deps.db });
+  registerModels(app, { db: deps.db, guards });
 
   // machine-readable spec next to the human UI at /docs
   app.get('/openapi.json', { schema: { hide: true } }, () => app.swagger());

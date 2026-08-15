@@ -44,6 +44,11 @@ type ProvidersList =
   paths['/api/v1/providers']['get']['responses']['200']['content']['application/json'];
 export type Provider =
   paths['/api/v1/providers']['post']['responses']['201']['content']['application/json'];
+export type CatalogSearch =
+  paths['/api/v1/catalog/models']['get']['responses']['200']['content']['application/json'];
+export type CatalogModel = NonNullable<CatalogSearch['data']>[number];
+export type DeletedApplication =
+  paths['/api/v1/apps/{appId}']['delete']['responses']['200']['content']['application/json'];
 export type CreateProviderInput =
   paths['/api/v1/providers']['post']['requestBody']['content']['application/json'];
 export type UsageSummary =
@@ -589,4 +594,28 @@ export async function listPlans(): Promise<PlanCatalogEntry[]> {
 /** Move this org to another public plan. Org-admin only; takes effect on the data plane in ~1s. */
 export function changePlan(planCode: string): Promise<Subscription> {
   return apiSend<Subscription>('POST', '/api/v1/plan/change', { plan_code: planCode });
+}
+
+// ── Model catalog (control plane) ────────────────────────────────────────────────────────────────
+/**
+ * Search the upstream model catalog. Distinct from `listModels()`, which answers the OpenAI question
+ * "what may this key call" — this answers "what models exist upstream", which is what the route and
+ * playground pickers need.
+ */
+export function searchCatalog(params: {
+  provider?: string;
+  q?: string;
+  limit?: number;
+}): Promise<CatalogSearch> {
+  const query = new URLSearchParams();
+  if (params.provider) query.set('provider', params.provider);
+  if (params.q) query.set('q', params.q);
+  if (params.limit) query.set('limit', String(params.limit));
+  const suffix = query.toString();
+  return apiGet<CatalogSearch>(`/api/v1/catalog/models${suffix ? `?${suffix}` : ''}`);
+}
+
+/** Delete an application and everything scoped to it. Irreversible — its keys stop working at once. */
+export function deleteApp(appId: string): Promise<DeletedApplication> {
+  return apiSend<DeletedApplication>('DELETE', `/api/v1/apps/${appId}`);
 }

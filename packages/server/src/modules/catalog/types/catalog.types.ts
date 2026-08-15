@@ -54,7 +54,19 @@ export interface ProviderSyncResult {
   error?: string;
 }
 
+/** A sealed provider credential, as stored. Opened in memory only for the duration of a sync. */
+export interface SyncCredentialRow {
+  provider: string;
+  base_url: string | null;
+  ciphertext: Buffer;
+  iv: Buffer;
+  auth_tag: Buffer;
+  wrapped_dek: Buffer;
+}
+
 export interface CatalogRepository {
+  /** Active credentials, one per provider, for syncing with the operator's own keys. */
+  listSyncCredentials(): Promise<SyncCredentialRow[]>;
   listForProvider(provider: string): Promise<CatalogRow[]>;
   upsertModel(provider: string, model: string, capabilities: ModelCapabilities): Promise<void>;
   currentPrices(provider: string): Promise<RateCardRow[]>;

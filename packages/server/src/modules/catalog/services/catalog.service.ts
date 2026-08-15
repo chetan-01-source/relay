@@ -16,6 +16,7 @@ import { isKnownProvider, PROVIDERS, providerInfo, type ProviderId } from 'relay
 import { capabilitiesChanged, parserFor, priceChanged } from '../lib/model-list.js';
 import type {
   CatalogRepository,
+  SyncCredentialRow,
   CatalogService,
   DiscoveredModel,
   ProviderSyncResult,
@@ -23,6 +24,11 @@ import type {
 
 export interface CatalogServiceDeps {
   repo: CatalogRepository;
+  /**
+   * Unseal a stored provider credential so its key can drive the sync. Supplied only in the
+   * self-hosted edition — see `sync()`. Absent ⇒ stored credentials are never opened.
+   */
+  openCredential?: (row: SyncCredentialRow) => string;
   /** Injected for tests; defaults to the global fetch. */
   fetch?: typeof fetch;
   /** Reads a provider's sync key. Injected so tests need no environment. */
@@ -42,8 +48,32 @@ function defaultApiKeyFor(provider: ProviderId): string | undefined {
 
 export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
   const doFetch = deps.fetch ?? globalThis.fetch;
-  const apiKeyFor = deps.apiKeyFor ?? defaultApiKeyFor;
+  const envApiKeyFor = deps.apiKeyFor ?? defaultApiKeyFor;
   const timeoutMs = deps.timeoutMs ?? 20_000;
+
+  /**
+   * Keys the operator has already stored in the console, by provider.
+   *
+   * Filled once per sync, and only when `openCredential` was injected — which the composition root
+   * does solely in the self-hosted edition. There, the person who saved the OpenAI key and the person
+   * running `relay sync-models` are the same person, and making them ALSO export
+   * RELAY_SYNC_KEY_OPENAI to list the models that key can already reach is friction with no security
+   * value. In the cloud edition the injection is absent, because a global table read by every tenant
+   * must not be populated using one tenant's credential.
+   */
+  async function storedKeys(): Promise<Map<string, string>> {
+    const keys = new Map<string, string>();
+    if (!deps.openCredential) return keys;
+    for (const row of await deps.repo.listSyncCredentials()) {
+      try {
+        keys.set(row.provider, deps.openCredential(row));
+      } catch {
+        // A credential sealed under a different master key cannot be opened. That is an expected
+        // state after a key rotation, and it must not abort the sync for every other provider.
+      }
+    }
+    return keys;
+  }
 
   /** Provider-specific auth. Anthropic uses `x-api-key`; the OpenAI family uses a bearer. */
   function headersFor(provider: ProviderId, apiKey: string | undefined): Record<string, string> {
@@ -58,15 +88,22 @@ export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
     return { accept: 'application/json', authorization: `Bearer ${apiKey}` };
   }
 
-  async function discover(provider: ProviderId): Promise<DiscoveredModel[]> {
+  async function discover(
+    provider: ProviderId,
+    stored: Map<string, string>,
+  ): Promise<DiscoveredModel[]> {
     const info = providerInfo(provider);
     if (!info) throw new Error(`unknown provider ${provider}`);
     if (!info.modelsPath) throw new Error('publishes no model list');
     if (!info.defaultBaseUrl) throw new Error('has no default base URL to query');
 
-    const apiKey = apiKeyFor(provider);
+    // The environment wins: an operator who sets RELAY_SYNC_KEY_* is stating a deliberate choice,
+    // and it should not be silently overridden by whatever credential happens to be in the database.
+    const apiKey = envApiKeyFor(provider) ?? stored.get(provider);
     if (info.requiresApiKey && !apiKey && !info.publishesPricing) {
-      throw new Error(`needs a key — set ${envKeyName(provider)}`);
+      throw new Error(
+        `needs a key — add a ${provider} credential in the console, or set ${envKeyName(provider)}`,
+      );
     }
 
     // A provider that hangs must not hang the whole sync; each gets its own budget.
@@ -84,7 +121,10 @@ export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
     }
   }
 
-  async function syncOne(provider: ProviderId): Promise<ProviderSyncResult> {
+  async function syncOne(
+    provider: ProviderId,
+    stored: Map<string, string>,
+  ): Promise<ProviderSyncResult> {
     const result: ProviderSyncResult = {
       provider,
       discovered: 0,
@@ -95,7 +135,7 @@ export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
 
     let discovered: DiscoveredModel[];
     try {
-      discovered = await discover(provider);
+      discovered = await discover(provider, stored);
     } catch (err) {
       // One unreachable provider must not abort the others: a sync that refreshes eleven catalogs
       // and reports the twelfth as failed is far more useful than one that refreshes none.
@@ -162,8 +202,9 @@ export function createCatalogService(deps: CatalogServiceDeps): CatalogService {
 
       // Sequential on purpose. This is an operator command run occasionally, not a hot path, and
       // hitting a dozen vendors at once is a good way to trip someone's rate limiter for no gain.
+      const stored = await storedKeys();
       const results: ProviderSyncResult[] = [];
-      for (const provider of targets) results.push(await syncOne(provider));
+      for (const provider of targets) results.push(await syncOne(provider, stored));
       return results;
     },
   };

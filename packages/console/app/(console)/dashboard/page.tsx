@@ -24,6 +24,14 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+/** The trailing 30 days, inclusive, in UTC — the fixed window the overview chart covers. */
+function dashboardWindow(today: Date): { from: string; to: string } {
+  const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - 29);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
 export default async function DashboardPage() {
   await requireOrg();
 
@@ -52,7 +60,9 @@ export default async function DashboardPage() {
     requestCount: totals.requests,
   });
   const progress = Math.round(checklistProgress(steps) * 100);
-  const series = toDailySeries(daily);
+  // The overview always shows the trailing 30 days, so quiet days render as gaps in the bar chart
+  // instead of being silently dropped and making a sparse month look continuous.
+  const series = toDailySeries(daily, 30, dashboardWindow(new Date()));
 
   const tiles: { label: string; value: string; icon: LucideIcon }[] = [
     { label: 'Spend', value: formatUsd(totals.costUsd), icon: DollarSign },

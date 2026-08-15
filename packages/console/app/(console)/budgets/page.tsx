@@ -19,7 +19,9 @@ import { requireOrg, isOrgAdmin } from '../../lib/auth';
 import { listBudgets, listApps, getUsage } from '../../lib/api';
 import { summarizeUsage } from '../../lib/usage';
 import { apiWindow } from '../../lib/analytics';
-import { BUDGET_PERIODS, periodWindow, budgetFor } from '../../lib/budget';
+import { BUDGET_PERIODS, periodWindow, budgetFor, filterApps } from '../../lib/budget';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
 import { BudgetScopeRow } from '../../../components/budget-scope';
 import {
   Card,
@@ -31,12 +33,17 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ app?: string }>;
+}) {
   const me = await requireOrg();
   const canEdit = isOrgAdmin(me);
   const now = new Date();
+  const appQuery = (await searchParams).app ?? '';
 
-  const [budgets, apps] = await Promise.all([
+  const [budgets, allApps] = await Promise.all([
     listBudgets()
       .then((r) => r.data ?? [])
       .catch(() => []),
@@ -44,6 +51,10 @@ export default async function BudgetsPage() {
       .then((r) => r.data ?? [])
       .catch(() => []),
   ]);
+
+  // Filtered for display only: spend below is still computed over every application, so the totals
+  // do not change depending on what is typed in the search box.
+  const apps = filterApps(allApps, appQuery);
 
   // Org spend per period, over that period's own window — a monthly ceiling counts from the 1st, a
   // daily one counts today, and a rolling window would report against the wrong total.
@@ -125,7 +136,41 @@ export default async function BudgetsPage() {
         </p>
       </div>
 
-      {apps.length === 0 ? (
+      {/* A GET form, so the filter lands in the URL: the view is shareable, survives a reload, and
+          the Back button works — the same convention the analytics page uses. */}
+      {allApps.length > 3 ? (
+        <form className="flex gap-2" method="GET">
+          <Input
+            type="search"
+            name="app"
+            defaultValue={appQuery}
+            placeholder="Filter applications by name or id…"
+            className="max-w-sm"
+            aria-label="Filter applications"
+          />
+          <Button type="submit" variant="secondary" size="sm">
+            Filter
+          </Button>
+          {appQuery ? (
+            <Link
+              href="/budgets"
+              className="self-center text-sm text-muted-foreground hover:underline"
+            >
+              Clear
+            </Link>
+          ) : null}
+        </form>
+      ) : null}
+
+      {allApps.length > 0 && apps.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">No application matches “{appQuery}”.</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {allApps.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">

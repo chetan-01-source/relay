@@ -82,3 +82,21 @@ export function linkSuccessorQuery(
     values: [predecessorId, successorId, graceUntil],
   };
 }
+
+/**
+ * Delete one application. Every dependent row — its virtual keys, its budgets, its app-scoped
+ * routes — is removed by `ON DELETE CASCADE` declared in the migrations, so this single statement
+ * is the whole operation and cannot leave an orphan behind.
+ */
+export function deleteAppQuery(appId: string): SqlQuery {
+  return { text: `DELETE FROM applications WHERE id = $1`, values: [appId] };
+}
+
+/** Active keys for an application — what deleting it would revoke. */
+export function countActiveKeysForAppQuery(appId: string): SqlQuery {
+  return {
+    text: `SELECT count(*)::int AS count FROM virtual_keys
+            WHERE app_id = $1 AND status = 'active'`,
+    values: [appId],
+  };
+}
