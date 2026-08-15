@@ -10,11 +10,16 @@ WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
+# The console imports the shared provider registry, so its manifest has to be present for the
+# workspace install to resolve `relay-shared: workspace:*`.
+COPY packages/shared/package.json packages/shared/
 COPY packages/console/package.json packages/console/
 RUN pnpm install --frozen-lockfile --filter relay-console...
 
+COPY packages/shared packages/shared
 COPY packages/console packages/console
-RUN pnpm --filter=relay-console build
+# Shared first: the console imports its BUILT output, so a Next build before it fails to resolve.
+RUN pnpm --filter=relay-shared build && pnpm --filter=relay-console build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

@@ -82,7 +82,9 @@ reading it.
 - **The container images could not be built at all.** The Dockerfiles still filtered on the
   pre-rename package names (`@relay/server`, `@relay/shared`), so `pnpm deploy` matched nothing, `/out`
   was never produced and the build failed on the first `COPY`. Broken since the workspace was renamed
-  after v1.0.0 and only surfaced by tagging, because nothing had built an image since.
+  after v1.0.0 and only surfaced by tagging, because nothing had built an image since. The console
+  image additionally never copied or built `relay-shared`, which it began importing with the provider
+  registry, so its Next build could not resolve it.
 - **The gateway reported the previous version.** `RELAY_VERSION` and the SDK's user-agent stamp are
   hand-maintained constants and `npm version` does not touch them, so `relay --version`, the `/readyz`
   probe and the console's Status page all answered `1.0.0` from a 1.1.0 build. Both are now asserted
