@@ -13,16 +13,15 @@
  */
 import { createAdminClient, type AdminClient } from './admin.js';
 import { createChat } from './chat.js';
-import { Http, type RetryOptions } from './http.js';
-import type { TokenSource } from './machine-token.js';
+import { Http, type RetryOptions, type TokenSource } from './http.js';
 import type { ModelObject } from './types.js';
 
 export { RelayApiError, RelayConnectionError, isRelayApiError } from './errors.js';
 export { machineTokenSource, RelayTokenError } from './machine-token.js';
-export type { MachineTokenOptions, TokenSource } from './machine-token.js';
+export type { MachineTokenOptions } from './machine-token.js';
 export type { RelayErrorCode } from './errors.js';
 export type { RelayMetadata } from './metadata.js';
-export type { RetryOptions } from './http.js';
+export type { RetryOptions, TokenSource } from './http.js';
 export type {
   ChatCompletion,
   ChatCompletionChunk,

@@ -12,8 +12,7 @@
  * cannot accidentally ship an admin token into browser code that only needed to send a completion.
  */
 import type { paths } from './generated/api-types.js';
-import { Http, type RetryOptions } from './http.js';
-import type { TokenSource } from './machine-token.js';
+import { Http, type RetryOptions, type TokenSource } from './http.js';
 
 /** `GET /x` → its 200 JSON body. */
 type Get<P extends keyof paths> = paths[P] extends {

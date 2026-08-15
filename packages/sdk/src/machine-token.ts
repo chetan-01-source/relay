@@ -16,13 +16,7 @@
  * rather than optional.
  */
 import { RelayConnectionError } from './errors.js';
-import { stripTrailingSlashes } from './http.js';
-
-/**
- * Resolves the bearer token for a request. Called per request, so an implementation is free to
- * refresh, rotate, or read from a secret manager; returning a plain string is also fine.
- */
-export type TokenSource = () => string | Promise<string>;
+import { stripTrailingSlashes, type TokenSource } from './http.js';
 
 export interface MachineTokenOptions {
   /** Logto's base URL, e.g. `https://auth.example.com` — no trailing `/oidc`. */

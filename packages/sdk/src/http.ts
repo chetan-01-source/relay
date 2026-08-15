@@ -7,7 +7,16 @@
  * library is a gateway SDK that breaks on the edge.
  */
 import { RelayApiError, RelayConnectionError, type RelayErrorBody } from './errors.js';
-import type { TokenSource } from './machine-token.js';
+
+/**
+ * Resolves the bearer token for a request. Called per request, so an implementation is free to
+ * refresh, rotate, or read from a secret manager; returning a plain string is also fine.
+ *
+ * Declared here rather than beside `machineTokenSource()`, its main producer, because it is what the
+ * transport accepts — putting it there would make the transport depend on the token module and the
+ * token module depend on the transport.
+ */
+export type TokenSource = () => string | Promise<string>;
 
 export interface RetryOptions {
   /** Total attempts, including the first. 1 (the default) means no retrying. */
