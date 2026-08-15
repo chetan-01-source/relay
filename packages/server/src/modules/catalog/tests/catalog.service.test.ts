@@ -5,12 +5,24 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createCatalogService, envKeyName } from '../services/catalog.service.js';
-import type { CatalogRepository, CatalogRow, RateCardRow } from '../types/catalog.types.js';
+import type {
+  CatalogRepository,
+  CatalogRow,
+  RateCardRow,
+  SyncCredentialRow,
+} from '../types/catalog.types.js';
 
-function fakeRepo(seed: { models?: CatalogRow[]; prices?: RateCardRow[] } = {}) {
+function fakeRepo(
+  seed: {
+    models?: CatalogRow[];
+    prices?: RateCardRow[];
+    credentials?: SyncCredentialRow[];
+  } = {},
+) {
   const upserts: { provider: string; model: string; capabilities: unknown }[] = [];
   const priceWrites: { model: string; input: number; output: number }[] = [];
   const repo: CatalogRepository = {
+    listSyncCredentials: () => Promise.resolve(seed.credentials ?? []),
     listForProvider: (provider) =>
       Promise.resolve((seed.models ?? []).filter((m) => m.provider === provider)),
     currentPrices: (provider) =>
@@ -233,5 +245,84 @@ describe('envKeyName', () => {
   it('maps a provider id to its environment variable', () => {
     expect(envKeyName('openrouter')).toBe('RELAY_SYNC_KEY_OPENROUTER');
     expect(envKeyName('azure_openai')).toBe('RELAY_SYNC_KEY_AZURE_OPENAI');
+  });
+});
+
+describe('syncing with the operator’s stored credentials', () => {
+  const credential: SyncCredentialRow = {
+    provider: 'openai',
+    base_url: null,
+    ciphertext: Buffer.from('ct'),
+    iv: Buffer.from('iv'),
+    auth_tag: Buffer.from('tag'),
+    wrapped_dek: Buffer.from('dek'),
+  };
+
+  /**
+   * The reason this exists: a self-hosted operator who has already saved an OpenAI key in the
+   * console should not also have to export RELAY_SYNC_KEY_OPENAI to list the models that key can
+   * already reach. Before this, their catalog stayed at the two seeded models.
+   */
+  it('uses a stored credential when no environment key is set', async () => {
+    const { repo } = fakeRepo({ credentials: [credential] });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: 'gpt-4o' }] }));
+    const service = createCatalogService({
+      repo,
+      fetch: fetchMock,
+      apiKeyFor: () => undefined,
+      openCredential: () => 'sk-from-console',
+    });
+
+    const [result] = await service.sync(['openai']);
+
+    expect(result!.error).toBeUndefined();
+    expect(result!.modelsAdded).toBe(1);
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer sk-from-console');
+  });
+
+  it('prefers the environment key, which is a deliberate operator choice', async () => {
+    const { repo } = fakeRepo({ credentials: [credential] });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [] }));
+    const service = createCatalogService({
+      repo,
+      fetch: fetchMock,
+      apiKeyFor: () => 'sk-from-env',
+      openCredential: () => 'sk-from-console',
+    });
+
+    await service.sync(['openai']);
+
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer sk-from-env');
+  });
+
+  it('never opens stored credentials when the opener is absent (the cloud edition)', async () => {
+    const { repo } = fakeRepo({ credentials: [credential] });
+    const fetchMock = vi.fn();
+    const service = createCatalogService({ repo, fetch: fetchMock, apiKeyFor: () => undefined });
+
+    const [result] = await service.sync(['openai']);
+
+    expect(result!.error).toContain('RELAY_SYNC_KEY_OPENAI');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps going when one credential cannot be unsealed', async () => {
+    // Expected after a master-key rotation: that provider is skipped, the rest still sync.
+    const { repo } = fakeRepo({ credentials: [credential] });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [] }));
+    const service = createCatalogService({
+      repo,
+      fetch: fetchMock,
+      apiKeyFor: () => undefined,
+      openCredential: () => {
+        throw new Error('bad master key');
+      },
+    });
+
+    const [result] = await service.sync(['openai']);
+
+    expect(result!.error).toContain('needs a key');
   });
 });

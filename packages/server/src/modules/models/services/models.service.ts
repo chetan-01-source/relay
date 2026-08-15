@@ -27,5 +27,20 @@ export function createModelsService(repo: ModelsRepository): ModelsService {
       const row = await repo.getById(model);
       return row ? toOpenAiModel(row) : null;
     },
+
+    async searchCatalog(query) {
+      const rows = await repo.search(query);
+      return rows.map((row) => ({
+        object: 'catalog.model' as const,
+        provider: row.provider,
+        model: row.model,
+        capabilities: row.capabilities,
+      }));
+    },
+
+    async catalogCounts() {
+      const rows = await repo.countByProvider();
+      return Object.fromEntries(rows.map((row) => [row.provider, row.count]));
+    },
   };
 }

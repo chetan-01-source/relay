@@ -1087,6 +1087,45 @@
           "response": []
         },
         {
+          "name": "DELETE /api/v1/apps/{appId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/apps/:appId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "apps", ":appId"],
+              "variable": [
+                {
+                  "key": "appId",
+                  "value": "{{app_id}}",
+                  "description": "Path parameter · bound to the {{app_id}} collection variable"
+                }
+              ]
+            },
+            "description": "Delete an application and every key, budget and route scoped to it"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /api/v1/apps/{appId}/keys",
           "request": {
             "method": "GET",
@@ -2812,6 +2851,64 @@
                 }
               }
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('gateway did not 5xx', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "catalog",
+      "description": "",
+      "item": [
+        {
+          "name": "GET /api/v1/catalog/models",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/models?",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalog", "models"],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "openai",
+                  "disabled": true,
+                  "description": "one of: openai, anthropic, openrouter, azure_openai, google, groq, together, mistral, deepseek, fireworks, xai, perplexity, openai_compat"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Search the upstream model catalog"
           },
           "event": [
             {

@@ -24,3 +24,34 @@ export function getModelQuery(model: string): SqlQuery {
     values: [model],
   };
 }
+
+/**
+ * Catalog search for the console's model pickers.
+ *
+ * `provider` and `search` are both optional, so the predicate is built with SQL `IS NULL` guards
+ * rather than by concatenating clauses in JavaScript — the shape of the statement is then fixed and
+ * every value stays a bound parameter (§3.4), which is what keeps a user-typed search string from
+ * ever reaching the planner as SQL.
+ */
+export function searchCatalogQuery(
+  provider: string | undefined,
+  search: string | undefined,
+  limit: number,
+): SqlQuery {
+  return {
+    text: `SELECT ${COLUMNS} FROM ${TABLE}
+            WHERE ($1::text IS NULL OR provider = $1)
+              AND ($2::text IS NULL OR model ILIKE '%' || $2 || '%')
+         ORDER BY provider, model
+            LIMIT $3`,
+    values: [provider ?? null, search ?? null, limit],
+  };
+}
+
+/** Models per provider — the console shows a hint when a provider's catalog looks unpopulated. */
+export function countModelsByProviderQuery(): SqlQuery {
+  return {
+    text: `SELECT provider, count(*)::int AS count FROM ${TABLE} GROUP BY provider ORDER BY provider`,
+    values: [],
+  };
+}

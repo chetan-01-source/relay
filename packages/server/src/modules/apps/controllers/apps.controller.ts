@@ -18,6 +18,7 @@ export interface AppsController {
   createApp(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   listApps(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   getApp(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  deleteApp(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   issueKey(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   listKeys(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
   rotateKey(request: FastifyRequest, reply: FastifyReply): Promise<unknown>;
@@ -59,6 +60,13 @@ export function createAppsController(service: AppsService): AppsController {
       const app = await service.getApp(orgOf(request), appId);
       if (!app) throw new RelayError('not_found', { message: `Application '${appId}' not found.` });
       return reply.send(app);
+    },
+
+    async deleteApp(request, reply) {
+      const { appId } = request.params as AppParams;
+      const deleted = await service.deleteApp(actorOf(request), orgOf(request), appId);
+      // 200 with a body rather than 204: the caller should see how many live keys this just killed.
+      return reply.send(deleted);
     },
 
     async issueKey(request, reply) {

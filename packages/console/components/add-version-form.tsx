@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { ModelCombobox } from './model-combobox';
 import { Label } from './ui/label';
 
 export interface CredentialOption {
@@ -50,6 +51,11 @@ export function AddVersionForm({
   const [rows, setRows] = useState<Row[]>([
     { credential_id: '', model: '', priority: 100, weight: 1 },
   ]);
+
+  /** The provider behind a chosen credential, so model suggestions match where the call will go. */
+  function providerOf(credentialId: string): string | undefined {
+    return credentials.find((c) => c.id === credentialId)?.provider;
+  }
 
   function update(i: number, patch: Partial<Row>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -133,10 +139,15 @@ export function AddVersionForm({
             </div>
             <div className="space-y-1">
               {i === 0 ? <Label className="text-xs">Model</Label> : null}
-              <Input
+              {/* Suggestions are scoped to the chosen credential's provider: an Anthropic model on
+                  an OpenAI credential is a route that only fails at request time. */}
+              <ModelCombobox
                 value={row.model}
-                onChange={(e) => update(i, { model: e.target.value })}
-                placeholder="gpt-4o"
+                onChange={(model) => update(i, { model })}
+                {...(() => {
+                  const provider = providerOf(row.credential_id);
+                  return provider ? { provider } : {};
+                })()}
               />
             </div>
             <div className="space-y-1">

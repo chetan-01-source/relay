@@ -27,6 +27,7 @@ import type {
   IssueKeyInput,
   VirtualKey,
   VirtualKeyRow,
+  DeletedApplication,
 } from '../types/apps.types.js';
 
 // Old keys stay valid for this window after a rotation, then expire. Well under the ≤72h cap so a
@@ -172,6 +173,49 @@ export function createAppsService(deps: AppsServiceDeps): AppsService {
     return toKey(row);
   }
 
+  /**
+   * Delete an application and everything hanging off it.
+   *
+   * Destructive and irreversible: the migrations cascade from `applications` to its virtual keys,
+   * its budgets and its app-scoped routes, so one DELETE removes the lot. Every key it owned stops
+   * working immediately — which is the point, but it is also why the count of what was revoked is
+   * returned rather than a bare 204: the operator should see what they just switched off.
+   *
+   * The keys are read BEFORE the delete, inside the same transaction. Afterwards the rows are gone,
+   * and their `key_id`s are the only way to tell workers to drop their cached snapshots — without
+   * that, a deleted application's keys would keep authenticating from memory until each entry
+   * happened to be evicted.
+   */
+  async function deleteApp(
+    actor: string,
+    orgId: string,
+    appId: string,
+  ): Promise<DeletedApplication> {
+    let revokedKeyIds: string[] = [];
+    const activeCount = await db.withTenant(orgId, scope, async (tx) => {
+      await requireApp(tx, appId);
+      const keys = await repo.listKeys(tx, appId);
+      revokedKeyIds = keys.map((key) => key.key_id).filter((id): id is string => id !== null);
+      const active = await repo.countActiveKeys(tx, appId);
+      // No notification event: the catalog has none for this, and inventing one here would mean a
+      // channel change nobody asked for. The audit entry below is the durable record.
+      await audit.appendWithTx(tx, orgId, {
+        actor,
+        action: 'app.delete',
+        target: appId,
+        data: { revoked_keys: active },
+      });
+      await repo.deleteApp(tx, appId);
+      return active;
+    });
+
+    // After the commit: a rolled-back delete must not have told workers to forget live keys.
+    if (bus) {
+      for (const keyId of revokedKeyIds) await publishKeyInvalidation(bus, keyId);
+    }
+    return { object: 'application.deleted', id: appId, revoked_keys: activeCount };
+  }
+
   /** Load an app in the current tx or 404 — RLS guarantees it belongs to the caller's org. */
   async function requireApp(
     tx: Parameters<AppsRepository['getApp']>[0],
@@ -191,7 +235,7 @@ export function createAppsService(deps: AppsServiceDeps): AppsService {
     return key;
   }
 
-  return { createApp, listApps, getApp, issueKey, listKeys, rotateKey, revokeKey };
+  return { createApp, listApps, getApp, deleteApp, issueKey, listKeys, rotateKey, revokeKey };
 }
 
 function toApp(row: ApplicationRow): Application {

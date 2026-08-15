@@ -4,7 +4,12 @@
  * tests). Contains NO query text of its own and NO business logic.
  */
 import type { Queryable } from '../../../platform/db.js';
-import { listModelsQuery, getModelQuery } from '../queries/models.queries.js';
+import {
+  countModelsByProviderQuery,
+  getModelQuery,
+  listModelsQuery,
+  searchCatalogQuery,
+} from '../queries/models.queries.js';
 import type { ModelCatalogRow, ModelsRepository } from '../types/models.types.js';
 
 export function createModelsRepository(db: Queryable): ModelsRepository {
@@ -15,6 +20,12 @@ export function createModelsRepository(db: Queryable): ModelsRepository {
     async getById(model) {
       const rows = await db.run<ModelCatalogRow>(getModelQuery(model));
       return rows[0] ?? null;
+    },
+    search(query) {
+      return db.run<ModelCatalogRow>(searchCatalogQuery(query.provider, query.search, query.limit));
+    },
+    countByProvider() {
+      return db.run<{ provider: string; count: number }>(countModelsByProviderQuery());
     },
   };
 }

@@ -138,6 +138,35 @@ export function registerAppsRoutes(
     (request, reply) => controller.getApp(request, reply),
   );
 
+  app.delete(
+    '/api/v1/apps/:appId',
+    {
+      preHandler: write,
+      schema: {
+        tags,
+        summary: 'Delete an application and every key, budget and route scoped to it',
+        description:
+          'Irreversible. Cascades to the application’s virtual keys, budgets and app-scoped ' +
+          'routes; every key it owned stops authenticating immediately.',
+        params: appParams,
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              object: { type: 'string' },
+              id: { type: 'string' },
+              revoked_keys: { type: 'integer' },
+            },
+          },
+          401: errorObject,
+          403: errorObject,
+          404: errorObject,
+        },
+      },
+    },
+    (request, reply) => controller.deleteApp(request, reply),
+  );
+
   app.post(
     '/api/v1/apps/:appId/keys',
     {

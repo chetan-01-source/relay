@@ -5,6 +5,7 @@
 import type { Database } from '../../../platform/db.js';
 import {
   closePriceQuery,
+  listSyncCredentialsQuery,
   currentPricesQuery,
   insertPriceQuery,
   listForProviderQuery,
@@ -15,12 +16,16 @@ import type {
   CatalogRow,
   ModelCapabilities,
   RateCardRow,
+  SyncCredentialRow,
 } from '../types/catalog.types.js';
 
 // Takes the full Database, not a bare Queryable: `replacePrice` needs a transaction, and the global
 // tables it writes are outside RLS so `withTenant` is the wrong tool.
 export function createCatalogRepository(db: Database): CatalogRepository {
   return {
+    listSyncCredentials() {
+      return db.run<SyncCredentialRow>(listSyncCredentialsQuery());
+    },
     listForProvider(provider) {
       return db.run<CatalogRow>(listForProviderQuery(provider));
     },

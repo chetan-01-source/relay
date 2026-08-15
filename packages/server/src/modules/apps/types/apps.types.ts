@@ -75,10 +75,19 @@ export interface IssueKeyInput {
 }
 
 // ── layer boundaries ─────────────────────────────────────────────────────────
+export interface DeletedApplication {
+  object: 'application.deleted';
+  id: string;
+  /** Keys that were active when the application was removed — all of them are now dead. */
+  revoked_keys: number;
+}
+
 export interface AppsRepository {
   createApp(tx: Queryable, orgId: string, input: CreateAppInput): Promise<ApplicationRow>;
   getApp(tx: Queryable, appId: string): Promise<ApplicationRow | null>;
   listApps(tx: Queryable): Promise<ApplicationRow[]>;
+  deleteApp(tx: Queryable, appId: string): Promise<void>;
+  countActiveKeys(tx: Queryable, appId: string): Promise<number>;
   insertKey(
     tx: Queryable,
     key: {
@@ -106,6 +115,7 @@ export interface AppsService {
   createApp(actor: string, orgId: string, input: CreateAppInput): Promise<Application>;
   listApps(orgId: string): Promise<Application[]>;
   getApp(orgId: string, appId: string): Promise<Application | null>;
+  deleteApp(actor: string, orgId: string, appId: string): Promise<DeletedApplication>;
   issueKey(
     actor: string,
     orgId: string,

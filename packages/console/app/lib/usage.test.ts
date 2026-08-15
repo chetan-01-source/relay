@@ -107,3 +107,88 @@ describe('toDailySeries', () => {
     expect(toDailySeries(null)).toEqual([]);
   });
 });
+
+describe('toDailySeries — gaps', () => {
+  /**
+   * The API returns a bucket only for days that had usage. Plotting those directly drew the 10th
+   * and the 15th side by side, so the four silent days vanished and the x-axis stopped meaning
+   * anything — a quiet week looked identical to a busy one.
+   */
+  it('emits every day in the window, with zeros where nothing was spent', () => {
+    const summary = {
+      data: [
+        { key: '2026-06-10', cost_usd: 1.5, requests: 3 },
+        { key: '2026-06-15', cost_usd: 2.5, requests: 5 },
+      ],
+    };
+
+    const series = toDailySeries(summary, 30, { from: '2026-06-10', to: '2026-06-15' });
+
+    expect(series.map((p) => p.date)).toEqual([
+      '2026-06-10',
+      '2026-06-11',
+      '2026-06-12',
+      '2026-06-13',
+      '2026-06-14',
+      '2026-06-15',
+    ]);
+    expect(series.map((p) => p.cost)).toEqual([1.5, 0, 0, 0, 0, 2.5]);
+    expect(series[1]!.requests).toBe(0);
+  });
+
+  it('extends to the window edges even when the quiet days are at the ends', () => {
+    // Without the window the series could only span days that returned data, so a window ending in
+    // silence was cropped to the last busy day — the same bug in a different disguise.
+    const summary = { data: [{ key: '2026-06-12', cost_usd: 1, requests: 1 }] };
+
+    const series = toDailySeries(summary, 30, { from: '2026-06-10', to: '2026-06-14' });
+
+    expect(series).toHaveLength(5);
+    expect(series[0]!.date).toBe('2026-06-10');
+    expect(series[4]!.date).toBe('2026-06-14');
+  });
+
+  it('crosses a month boundary correctly', () => {
+    const series = toDailySeries({ data: [] }, 30, {
+      from: '2026-01-30',
+      to: '2026-02-02',
+    });
+    expect(series.map((p) => p.date)).toEqual([
+      '2026-01-30',
+      '2026-01-31',
+      '2026-02-01',
+      '2026-02-02',
+    ]);
+  });
+
+  it('keeps the most recent days when the window is longer than the limit', () => {
+    const series = toDailySeries({ data: [] }, 3, {
+      from: '2026-06-01',
+      to: '2026-06-10',
+    });
+    expect(series.map((p) => p.date)).toEqual(['2026-06-08', '2026-06-09', '2026-06-10']);
+  });
+
+  it('falls back to the span of the data when no window is given', () => {
+    const summary = {
+      data: [
+        { key: '2026-06-13', cost_usd: 1, requests: 1 },
+        { key: '2026-06-11', cost_usd: 2, requests: 2 },
+      ],
+    };
+    expect(toDailySeries(summary as never).map((p) => p.date)).toEqual([
+      '2026-06-11',
+      '2026-06-12',
+      '2026-06-13',
+    ]);
+  });
+
+  it('returns nothing for an empty summary and no window', () => {
+    expect(toDailySeries({ data: [] })).toEqual([]);
+    expect(toDailySeries(null)).toEqual([]);
+  });
+
+  it('returns nothing for an inverted window rather than looping', () => {
+    expect(toDailySeries({ data: [] }, 30, { from: '2026-06-10', to: '2026-06-01' })).toEqual([]);
+  });
+});

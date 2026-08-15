@@ -9,7 +9,7 @@ import { runMigrations } from '../platform/migrate.js';
 import { brandLogto } from '../platform/logto-branding.js';
 import { bootstrapLogto, provisionMachineApp } from '../platform/logto.js';
 import { seedMachine } from '../seed/machine.js';
-import { createCatalog } from '../modules/catalog/index.js';
+import { createCatalogWithStoredCredentials } from '../modules/catalog/index.js';
 import { RELAY_VERSION } from '../version.js';
 import { seedDemo } from '../seed/demo.js';
 import { createAuditService, createAuditRepository } from '../modules/audit/index.js';
@@ -286,7 +286,13 @@ program
     }
     const db = initDb(url);
     try {
-      const results = await createCatalog(db).sync(opts.provider);
+      // Self-hosted: the keys already stored in the console are used, so `make sync-models` fills
+      // the OpenAI and Anthropic catalogs with no extra configuration.
+      const catalog = createCatalogWithStoredCredentials(db, {
+        masterKey: process.env.RELAY_MASTER_KEY ?? '',
+        edition: process.env.RELAY_EDITION === 'cloud' ? 'cloud' : 'oss',
+      });
+      const results = await catalog.sync(opts.provider);
       let failed = 0;
       for (const r of results) {
         if (r.error) {

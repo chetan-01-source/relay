@@ -8,15 +8,17 @@ import type { Queryable } from '../../platform/db.js';
 import { createModelsRepository } from './repositories/models.repository.js';
 import { createModelsService } from './services/models.service.js';
 import { createModelsController } from './controllers/models.controller.js';
-import { registerModelsRoutes } from './routes/models.routes.js';
+import { registerModelsRoutes, type ModelsRouteGuards } from './routes/models.routes.js';
 
 export interface RegisterModelsOptions {
   db: Queryable;
+  /** Absent for the offline OpenAPI dump, where no auth exists to attach. */
+  guards?: ModelsRouteGuards;
 }
 
 export function registerModels(app: FastifyInstance, opts: RegisterModelsOptions): void {
   const repository = createModelsRepository(opts.db);
   const service = createModelsService(repository);
   const controller = createModelsController(service);
-  registerModelsRoutes(app, controller);
+  registerModelsRoutes(app, controller, opts.guards);
 }

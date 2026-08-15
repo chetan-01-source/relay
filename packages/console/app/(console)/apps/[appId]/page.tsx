@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrg } from '../../../lib/auth';
 import { listApps, listKeys } from '../../../lib/api';
+import { DeleteAppButton } from '../../../../components/delete-app-button';
 import { CreateKeyDialog } from '../../../../components/create-key-dialog';
 import { KeyActions } from '../../../../components/key-actions';
 import { SnippetDrawer } from '../../../../components/snippet-drawer';
@@ -42,6 +43,13 @@ export default async function AppDetailPage({ params }: { params: Promise<{ appI
         <div className="flex gap-2">
           <SnippetDrawer baseUrl={GATEWAY_URL} apiKey="rk_live_…" />
           <CreateKeyDialog appId={appId} baseUrl={GATEWAY_URL} />
+          {app ? (
+            <DeleteAppButton
+              id={appId}
+              name={app.name ?? 'this application'}
+              activeKeys={keyList.filter((k) => k.status === 'active').length}
+            />
+          ) : null}
         </div>
       </div>
 

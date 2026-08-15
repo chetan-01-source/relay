@@ -93,14 +93,66 @@ export function labelOrgUsage(
     .sort((a, b) => b.costUsd - a.costUsd);
 }
 
-/** Shape `group_by=day` buckets into a date-ascending series for the spend chart, keeping the most
- * recent `limit` days. Pure — unit-tested. */
-export function toDailySeries(summary: UsageSummary | null | undefined, limit = 30): DailyPoint[] {
-  const points = (summary?.data ?? []).map((b) => ({
-    date: b.key ?? '',
-    cost: b.cost_usd ?? 0,
-    requests: b.requests ?? 0,
-  }));
-  points.sort((a, b) => a.date.localeCompare(b.date)); // ISO dates sort lexicographically
-  return points.slice(-limit);
+/** `count` days before `date`, in UTC. */
+function daysBefore(date: string, count: number): string {
+  const earlier = new Date(`${date}T00:00:00Z`);
+  earlier.setUTCDate(earlier.getUTCDate() - count);
+  return earlier.toISOString().slice(0, 10);
+}
+
+/** The later of two ISO dates — they sort lexicographically, so a plain comparison is correct. */
+function laterOf(a: string, b: string): string {
+  return a > b ? a : b;
+}
+
+/** The next calendar day, in UTC. `YYYY-MM-DD` in, `YYYY-MM-DD` out. */
+function nextDay(date: string): string {
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+/**
+ * Shape `group_by=day` buckets into a date-ascending series for the spend chart.
+ *
+ * The API returns a bucket only for days that HAD usage, so plotting them directly draws the 10th
+ * and the 15th side by side and the four silent days in between vanish. The x-axis then lies: bar
+ * width stops meaning "a day" and a quiet week looks identical to a busy one. Every day in the
+ * window is emitted, with zeros where nothing was spent.
+ *
+ * `window` is the range the user actually asked for. Without it the series can only span the days
+ * that returned data, so a window ending in silence would still stop at the last busy day — which
+ * is exactly the gap being fixed. Pure — unit-tested.
+ */
+export function toDailySeries(
+  summary: UsageSummary | null | undefined,
+  limit = 30,
+  window?: { from: string; to: string },
+): DailyPoint[] {
+  const byDate = new Map<string, DailyPoint>();
+  for (const bucket of summary?.data ?? []) {
+    const date = bucket.key ?? '';
+    if (!date) continue;
+    byDate.set(date, {
+      date,
+      cost: bucket.cost_usd ?? 0,
+      requests: bucket.requests ?? 0,
+    });
+  }
+
+  const dates = [...byDate.keys()].sort();
+  const first = window?.from ?? dates[0];
+  const last = window?.to ?? dates[dates.length - 1];
+  if (!first || !last || first > last) return [];
+
+  // Start at the later of the window's beginning and `limit` days back from its end. That bounds
+  // the loop by construction — a decade-wide window costs `limit` iterations, not 3,650 — and it
+  // keeps the RECENT days, which a trailing slice off a truncated loop would not.
+  const start = laterOf(first, daysBefore(last, limit - 1));
+
+  const series: DailyPoint[] = [];
+  for (let date = start; date <= last; date = nextDay(date)) {
+    series.push(byDate.get(date) ?? { date, cost: 0, requests: 0 });
+  }
+  return series;
 }

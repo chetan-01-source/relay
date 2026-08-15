@@ -17,6 +17,7 @@ import type { ChatCompletionResult } from '../app/lib/api';
 import { completionText, errorMessage, headerFacts, tokenUsage } from '../app/lib/playground';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { ModelCombobox } from './model-combobox';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
@@ -113,28 +114,27 @@ export function Playground({ routedModels, initialModel }: PlaygroundProps) {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-3">
                 <Label htmlFor="pg-model">Model</Label>
-                {routedModels.length > 0 ? (
-                  <select
-                    id="pg-model"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    {routedModels.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <Input
-                    id="pg-model"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="gpt-4o-mini"
-                    required
-                  />
-                )}
+                {/* Searchable, but over ROUTE ALIASES rather than the catalog. A virtual key can
+                    only call a name this org has a route for; the gateway answers
+                    `model_not_found` for anything else, so suggesting the full catalog here would
+                    be suggesting requests that cannot succeed. */}
+                <ModelCombobox
+                  id="pg-model"
+                  value={model}
+                  onChange={setModel}
+                  staticOptions={routedModels}
+                  placeholder="gpt-4o-mini"
+                  required
+                  emptyHint={
+                    routedModels.length === 0
+                      ? 'No routes yet — create one under Build → Routes, then its alias appears here.'
+                      : 'No alias matches. Only names you have a route for can be called.'
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  These are your route aliases, not the upstream catalog — add a route to call more
+                  models.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pg-max">Max tokens</Label>

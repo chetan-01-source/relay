@@ -23,6 +23,14 @@ function fakeRepo() {
   const now = '2026-07-19T00:00:00Z';
 
   const repo: AppsRepository = {
+    deleteApp: (_tx, appId) => {
+      apps.delete(appId);
+      return Promise.resolve();
+    },
+    countActiveKeys: (_tx, appId) =>
+      Promise.resolve(
+        [...keys.values()].filter((k) => k.app_id === appId && k.status === 'active').length,
+      ),
     createApp(_tx, orgId, input) {
       const id = `app-${++n}`;
       const row: ApplicationRow = {
@@ -194,5 +202,62 @@ describe('apps service · key lifecycle', () => {
     expect(revoked.status).toBe('revoked');
     expect(published.some((p) => p.channel === 'key.invalidate')).toBe(true);
     expect(auditBundle.events.some((e) => e.action === 'key.revoke')).toBe(true);
+  });
+});
+
+/** One wired service plus the fakes' recorders, so each case reads as one setup line. */
+function subject() {
+  const { repo } = fakeRepo();
+  const { audit, events } = fakeAudit();
+  const { bus, published } = fakeBus();
+  return { service: build(repo, audit, bus), events, published };
+}
+
+const ORG = 'org-1';
+
+describe('deleteApp', () => {
+  it('removes the application and reports how many live keys it just killed', async () => {
+    const { service } = subject();
+    const app = await service.createApp('u1', ORG, { name: 'doomed' });
+    await service.issueKey('u1', ORG, app.id, { environment: 'test' });
+    await service.issueKey('u1', ORG, app.id, { environment: 'test' });
+
+    const deleted = await service.deleteApp('u1', ORG, app.id);
+
+    // The count is the point of returning a body at all: the operator should see what stopped.
+    expect(deleted).toMatchObject({ object: 'application.deleted', id: app.id, revoked_keys: 2 });
+    expect(await service.getApp(ORG, app.id)).toBeNull();
+  });
+
+  it('404s for an application that does not exist', async () => {
+    const { service } = subject();
+    expect(await codeOf(() => service.deleteApp('u1', ORG, 'app-missing'))).toBe('not_found');
+  });
+
+  /**
+   * Keys are cached in each worker's snapshot. Without an explicit invalidation a deleted
+   * application's keys would keep authenticating from memory until an entry happened to be evicted.
+   */
+  it('tells workers to drop every key it owned', async () => {
+    const { service, published } = subject();
+    const app = await service.createApp('u1', ORG, { name: 'doomed' });
+    const issued = await service.issueKey('u1', ORG, app.id, { environment: 'test' });
+
+    await service.deleteApp('u1', ORG, app.id);
+
+    expect(issued.key_id).not.toBeNull();
+    expect(published.some((event) => JSON.stringify(event).includes(issued.key_id!))).toBe(true);
+  });
+
+  it('audits the deletion with the number of keys revoked', async () => {
+    const { service, events } = subject();
+    const app = await service.createApp('u1', ORG, { name: 'doomed' });
+    await service.issueKey('u1', ORG, app.id, { environment: 'test' });
+
+    await service.deleteApp('u1', ORG, app.id);
+
+    const entry = events.find((e) => e.action === 'app.delete');
+    expect(entry).toBeDefined();
+    expect(entry?.data).toMatchObject({ revoked_keys: 1 });
   });
 });
