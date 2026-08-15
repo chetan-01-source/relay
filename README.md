@@ -182,17 +182,18 @@ limit and its enforcement point.
 
 ## Documentation
 
-|                                                                         |                                                    |
-| ----------------------------------------------------------------------- | -------------------------------------------------- |
-| [Quickstart](docs/quickstart.md)                                        | Empty org → first proxied call                     |
-| [SDK](docs/sdk.md) · [testing it](docs/sdk-e2e-testing.md)              | `relay-gateway-sdk` design and its live test suite |
-| [Self-hosting](docs/self-hosting.md)                                    | Running your own                                   |
-| [Plans](docs/plans.md) · [Editions](docs/editions.md)                   | Limits, entitlements, the OSS/cloud seam           |
-| [Errors](docs/errors.md) · [Response headers](docs/response-headers.md) | The wire contract                                  |
-| [Threat model](docs/threat-model.md)                                    | What the boundaries are, and are not               |
-| [ADRs](docs/adr/)                                                       | Why the architecture is the way it is              |
-| [Development](docs/DEVELOPMENT.md) · [Setup](docs/SETUP.md)             | Working on Relay                                   |
-| [Releasing](RELEASING.md)                                               | Cutting a release and proving the SDK, locally     |
+|                                                                                      |                                                |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [Quickstart](docs/quickstart.md)                                                     | Empty org → first proxied call                 |
+| [SDK](docs/sdk.md)                                                                   | `relay-gateway-sdk` design                     |
+| [Test it by hand](docs/sdk-manual-testing.md) · [automated](docs/sdk-e2e-testing.md) | Eight scripts you run yourself · the CI suite  |
+| [Self-hosting](docs/self-hosting.md)                                                 | Running your own                               |
+| [Plans](docs/plans.md) · [Editions](docs/editions.md)                                | Limits, entitlements, the OSS/cloud seam       |
+| [Errors](docs/errors.md) · [Response headers](docs/response-headers.md)              | The wire contract                              |
+| [Threat model](docs/threat-model.md)                                                 | What the boundaries are, and are not           |
+| [ADRs](docs/adr/)                                                                    | Why the architecture is the way it is          |
+| [Development](docs/DEVELOPMENT.md) · [Setup](docs/SETUP.md)                          | Working on Relay                               |
+| [Releasing](RELEASING.md)                                                            | Cutting a release and proving the SDK, locally |
 
 The console also serves user-facing documentation at `/docs`, and the gateway serves its OpenAPI
 document at `/openapi.json` with Swagger UI at `/docs`.

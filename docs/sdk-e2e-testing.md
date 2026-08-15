@@ -22,6 +22,10 @@ tests skip without `RELAY_TEST_DATABASE_URL`. A contributor with no stack runnin
 CI sets the variables and gets real coverage. It reports as _skipped_, never as _passed_ — nobody
 should be able to mistake "not run" for "fine".
 
+> **Learning the surface rather than gating a release?**
+> [sdk-manual-testing.md](sdk-manual-testing.md) walks the same ground in eight scripts you run by
+> hand, with the real output of each printed alongside.
+
 ---
 
 ## 2. Running it
