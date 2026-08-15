@@ -5,6 +5,7 @@
 import type { Database } from '../../../platform/db.js';
 import {
   closePriceQuery,
+  listReferencePricesQuery,
   listSyncCredentialsQuery,
   currentPricesQuery,
   insertPriceQuery,
@@ -23,6 +24,9 @@ import type {
 // tables it writes are outside RLS so `withTenant` is the wrong tool.
 export function createCatalogRepository(db: Database): CatalogRepository {
   return {
+    listReferencePrices(referenceProvider) {
+      return db.run<RateCardRow>(listReferencePricesQuery(referenceProvider));
+    },
     listSyncCredentials() {
       return db.run<SyncCredentialRow>(listSyncCredentialsQuery());
     },

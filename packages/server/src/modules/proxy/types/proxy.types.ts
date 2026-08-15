@@ -42,6 +42,20 @@ export interface CanonicalRequest {
  */
 export type ProviderName = ProviderId;
 
+/**
+ * What an upstream reported about a request's consumption.
+ *
+ * `costUsd` is present only when the PROVIDER states the price itself — OpenRouter does, when asked.
+ * That figure is authoritative in a way a rate card never is: it is what the request actually cost
+ * at the provider, including any per-model discount or promotional rate, and it cannot drift out of
+ * date. Absent it, cost is computed from the rate card and the token counts.
+ */
+export interface UpstreamUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd?: number;
+}
+
 export interface Target {
   provider: ProviderName;
   model: string; // provider-native model id
@@ -65,7 +79,7 @@ export interface ProviderRequest {
 export interface CanonicalDelta {
   text?: string;
   done?: boolean;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: UpstreamUsage;
 }
 
 export interface SseEvent {
@@ -76,7 +90,7 @@ export interface SseEvent {
 /** A normalized non-streaming response: the OpenAI-canonical body plus extracted usage (Layer 2). */
 export interface CanonicalResponse {
   body: unknown; // OpenAI ChatCompletion object, ready to send to the client
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: UpstreamUsage;
 }
 
 /** Layer-1 boundary: the ONLY place a provider's native wire format lives. */
@@ -100,7 +114,7 @@ export interface RequestTiming {
   failover?: boolean;
   selectedProvider?: ProviderName;
   selectedTarget?: Target;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: UpstreamUsage;
 }
 
 /**
@@ -139,7 +153,7 @@ export interface ProxyRoutingService {
 export interface ProxyCachedCompletion {
   body: unknown; // OpenAI chat.completion JSON — served verbatim on a non-stream hit
   content: string; // assistant text — replayed as one SSE chunk on a stream hit
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: UpstreamUsage;
 }
 
 /** Public cache contract consumed by the proxy. Implemented by modules/cache (Valkey-backed). */
@@ -209,6 +223,6 @@ export interface ProxyPolicyService {
   settle(
     decision: ProxyPolicyDecision,
     target: Target | undefined,
-    usage: { inputTokens: number; outputTokens: number } | undefined,
+    usage: UpstreamUsage | undefined,
   ): Promise<void>;
 }

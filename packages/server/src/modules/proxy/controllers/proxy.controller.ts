@@ -26,6 +26,7 @@ import {
   type ProxyUsageEvent,
   type RequestTiming,
   type Target,
+  type UpstreamUsage,
 } from '../types/proxy.types.js';
 
 export interface ProxyControllerDeps {
@@ -342,7 +343,7 @@ function usageEvent(
   req: CanonicalRequest,
   traceId: string,
   target: Target | null,
-  usage: { inputTokens: number; outputTokens: number } | undefined,
+  usage: UpstreamUsage | undefined,
   status: ProxyUsageEvent['status'],
   latency: number,
 ): ProxyUsageEvent {
@@ -358,14 +359,32 @@ function usageEvent(
     model: target?.model ?? req.model,
     inputTokens,
     outputTokens,
-    costUsd: target ? costUsd(target, inputTokens, outputTokens) : 0,
+    costUsd: target ? costUsd(target, inputTokens, outputTokens, usage?.costUsd) : 0,
     status,
     latencyMs: latency,
   };
 }
 
-/** USD cost from the target's rate-card pricing (already resolved by routing). */
-function costUsd(target: Target, inputTokens: number, outputTokens: number): number {
+/**
+ * What the request cost, in USD.
+ *
+ * A price the PROVIDER reported wins over the rate card. It is what the request actually cost at the
+ * provider — including any per-model discount or promotional rate — and it cannot be stale, whereas
+ * a rate card is a copy that is only as fresh as the last sync. Only OpenRouter reports one today.
+ *
+ * Zero is a real reported price (several models are free), so the check is for a number rather than
+ * for truthiness — treating a reported 0 as "not reported" would silently fall back to the rate card
+ * and bill for something the provider gave away.
+ */
+function costUsd(
+  target: Target,
+  inputTokens: number,
+  outputTokens: number,
+  reportedUsd?: number,
+): number {
+  if (typeof reportedUsd === 'number' && Number.isFinite(reportedUsd) && reportedUsd >= 0) {
+    return reportedUsd;
+  }
   const input = ((target.inputUsdPer1k ?? 0) * inputTokens) / 1000;
   const output = ((target.outputUsdPer1k ?? 0) * outputTokens) / 1000;
   return input + output;
@@ -396,7 +415,12 @@ function setResolvedHeaders(reply: FastifyReply, timing: RequestTiming): void {
  * target resolved or usage is unknown (e.g. an error before the upstream returned). */
 function costForTiming(timing: RequestTiming): number {
   if (!timing.selectedTarget || !timing.usage) return 0;
-  return costUsd(timing.selectedTarget, timing.usage.inputTokens, timing.usage.outputTokens);
+  return costUsd(
+    timing.selectedTarget,
+    timing.usage.inputTokens,
+    timing.usage.outputTokens,
+    timing.usage.costUsd,
+  );
 }
 
 /** Fixed 6-dp string, matching the `cost_usd numeric(_,6)` column precision. */

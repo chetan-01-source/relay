@@ -86,3 +86,19 @@ export function listSyncCredentialsQuery(): SqlQuery {
     values: [],
   };
 }
+
+/**
+ * Every currently-priced OpenRouter model. The reference set for deriving prices for providers that
+ * publish none of their own — see `lib/price-match.ts` for why that is sound and where it is not.
+ */
+export function listReferencePricesQuery(referenceProvider: string): SqlQuery {
+  return {
+    text: `SELECT DISTINCT ON (model) model,
+                  input_usd_per_1k::text  AS input_usd_per_1k,
+                  output_usd_per_1k::text AS output_usd_per_1k
+             FROM rate_cards
+            WHERE provider = $1 AND effective_to IS NULL
+         ORDER BY model, effective_from DESC`,
+    values: [referenceProvider],
+  };
+}
