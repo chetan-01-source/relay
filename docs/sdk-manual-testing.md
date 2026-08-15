@@ -343,6 +343,14 @@ The gateway reads the tenant from the token's `organization_id` claim
 on a grant naming an organization the client belongs to. Asking for the API resource alone yields a
 tenant-less token, which is the single most common way this is misconfigured.
 
+**Three ways to hold a token**, depending on what you are doing:
+
+| You want to                                   | Use                                                                                                                                                  |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Write a script, a cron job, CI                | A service account — [§7a](#7a-provision-the-service-account), then `machineTokenSource()` in [§7c](#7c-provision-a-tenant-with-no-human-in-the-loop) |
+| Paste a bearer into Swagger UI, curl, Postman | The same service account, printed as a raw JWT — [§7d](#7d-a-raw-jwt-for-swagger-ui-curl-or-postman)                                                 |
+| Test as a **signed-in user**, not a machine   | The console's development-only token route — [§7e](#7e-a-users-own-token)                                                                            |
+
 ### 7a. Provision the service account
 
 One command does both halves:
@@ -468,6 +476,89 @@ treat it like a root key: one service account per consumer, so revoking one does
 `admin()` still accepts a plain token string — useful when something upstream already has one — but
 a string expires in about an hour, so prefer the source anywhere that outlives that.
 
+### 7d. A raw JWT, for Swagger UI, curl or Postman
+
+Sometimes you want the token itself rather than a client that holds one — to paste into the
+**Authorize** box on the gateway's Swagger UI at `http://localhost:3000/docs`, or into Postman.
+
+Same grant as `machineTokenSource()`, spelled out:
+
+```bash
+set -a; . /path/to/relay/.relay/relay-machine.env; set +a
+
+JWT=$(curl -s -u "$RELAY_MACHINE_CLIENT_ID:$RELAY_MACHINE_CLIENT_SECRET" \
+  -X POST "$LOGTO_ENDPOINT/oidc/token" \
+  -d grant_type=client_credentials \
+  -d organization_id="$RELAY_ORG_ID" \
+  -d resource=https://relay.gateway/api \
+  -d 'scope=relay:read relay:write apps:read apps:write budgets:read budgets:write routes:read routes:write providers:read providers:write analytics:read audit:read' \
+  | jq -r .access_token)
+
+curl -s -H "authorization: Bearer $JWT" http://localhost:3000/api/v1/me
+```
+
+```json
+{
+  "object": "identity",
+  "user_id": "gpju65aev987cvqufh5rb",
+  "org_id": "0744ded6-30b6-4990-a3df-3f2ce74d632c",
+  "scopes": ["relay:read", "relay:write", "apps:read", "..."],
+  "is_platform_admin": false,
+  "is_org_admin": true
+}
+```
+
+`user_id` is the machine application's client id — a service account is a principal in its own right,
+not a human impersonating one. The token is good for about an hour; re-run the command for a new one.
+
+Logto grants only the scopes the client actually holds, so asking for the full list is safe: a
+narrowly-privileged account still receives exactly its own narrow set. Compare the `scopes` in the
+response against what you asked for to see what it really has.
+
+### 7e. A user's own token
+
+Everything above authenticates as a **machine**. To exercise the control plane as a signed-in
+**user** — to see `is_org_admin` come from a real `org_members` row, or to reproduce something a
+customer hit in the console — you need that user's token, and the browser does not have one to give
+you.
+
+The console exposes it at a development-only route:
+
+```bash
+# 1. sign in at http://localhost:3100 in your browser
+# 2. open this in the SAME browser:
+open http://localhost:3100/api/dev-token
+```
+
+```json
+{
+  "token": "eyJhbGciOiJFUzM4NCIsInR5cCI6ImF0K2p3dCIs…",
+  "organization_id": "9rfrjhfmx0hk",
+  "usage": "curl -H \"authorization: Bearer <token>\" http://localhost:3000/api/v1/me",
+  "note": "Development only. Expires in about an hour."
+}
+```
+
+Or straight into a variable, reusing the browser's session cookie:
+
+```bash
+JWT=$(curl -s --cookie-jar /dev/null -b "$(pbpaste)" http://localhost:3100/api/dev-token | jq -r .token)
+```
+
+The route ([`dev-token/route.ts`](../packages/console/app/api/dev-token/route.ts)) is gated twice: it
+404s unless `NODE_ENV` is `development`, so it does not exist in a deployed console, and it returns
+only the caller's own token, so it grants a signed-in user nothing they did not already have.
+
+Two failures worth recognising:
+
+| Response | Meaning                                                                     |
+| -------- | --------------------------------------------------------------------------- |
+| `401`    | No console session in this browser. Sign in at `localhost:3100` first       |
+| `409`    | Signed in, but your account belongs to no organization — create or join one |
+
+For anything unattended, prefer the service account: it needs no browser, no session, and no
+one-hour babysitting.
+
 > **Signing in to the console fails at `/callback`?** The usual cause is opening it on a LAN IP
 > (`http://192.168.1.4:3100`) while `LOGTO_BASE_URL` still says `localhost` — the sign-in cookie is
 > set on one origin and the callback lands on the other, so the browser never sends it. Open the
@@ -530,6 +621,8 @@ partially-consumed completion bills you twice for one answer.
 - [ ] §7a `make seed-machine` prints a client id and writes `.relay/<name>.env`
 - [ ] §7c the service account: `me()` returns your org → create app → issue key → the new key completes a request
 - [ ] §7c without `ADMIN=1` the budget write is `403 insufficient_scope`; with it, it succeeds
+- [ ] §7d the raw JWT authorizes Swagger UI at `localhost:3000/docs` — `/api/v1/me` returns your org
+- [ ] §7e `localhost:3100/api/dev-token` returns a user token while signed in, `401` while not
 - [ ] §8 browser guard throws; `dangerouslyAllowBrowser` opts out; `fromEnv()` works
 
 ## When something fails
@@ -545,6 +638,8 @@ partially-consumed completion bills you twice for one answer.
 | Admin 401 with a real token          | The token is not scoped to an organization; Logto only sets `organization_id` on an org-scoped grant. For a service account that means it is not a member of the org — re-run `make seed-machine ORG=…` |
 | Admin `403 insufficient_scope`       | Budget or provider write without organization-administrator rights. Re-run `make seed-machine ORG=… ADMIN=1`                                                                                            |
 | `RelayTokenError` from the SDK       | Logto refused the grant — wrong client secret, or the machine org role is missing. Run `make seed-auth`, then `make seed-machine`                                                                       |
+| `/api/dev-token` returns `404`       | The console is not running in development. It is deliberately absent from a deployed console — use a service account instead                                                                            |
+| `/api/dev-token` returns `401`       | No console session in that browser. Sign in at `localhost:3100` first                                                                                                                                   |
 | `cached=true` on the first call      | A prior run's entry is still live (`RELAY_CACHE_TTL_S=300`). Vary the prompt                                                                                                                            |
 | `chunk count: 1` on a stream         | Cache hit replayed as one frame — the cache key ignores `stream` on purpose. Vary the prompt                                                                                                            |
 | Console sign-in fails at `/callback` | Origin mismatch between the browser and `LOGTO_BASE_URL`, or a reused authorization code. The error page names which                                                                                    |
