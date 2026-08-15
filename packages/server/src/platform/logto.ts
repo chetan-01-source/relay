@@ -63,6 +63,18 @@ const ORG_MEMBER_ROLE = 'relay_org_member';
  */
 const ORG_ADMIN_ROLE = 'relay_org_admin';
 
+/**
+ * The ORGANIZATION role a headless service account holds inside one tenant. Logto types organization
+ * roles by principal, and a role of type `User` cannot be assigned to an application at all — so
+ * without this role there is no way for a machine to hold control-plane scopes within an org, and
+ * every non-interactive integration is forced to either drive a browser or hold a human's token.
+ *
+ * It carries the member scope set, and the same reasoning applies as for the two roles above:
+ * `platform:admin` is excluded, and whether this principal may move budgets or swap provider
+ * credentials is decided by Relay's own `org_members` table, not by anything Logto can assert.
+ */
+const ORG_MACHINE_ROLE = 'relay_org_machine';
+
 interface Named {
   id: string;
   name: string;
@@ -127,7 +139,11 @@ async function api<T>(
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) throw new LogtoApiError(method, path, res.status, await res.text());
-  return (res.status === 204 ? null : await res.json()) as T;
+  // Not every success carries JSON. 204 has no body at all, and some Logto writes answer 201 with
+  // the plain string "Created" — parsing that as JSON throws on a call that actually succeeded, so
+  // the content type decides rather than the status alone.
+  const isJson = res.headers.get('content-type')?.includes('application/json') ?? false;
+  return (res.status === 204 || !isJson ? null : await res.json()) as T;
 }
 
 export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapResult> {
@@ -212,9 +228,10 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
   // every run (PUT replaces the set) so adding a scope to MEMBER_SCOPES reaches existing deployments.
   const memberScopeIds = MEMBER_SCOPES.map((n) => scopeIdByName[n]!);
   const orgRoles = await api<Named[]>(cfg, token, 'GET', '/organization-roles');
-  for (const [name, description] of [
-    [ORG_MEMBER_ROLE, 'Relay member of one organization'],
-    [ORG_ADMIN_ROLE, 'Relay administrator of one organization'],
+  for (const [name, description, type] of [
+    [ORG_MEMBER_ROLE, 'Relay member of one organization', 'User'],
+    [ORG_ADMIN_ROLE, 'Relay administrator of one organization', 'User'],
+    [ORG_MACHINE_ROLE, 'Relay service account inside one organization', 'MachineToMachine'],
   ] as const) {
     const existingOrgRole = orgRoles.find((r) => r.name === name);
     if (existingOrgRole) {
@@ -226,7 +243,7 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
       const made = await api<Named>(cfg, token, 'POST', '/organization-roles', {
         name,
         description,
-        type: 'User',
+        type,
         organizationScopeIds: [],
         resourceScopeIds: memberScopeIds,
       });
@@ -236,6 +253,82 @@ export async function bootstrapLogto(cfg: LogtoConfig): Promise<LogtoBootstrapRe
   }
 
   return { apiResourceId, roleIds, orgRoleIds, created };
+}
+
+export interface MachineAppRequest {
+  /** Display name in Logto. Also the idempotency key — re-running returns the same application. */
+  name: string;
+  /** The Logto organization id this service account acts within. */
+  organizationId: string;
+}
+
+export interface MachineAppResult {
+  clientId: string;
+  /** The client secret. Readable from Logto on every run, so re-running re-prints it. */
+  clientSecret: string;
+  /** True when this run created the application rather than finding an existing one. */
+  createdNow: boolean;
+}
+
+/**
+ * Provision a machine-to-machine application and make it a member of one organization — the
+ * non-interactive half of the control plane.
+ *
+ * The gateway resolves a caller's tenant from the token's `organization_id` claim, and Logto emits
+ * that claim only for a client that is a MEMBER of the organization it names. So a service account
+ * is two facts, not one: an application exists, and it belongs to a tenant with a role. Creating the
+ * app alone yields credentials that mint tokens the gateway will reject as tenant-less — the failure
+ * looks like a broken token and is really a missing membership.
+ *
+ * Idempotent throughout: the application is looked up by name, adding an existing member is a no-op
+ * to Logto, and roles are PUT (replace) rather than POST (append), so re-running converges instead
+ * of accumulating.
+ */
+export async function provisionMachineApp(
+  cfg: LogtoConfig,
+  request: MachineAppRequest,
+): Promise<MachineAppResult> {
+  const token = await getToken(cfg);
+
+  interface RawApp {
+    id: string;
+    name: string;
+    type: string;
+    secret: string;
+  }
+  const apps = await api<RawApp[]>(cfg, token, 'GET', '/applications');
+  const existing = apps.find((a) => a.name === request.name && a.type === 'MachineToMachine');
+
+  const app =
+    existing ??
+    (await api<RawApp>(cfg, token, 'POST', '/applications', {
+      name: request.name,
+      type: 'MachineToMachine',
+      description: 'Relay control-plane service account',
+    }));
+
+  // Membership first, then the role: Logto rejects a role assignment for a principal that is not
+  // yet a member, so the order here is a requirement rather than a preference.
+  await api<null>(cfg, token, 'POST', `/organizations/${request.organizationId}/applications`, {
+    applicationIds: [app.id],
+  });
+
+  const orgRoles = await api<Named[]>(cfg, token, 'GET', '/organization-roles');
+  const machineRole = orgRoles.find((r) => r.name === ORG_MACHINE_ROLE);
+  if (!machineRole) {
+    throw new Error(
+      `Logto has no "${ORG_MACHINE_ROLE}" organization role — run seed-auth first to create it.`,
+    );
+  }
+  await api<null>(
+    cfg,
+    token,
+    'PUT',
+    `/organizations/${request.organizationId}/applications/${app.id}/roles`,
+    { organizationRoleIds: [machineRole.id] },
+  );
+
+  return { clientId: app.id, clientSecret: app.secret, createdNow: !existing };
 }
 
 // ── Organization sync (Week 2 Day 7 · tenancy module) ────────────────────────

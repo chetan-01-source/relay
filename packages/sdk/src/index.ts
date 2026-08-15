@@ -14,9 +14,12 @@
 import { createAdminClient, type AdminClient } from './admin.js';
 import { createChat } from './chat.js';
 import { Http, type RetryOptions } from './http.js';
+import type { TokenSource } from './machine-token.js';
 import type { ModelObject } from './types.js';
 
 export { RelayApiError, RelayConnectionError, isRelayApiError } from './errors.js';
+export { machineTokenSource, RelayTokenError } from './machine-token.js';
+export type { MachineTokenOptions, TokenSource } from './machine-token.js';
 export type { RelayErrorCode } from './errors.js';
 export type { RelayMetadata } from './metadata.js';
 export type { RetryOptions } from './http.js';
@@ -122,8 +125,13 @@ export class Relay {
    * The control-plane client, authenticated with a Logto access token rather than the virtual key.
    * Separate on purpose: a virtual key can never reach the control plane and an admin token can
    * never proxy a completion, and the SDK makes that a type-level fact rather than a convention.
+   *
+   * Takes a token string, or a `TokenSource` resolved per request. Prefer the latter in any process
+   * that outlives one token: `relay.admin(machineTokenSource({ … }))` mints from a machine client
+   * id/secret and refreshes before expiry, which is how a headless service authenticates when there
+   * is no browser to sign in with.
    */
-  admin(token: string): AdminClient {
+  admin(token: string | TokenSource): AdminClient {
     return createAdminClient({
       baseUrl: this.options.baseUrl,
       token,

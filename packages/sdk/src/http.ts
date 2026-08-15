@@ -7,6 +7,7 @@
  * library is a gateway SDK that breaks on the edge.
  */
 import { RelayApiError, RelayConnectionError, type RelayErrorBody } from './errors.js';
+import type { TokenSource } from './machine-token.js';
 
 export interface RetryOptions {
   /** Total attempts, including the first. 1 (the default) means no retrying. */
@@ -18,8 +19,11 @@ export interface RetryOptions {
 
 export interface HttpOptions {
   baseUrl: string;
-  /** Sent as `authorization: Bearer …`. */
-  token: string;
+  /**
+   * Sent as `authorization: Bearer …`. A function is resolved per request, which is what lets a
+   * short-lived control-plane token refresh itself without the caller rebuilding the client.
+   */
+  token: string | TokenSource;
   /** Merged into every request. Per-call headers win. */
   headers?: Record<string, string>;
   timeoutMs?: number;
@@ -60,7 +64,7 @@ function stripTrailingSlashes(url: string): string {
 
 export class Http {
   private readonly baseUrl: string;
-  private readonly token: string;
+  private readonly token: string | TokenSource;
   private readonly extraHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly attempts: number;
@@ -130,8 +134,12 @@ export class Http {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
 
+    // Resolved per attempt, not per client: a token source may mint a fresh token here, and a retry
+    // that reused an expired one would fail for a reason the caller already fixed.
+    const token = typeof this.token === 'string' ? this.token : await this.token();
+
     const headers: Record<string, string> = {
-      authorization: `Bearer ${this.token}`,
+      authorization: `Bearer ${token}`,
       accept: options.stream ? 'text/event-stream' : 'application/json',
       'user-agent': USER_AGENT,
       'x-relay-sdk': `ts/${SDK_VERSION}`,

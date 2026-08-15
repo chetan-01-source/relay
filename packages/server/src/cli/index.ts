@@ -7,7 +7,8 @@ import { createEventBus } from '../platform/eventbus.js';
 import { buildServers, buildPublicApp } from '../app.js';
 import { runMigrations } from '../platform/migrate.js';
 import { brandLogto } from '../platform/logto-branding.js';
-import { bootstrapLogto } from '../platform/logto.js';
+import { bootstrapLogto, provisionMachineApp } from '../platform/logto.js';
+import { seedMachine } from '../seed/machine.js';
 import { RELAY_VERSION } from '../version.js';
 import { seedDemo } from '../seed/demo.js';
 import { createAuditService, createAuditRepository } from '../modules/audit/index.js';
@@ -205,6 +206,70 @@ program
     console.error(
       `      -d '{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hello"}]}'\n`,
     );
+    process.exit(0);
+  });
+
+program
+  .command('seed-machine')
+  .description('provision a headless control-plane service account for one organization')
+  .requiredOption('--org <logtoOrgId>', 'Logto organization id the service account acts within')
+  .option('--name <name>', 'Logto application name (also the idempotency key)', 'relay-machine')
+  .option(
+    '--admin',
+    'grant organization-administrator rights (budget + provider writes). Off by default',
+    false,
+  )
+  .action(async (opts: { org: string; name: string; admin: boolean }) => {
+    const url = process.env.RELAY_MIGRATION_DATABASE_URL ?? process.env.RELAY_DATABASE_URL;
+    const endpoint = process.env.RELAY_LOGTO_ENDPOINT;
+    const m2mAppId = process.env.RELAY_LOGTO_M2M_APP_ID;
+    const m2mAppSecret = process.env.RELAY_LOGTO_M2M_APP_SECRET;
+    if (!url) {
+      console.error('[relay] seed-machine needs RELAY_(MIGRATION_)DATABASE_URL');
+      process.exit(1);
+    }
+    if (!endpoint || !m2mAppId || !m2mAppSecret) {
+      console.error(
+        '[relay] seed-machine needs RELAY_LOGTO_ENDPOINT · RELAY_LOGTO_M2M_APP_ID · RELAY_LOGTO_M2M_APP_SECRET',
+      );
+      process.exit(1);
+    }
+
+    const app = await provisionMachineApp(
+      { endpoint, m2mAppId, m2mAppSecret },
+      { name: opts.name, organizationId: opts.org },
+    );
+    const seeded = await seedMachine(url, {
+      logtoOrgId: opts.org,
+      clientId: app.clientId,
+      admin: opts.admin,
+    });
+
+    // The secret is a credential: it goes to a gitignored, owner-only file, and only the client id
+    // reaches the log stream. Same rule as seed-demo's virtual key.
+    const envFile = path.resolve(repoRoot(), '.relay', `${opts.name}.env`);
+    mkdirSync(path.dirname(envFile), { recursive: true });
+    writeFileSync(
+      envFile,
+      [
+        `LOGTO_ENDPOINT=${endpoint}`,
+        `RELAY_MACHINE_CLIENT_ID=${app.clientId}`,
+        `RELAY_MACHINE_CLIENT_SECRET=${app.clientSecret}`,
+        `RELAY_ORG_ID=${opts.org}`,
+        '',
+      ].join('\n'),
+      { mode: 0o600 },
+    );
+
+    console.error(
+      `[relay] service account ${app.createdNow ? 'created' : 'already existed'} — ${opts.name}`,
+    );
+    console.error(`  client id  ${app.clientId}`);
+    console.error(`  org        ${seeded.orgName} (${seeded.orgId}) as ${seeded.role}`);
+    if (!opts.admin) {
+      console.error('  note       budget and provider writes need --admin; everything else works');
+    }
+    console.error(`  credentials written to ${envFile} (gitignored, mode 0600)\n`);
     process.exit(0);
   });
 
